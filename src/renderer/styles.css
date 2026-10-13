@@ -141,6 +141,10 @@ body {
   font-weight: 600;
 }
 
+.library h2:not(:first-child) {
+  margin-top: 16px;
+}
+
 .library-note {
   margin: 0 0 10px;
   color: var(--tide-muted);
@@ -152,8 +156,8 @@ body {
   color: var(--tide-danger);
 }
 
-.library-actions,
-.library-form {
+.library-actions:not([hidden]),
+.library-form:not([hidden]) {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -265,7 +269,7 @@ body {
   font-size: 12px;
 }
 
-.qr {
+.qr:not([hidden]) {
   display: block;
   width: 168px;
   height: 168px;

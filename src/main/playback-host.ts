@@ -1,9 +1,13 @@
 import { ipcMain, type BrowserWindow, type IpcMainEvent } from "electron";
 import { queueFromHits } from "../core/playback/hits";
 import { PlaybackMachine } from "../core/playback/machine";
+import { countsAsSkip, type ListenKind } from "../core/tide-today";
+import { ListenLog } from "./listen-log";
+import { loadTideToday } from "./tide-today";
 import { loopbackJson } from "./session-host";
 import {
   Ipc,
+  type ApiFailure,
   type MediaCue,
   type PlaybackBusEvent,
   type PlaybackSnapshot,
@@ -22,6 +26,7 @@ export function attachPlayback(
   machine: PlaybackMachine,
   getPort: () => number | null,
   persistVolume?: (volume: number) => void,
+  listenLog?: ListenLog,
 ): () => void {
   let generation = 0;
   let currentMedia: { trackId: string; url: string } | null = null;
@@ -41,6 +46,21 @@ export function attachPlayback(
   const sendMedia = (trackId: string, url: string | null) => {
     const cue: MediaCue = { trackId, url };
     send(Ipc.media, cue);
+  };
+
+  const remember = (kind: ListenKind, track: Track | undefined) => {
+    if (!listenLog || !track) return;
+    try {
+      listenLog.append(kind, track);
+    } catch {
+      // A failed write must not stop playback.
+    }
+  };
+
+  const noteSkip = (before: PlaybackSnapshot) => {
+    if (!countsAsSkip(before.status, before.positionMs)) return;
+    const track = before.index >= 0 ? before.queue[before.index] : undefined;
+    remember("skip", track);
   };
 
   const unsubscribers = (
@@ -81,7 +101,9 @@ export function attachPlayback(
     }
     currentMedia = { trackId: track.id, url: media.url };
     sendMedia(track.id, media.url);
-    return machine.completeLoad();
+    const loaded = machine.completeLoad();
+    if (loaded.status === "playing") remember("play", track);
+    return loaded;
   }
 
   ipcMain.handle(Ipc.playbackGet, () => machine.getState());
@@ -115,6 +137,8 @@ export function attachPlayback(
   ipcMain.handle(Ipc.track, (_event, index: unknown) => {
     if (typeof index !== "number") return machine.getState();
     const before = machine.getState();
+    const forward = Number.isInteger(index) && index > before.index && index < before.queue.length;
+    if (forward) noteSkip(before);
     const live = before.status === "playing" || before.status === "loading";
     const next = machine.changeTrack(index);
     if (next.status === "error") return publish(next);
@@ -132,6 +156,7 @@ export function attachPlayback(
     if (!parsed || typeof index !== "number") return machine.getState();
     const queued = queueFromHits(parsed, index);
     if (!queued) return machine.getState();
+    noteSkip(machine.getState());
     currentMedia = null;
     machine.setQueue(queued.tracks, queued.index);
     generation += 1;
@@ -172,6 +197,13 @@ export function attachPlayback(
     publish(machine.getState());
   };
   ipcMain.on(Ipc.progress, onProgress);
+  ipcMain.handle(Ipc.tideToday, async () => {
+    try {
+      return await loadTideToday(getPort(), listenLog?.read() ?? []);
+    } catch {
+      return { ok: false, error: "tide_today", message: "今日潮汐暂时没有整理出来" } satisfies ApiFailure;
+    }
+  });
 
   return () => {
     generation += 1;
@@ -187,6 +219,7 @@ export function attachPlayback(
     ipcMain.removeHandler(Ipc.playHits);
     ipcMain.removeHandler(Ipc.ended);
     ipcMain.removeHandler(Ipc.fail);
+    ipcMain.removeHandler(Ipc.tideToday);
   };
 }
 

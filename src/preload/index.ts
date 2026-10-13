@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
-import { Ipc, type ApiFailure, type HealthStatus, type MediaCue, type PlaybackBusEvent, type PlaybackSnapshot, type QrCheck, type QrTicket, type QueueRequest, type SearchResult, type SessionSnapshot, type TideBridge, type Track } from "../shared/contract";
+import { Ipc, type ApiFailure, type HealthStatus, type MediaCue, type PlaybackBusEvent, type PlaybackSnapshot, type QrCheck, type QrTicket, type QueueRequest, type SearchResult, type SessionSnapshot, type TideBridge, type TideToday, type Track } from "../shared/contract";
 
 function listen<T>(channel: string, listener: (payload: T) => void): () => void {
   const wrapped = (_event: IpcRendererEvent, payload: T) => listener(payload);
@@ -33,6 +33,7 @@ const tide: TideBridge = {
   playlistTracks: (id) => ipcRenderer.invoke(Ipc.playlistTracks, id) as Promise<SearchResult | ApiFailure>,
   dailyRecommend: () => ipcRenderer.invoke(Ipc.daily) as Promise<SearchResult | ApiFailure>,
   radar: () => ipcRenderer.invoke(Ipc.radar) as Promise<SearchResult | ApiFailure>,
+  tideToday: () => ipcRenderer.invoke(Ipc.tideToday) as Promise<TideToday | ApiFailure>,
   playHits: (hits, index) => ipcRenderer.invoke(Ipc.playHits, hits, index) as Promise<PlaybackSnapshot>,
   onMedia: (listener) => listen<MediaCue>(Ipc.media, listener),
   reportProgress: (positionMs) => {

@@ -2,7 +2,7 @@ import type { PlaybackEvents, PlaybackSnapshot, Track } from "../core/playback/t
 
 export type { PlaybackErrorCode, PlaybackEvents, PlaybackSnapshot, PlaybackStatus, Track } from "../core/playback/types";
 
-export const TIDE_VERSION = "0.4.0";
+export const TIDE_VERSION = "0.5.0";
 export const DEFAULT_API_PORT = 39271;
 export const API_READY_PREFIX = "TIDE_API_READY ";
 
@@ -32,6 +32,7 @@ export const Ipc = {
   ended: "tide:cmd:ended",
   fail: "tide:cmd:fail",
   media: "tide:media",
+  tideToday: "tide:today",
 } as const;
 
 export interface SearchHit {
@@ -45,6 +46,13 @@ export interface SearchHit {
 export interface SearchResult {
   ok: true;
   hits: SearchHit[];
+}
+
+/** First-party daily list. Built from the local listen log, not NetEase recommend APIs. */
+export interface TideToday {
+  ok: true;
+  hits: SearchHit[];
+  message: string | null;
 }
 
 export interface MediaCue {
@@ -131,6 +139,7 @@ export interface TideBridge {
   playlistTracks(id: string): Promise<SearchResult | ApiFailure>;
   dailyRecommend(): Promise<SearchResult | ApiFailure>;
   radar(): Promise<SearchResult | ApiFailure>;
+  tideToday(): Promise<TideToday | ApiFailure>;
   playHits(hits: SearchHit[], index: number): Promise<PlaybackSnapshot>;
   onMedia(listener: (cue: MediaCue) => void): () => void;
   reportProgress(positionMs: number): void;

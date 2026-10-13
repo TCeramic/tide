@@ -3,6 +3,7 @@ import path from "node:path";
 import { PlaybackMachine } from "../core/playback/machine";
 import { DEFAULT_API_PORT, Ipc, type HealthStatus } from "../shared/contract";
 import { checkHealth, serverBundlePath, startApiProcess, type ApiProcess } from "./api-host";
+import { ListenLog } from "./listen-log";
 import { attachPlayback } from "./playback-host";
 import { attachSession } from "./session-host";
 import { SettingsStore } from "./settings";
@@ -92,10 +93,11 @@ app.whenReady().then(async () => {
   );
 
   const settings = new SettingsStore(path.join(app.getPath("userData"), "settings.json"));
+  const listenLog = new ListenLog(path.join(app.getPath("userData"), "listen-log.json"));
   machine.setVolume(settings.read().volume);
   detachPlayback = attachPlayback(() => mainWindow, machine, () => apiPort, (volume) => {
     settings.write(volume);
-  });
+  }, listenLog);
   detachSession = attachSession(() => apiPort);
 
   mainWindow = createWindow();

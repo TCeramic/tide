@@ -33,6 +33,13 @@ export function mountLibrary(root: HTMLElement): {
   const hits = document.createElement("ul");
   hits.className = "hits";
 
+  const tideHeading = document.createElement("h2");
+  tideHeading.textContent = "今日潮汐";
+  const tideButton = button("查看今日潮汐");
+  const tideActions = document.createElement("div");
+  tideActions.className = "library-actions";
+  tideActions.append(tideButton);
+
   const recommendHeading = document.createElement("h2");
   recommendHeading.textContent = "推荐";
   recommendHeading.hidden = true;
@@ -84,7 +91,21 @@ export function mountLibrary(root: HTMLElement): {
   form.className = "library-form";
   form.append(qrButton, qr, qrNote, cookieInput, save);
 
-  panel.append(searchHeading, searchForm, searchNote, hits, recommendHeading, recommend, heading, note, actions, list, form);
+  panel.append(
+    searchHeading,
+    searchForm,
+    searchNote,
+    hits,
+    tideHeading,
+    tideActions,
+    recommendHeading,
+    recommend,
+    heading,
+    note,
+    actions,
+    list,
+    form,
+  );
   root.append(panel);
 
   let pollTimer = 0;
@@ -282,6 +303,26 @@ export function mountLibrary(root: HTMLElement): {
   });
   radarButton.addEventListener("click", () => {
     void openHits(() => window.tide.radar(), "私人雷达");
+  });
+
+  tideButton.addEventListener("click", () => {
+    void (async () => {
+      if (opening || disposed) return;
+      opening = true;
+      tideButton.disabled = true;
+      showSearchNote("正在整理今日潮汐…", false);
+      const result = await window.tide.tideToday();
+      opening = false;
+      if (disposed) return;
+      tideButton.disabled = false;
+      if (!result.ok) {
+        hits.replaceChildren();
+        showSearchNote(result.message, true);
+        return;
+      }
+      showSearchNote(result.message ?? "今日潮汐", false);
+      renderHits(result.hits);
+    })();
   });
 
   const showSearchNote = (message: string, warn: boolean) => {
