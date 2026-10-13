@@ -110,13 +110,35 @@ describe("PlaybackMachine", () => {
     assert.equal(machine.getState().positionMs, 0);
   });
 
-  it("tick pauses at the end of the last track", () => {
+  it("tick pauses at the end of the last track when repeat is off", () => {
     const machine = new PlaybackMachine();
+    machine.setRepeat("off");
     machine.setQueue([track("a", 1000)]);
     machine.play();
     assert.equal(machine.tick(1000), true);
     assert.equal(machine.getState().status, "paused");
     assert.equal(machine.getState().positionMs, 1000);
+  });
+
+  it("list repeat wraps, single repeat restarts, and the next slot can be inserted", () => {
+    const machine = new PlaybackMachine();
+    machine.setQueue([track("a", 1000), track("b", 1000)]);
+    machine.changeTrack(1);
+    machine.play();
+    assert.equal(machine.tick(1000), true);
+    assert.equal(machine.getState().index, 0);
+
+    machine.setRepeat("one");
+    machine.changeTrack(1);
+    machine.play();
+    assert.equal(machine.tick(1000), true);
+    assert.equal(machine.getState().index, 1);
+    assert.equal(machine.getState().positionMs, 0);
+
+    machine.insertNext(track("c"));
+    assert.equal(machine.getState().queue[2]?.id, "c");
+    machine.appendTracks([track("c"), track("d")]);
+    assert.deepEqual(machine.getState().queue.map((item) => item.id), ["a", "b", "c", "d"]);
   });
 
   it("clearing the queue returns to idle", () => {

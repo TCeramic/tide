@@ -64,6 +64,37 @@ function fakeNetease(): NeteaseClient & { checks: number } {
     async radarId() {
       return "42";
     },
+    async similarSongs() {
+      return [{ id: "20", title: "相似", artist: "潮汐", durationMs: 1000, playable: true }];
+    },
+    async searchKind(keywords, type) {
+      if (type === 100) return { hits: [], artists: [{ id: "5", name: keywords }], albums: [] };
+      if (type === 10) return { hits: [], artists: [], albums: [{ id: "6", name: keywords, artist: "潮汐" }] };
+      if (keywords === "locked") throw new Error("signed_out");
+      return {
+        hits: [
+          { id: "1", title: "青花瓷", artist: "周杰伦", durationMs: 229000, playable: true },
+          { id: "2", title: "无地址", artist: "未知", durationMs: 1000, playable: false },
+        ],
+        artists: [],
+        albums: [],
+      };
+    },
+    async artistSongs(id) {
+      return [{ id, title: "热门", artist: "歌手", durationMs: 1000, playable: true }];
+    },
+    async albumTracks(id) {
+      return [{ id, title: "专辑曲", artist: "歌手", durationMs: 1000, playable: true }];
+    },
+    async lyric() {
+      return "[00:01.00]一句";
+    },
+    async likeSong() {
+      return undefined;
+    },
+    async collectSong() {
+      return undefined;
+    },
   };
 }
 

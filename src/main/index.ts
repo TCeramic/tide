@@ -15,6 +15,7 @@ app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
 if (process.env.TIDE_USER_DATA) app.setPath("userData", process.env.TIDE_USER_DATA);
 
 let mainWindow: BrowserWindow | null = null;
+let activeBusPort = DEFAULT_BUS_PORT;
 let apiProcess: ApiProcess | null = null;
 let apiPort: number | null = null;
 let detachPlayback: (() => void) | null = null;
@@ -64,8 +65,8 @@ async function publishHealth(): Promise<void> {
   const win = mainWindow;
   if (!win || win.isDestroyed()) return;
   const status: HealthStatus = apiPort == null
-    ? { ok: false, error: "stopped" }
-    : await checkHealth(apiPort);
+    ? { ok: false, error: "stopped", busPort: activeBusPort }
+    : { ...(await checkHealth(apiPort)), busPort: activeBusPort };
   if (win.isDestroyed()) return;
   win.webContents.send(Ipc.health, status);
 }
@@ -115,8 +116,8 @@ function shutdown(): void {
 app.whenReady().then(async () => {
   ipcMain.handle(Ipc.healthGet, () =>
     apiPort == null
-      ? Promise.resolve({ ok: false, error: "stopped" } satisfies HealthStatus)
-      : checkHealth(apiPort),
+      ? Promise.resolve({ ok: false, error: "stopped", busPort: activeBusPort } satisfies HealthStatus)
+      : checkHealth(apiPort).then((status) => ({ ...status, busPort: activeBusPort })),
   );
 
   const settings = new SettingsStore(path.join(app.getPath("userData"), "settings.json"));
@@ -134,10 +135,11 @@ app.whenReady().then(async () => {
     });
   }
   const busPort = Number(process.env.TIDE_BUS_PORT ?? DEFAULT_BUS_PORT);
+  activeBusPort = Number.isInteger(busPort) && busPort >= 0 && busPort <= 65535 ? busPort : DEFAULT_BUS_PORT;
   try {
     commandServer = await startCommandServer({
       token: new BusTokenStore(path.join(app.getPath("userData"), "bus-token")).read(),
-      port: Number.isInteger(busPort) && busPort >= 0 && busPort <= 65535 ? busPort : DEFAULT_BUS_PORT,
+      port: activeBusPort,
       readAllow: () => new BusAllowStore(path.join(app.getPath("userData"), "bus-allow.json")).read(),
       getSession: () => loopbackJson(apiPort, "GET", "/session"),
       onClient: (send) => {
@@ -154,6 +156,7 @@ app.whenReady().then(async () => {
         playbackPrev: () => playback.control.previous(),
         playbackQueue: (queue, index) => playback.control.queue({ queue, index }),
         playbackPlayHits: async (hits, index) => (await playback.control.playHits(hits, index)) ?? playback.control.get(),
+        playbackMode: (patch) => playback.control.setMode(patch),
         settingsRead: () => settings.read(),
         settingsWrite: (volume) => {
           const next = settings.write({ volume });

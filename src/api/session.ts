@@ -1,6 +1,7 @@
 import { hasMusicU, normalizeCookie, type CookieStore } from "./cookie";
 import type { NeteaseClient, SongMedia } from "./netease";
-import type { ApiFailure, QrCheck, QrTicket, SearchHit, SessionSnapshot, SessionUser } from "../shared/contract";
+import type { ApiFailure, QrCheck, QrTicket, SearchHit, SearchKind, SessionSnapshot, SessionUser } from "../shared/contract";
+import type { CatalogPage } from "./netease";
 
 const QR_MESSAGE: Record<number, string> = {
   800: "二维码已过期，请刷新",
@@ -97,17 +98,90 @@ export class SessionService {
   }
 
   async search(keywords: string): Promise<SearchHit[]> {
+    const page = await this.searchCatalog(keywords, 1);
+    return page.hits;
+  }
+
+  async searchCatalog(keywords: string, type: number): Promise<{
+    kind: SearchKind;
+    hits: SearchHit[];
+    artists: CatalogPage["artists"];
+    albums: CatalogPage["albums"];
+  }> {
     const query = keywords.trim().slice(0, 80);
     if (query.length === 0) {
-      throw new SessionError(400, "empty_query", "请输入要搜索的歌名");
+      throw new SessionError(400, "empty_query", "请输入要搜索的内容");
     }
+    const kind = searchKindOf(type);
+    const apiType = type === 1006 ? 1006 : searchTypeOf(kind);
     try {
-      return await this.netease.search(query, this.optionalCookie());
+      const page = await this.netease.searchKind(query, apiType, this.optionalCookie());
+      return { kind, hits: page.hits, artists: page.artists, albums: page.albums };
     } catch (error) {
       if (error instanceof Error && error.message === "signed_out") {
         throw new SessionError(401, "signed_out", "请先登录");
       }
       throw new SessionError(502, "upstream", "搜索暂时不可用，请稍后再试");
+    }
+  }
+
+  async similarSongs(id: string): Promise<SearchHit[]> {
+    return this.catalog(id, "相似歌曲暂时没有拉到", (cookie) => this.netease.similarSongs(id, cookie));
+  }
+
+  async artistSongs(id: string): Promise<SearchHit[]> {
+    return this.catalog(id, "这位歌手的歌暂时没有拉到", (cookie) => this.netease.artistSongs(id, cookie));
+  }
+
+  async albumTracks(id: string): Promise<SearchHit[]> {
+    return this.catalog(id, "这张专辑暂时没有拉到", (cookie) => this.netease.albumTracks(id, cookie));
+  }
+
+  async lyric(id: string): Promise<string> {
+    if (!/^\d{1,20}$/.test(id)) throw new SessionError(400, "bad_id", "曲目编号无效");
+    try {
+      return await this.netease.lyric(id, this.optionalCookie());
+    } catch (error) {
+      if (error instanceof Error && error.message === "signed_out") return "";
+      if (error instanceof Error && error.message === "lyric_failed") return "";
+      throw new SessionError(502, "upstream", "歌词暂时没有拉到");
+    }
+  }
+
+  async likeSong(id: string, like: boolean): Promise<string> {
+    if (!/^\d{1,20}$/.test(id)) throw new SessionError(400, "bad_id", "曲目编号无效");
+    const cookie = this.requireCookie();
+    try {
+      await this.netease.likeSong(id, like, cookie);
+      return like ? "已添加到喜欢" : "已取消喜欢";
+    } catch (error) {
+      throw catalogFailure(error, "喜欢没有成功，请确认已经登录");
+    }
+  }
+
+  async collectSong(playlistId: string, trackId: string): Promise<string> {
+    if (!/^\d{1,20}$/.test(playlistId) || !/^\d{1,20}$/.test(trackId)) {
+      throw new SessionError(400, "bad_id", "歌单或曲目编号无效");
+    }
+    const cookie = this.requireCookie();
+    try {
+      await this.netease.collectSong(playlistId, trackId, cookie);
+      return "已收藏到歌单";
+    } catch (error) {
+      throw catalogFailure(error, "收藏没有成功，请确认已经登录");
+    }
+  }
+
+  private async catalog(
+    id: string,
+    unavailable: string,
+    load: (cookie: string | null) => Promise<SearchHit[]>,
+  ): Promise<SearchHit[]> {
+    if (!/^\d{1,20}$/.test(id)) throw new SessionError(400, "bad_id", "编号无效");
+    try {
+      return await load(this.optionalCookie());
+    } catch (error) {
+      throw catalogFailure(error, unavailable);
     }
   }
 
@@ -193,6 +267,18 @@ export class SessionService {
       throw new SessionError(502, "upstream", "登录状态暂时无法确认，请稍后再试");
     }
   }
+}
+
+function searchKindOf(type: number): SearchKind {
+  if (type === 100) return "artists";
+  if (type === 10) return "albums";
+  return "songs";
+}
+
+function searchTypeOf(kind: SearchKind): number {
+  if (kind === "artists") return 100;
+  if (kind === "albums") return 10;
+  return 1;
 }
 
 function catalogFailure(error: unknown, unavailable: string): SessionError {

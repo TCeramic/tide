@@ -1,8 +1,8 @@
 # 潮汐 Tide
 
-潮汐是一个 **Windows 优先** 的个人桌面音乐播放器（Electron）。当前是 **M7**：现有界面可以在两套主题之间切换，洗色相位也能调强度。这两项和播放、歌库一样走本机指令总线；写设置仍要明确允许。今日潮汐、搜索、歌单和官方推荐仍走原来的队列。能播的行可以点开播放；没有地址的是灰色的，点不了。
+潮汐是一个 **Windows 优先** 的个人桌面音乐播放器（Electron）。当前是 **0.8.0**。点歌单名称会载入曲目，不会自动开播；今日潮汐 · 探索用听过的歌去找相似歌曲；播放队列可以列表循环、单曲循环、随机，并在探索打开时用相似歌曲续上。搜索分成单曲、歌手、专辑、歌词。每首歌有播放、下一首、喜欢、收藏和分享。歌词层显示全文，并标出当前句。底栏是图标。指令总线可以在窗口里找到。写设置仍要明确允许。
 
-Tide is a **Windows-first** personal desktop music player. This revision is **M7**: the existing window can switch between two themes, and the wash phase has a strength control. Both go through the loopback command bus, and settings writes still need an explicit allow. 今日潮汐, search, playlists, and the official lists still use the same queue. Playable rows can be played. Rows with no URL are gray and cannot be selected.
+Tide is a **Windows-first** personal desktop music player. This revision is **0.8.0**. Opening a playlist loads tracks and does not start playback. 今日潮汐 · 探索 finds similar songs from what you have heard. The queue can repeat, shuffle, and keep going from similar songs. Search has song, artist, album, and lyric tabs. Each song row can play, queue next, like, collect, and share. The lyric layer shows the full text and the current line. The bottom bar uses icons. The command bus is reachable from the window. Settings writes still need an explicit allow.
 
 ## 风险声明 / Risk
 
@@ -34,7 +34,7 @@ curl http://127.0.0.1:39271/health
 ```
 
 ```json
-{ "ok": true, "service": "tide", "version": "0.7.0" }
+{ "ok": true, "service": "tide", "version": "0.8.0" }
 ```
 
 `npm test` 跑状态机、搜索结果整理、今日潮汐排序、收听日志、指令总线、Cookie 判断和登录 / 搜索路由。`npm run typecheck` 只做类型检查。
@@ -46,13 +46,13 @@ curl http://127.0.0.1:39271/health
 1. **扫码。** 点「显示二维码」，用网易云 App 扫码并在手机上确认。二维码过期就再点一次。
 2. **粘贴 Cookie。** 从已登录的网页版复制请求头里的 Cookie，贴进输入框，点「保存 Cookie」。内容里必须有 `MUSIC_U`，否则会被拒绝。
 
-登录成功后，面板列出账号昵称和歌单（名称与曲数）。点一个歌单会把里面的曲目放进队列，并从第一首能播的开始连续播放。搜索不依赖登录。「今日潮汐」也不依赖登录：没有收听记录时会说明原因；登录后如果记录还少，会用账号里的「喜欢的音乐」来补。歌单名常常是「昵称喜欢的音乐」，不一定是「我喜欢的音乐」。每日推荐和私人雷达需要登录；账号拿不到时会写明原因。部分曲目仍会因为版权、地区或会员限制没有地址。
+登录成功后，面板列出账号昵称和歌单（名称与曲数）。点一个歌单名称会按页载入曲目（大约到 2000 首或列表结束），并写明已载数量，不会自动开播。再点能播的一行，才从那一首开始播放。点「返回」可以收起，再打开另一张歌单。搜索不依赖登录。「今日潮汐 · 探索」也不依赖登录：没有收听记录时会说明原因。登录后，没听过的部分优先用相似歌曲（`simi_song`），种子来自听过的歌，听得少时也可以用来自「喜欢的音乐」的曲目做种子。相似歌曲不够时，每日推荐只补剩余的一小段，不是和私人雷达做一对一混合。歌单名常常是「昵称喜欢的音乐」，不一定是「我喜欢的音乐」。每日推荐和私人雷达仍是单独入口，需要登录；账号拿不到时会写明原因。部分曲目仍会因为版权、地区或会员限制没有地址。
 
 Cookie 写在 Electron `userData` 目录的 `netease.cookie`（Windows 上一般是 `%APPDATA%/tide/netease.cookie`）。Unix 上文件权限是 `0600`。`.gitignore` 已忽略 `*.cookie` 和 `userData/`。
 
 点「退出登录」会删掉这个文件。如果保存的 Cookie 已失效，面板会写明「登录已失效，请重新登录」，可以扫码、粘贴新 Cookie，或点「清除登录」。
 
-The left panel accepts a NetEase QR login or a pasted cookie that contains `MUSIC_U`. After login it lists your playlists. Opening one queues its tracks and plays from the first playable row. The cookie is stored only in Electron userData as `netease.cookie`. Logout deletes it. An invalid cookie asks you to log in again. Search works without a cookie. **今日潮汐** does too: an empty listen log explains itself, and a thin log can be filled from the account’s liked playlist after login. That playlist is often named **昵称喜欢的音乐**, not only **我喜欢的音乐**. Daily recommendations and 私人雷达 need a login, and the panel says so when the account cannot load them. Some tracks still have no URL because of region, copyright, or membership limits.
+The left panel accepts a NetEase QR login or a pasted cookie that contains `MUSIC_U`. After login it lists your playlists. Opening a name loads its tracks in pages and does not start playback. Choosing a playable row starts there. The cookie is stored only in Electron userData as `netease.cookie`. Logout deletes it. An invalid cookie asks you to log in again. Search works without a cookie. **今日潮汐 · 探索** does too: an empty listen log explains itself. Unheard tracks come from `simi_song`, seeded by plays or by the liked playlist when the log is thin. Daily recommendations may fill only a short remainder. That playlist is often named **昵称喜欢的音乐**, not only **我喜欢的音乐**. Daily recommendations and 私人雷达 stay separate entries and need a login. Some tracks still have no URL because of region, copyright, or membership limits.
 
 完成一次真实扫码需要能打开网易云 App 的手机，开发机上不一定能代点确认。
 
@@ -63,12 +63,14 @@ src/main/                 窗口；API 子进程；退出时清理；登录与�
 src/preload/              contextBridge（window.tide）
 src/core/events.ts        事件总线
 src/core/playback/        idle / loading / playing / paused / error
-src/core/tide-today.ts    用本地播放和跳过记录排今日潮汐
+src/core/tide-today.ts    听过的歌，加上 simi_song 相似歌曲
+src/core/explore-queue.ts 队列快结束时用相似歌曲续上
+src/core/lyrics.ts        LRC 全文和当前句
 src/renderer/             #stage 动效层、#lyrics 歌词层、#chrome 控件、搜索与歌单
 src/renderer/player.ts    窗口里的 audio 元素
 src/renderer/clock.ts     requestAnimationFrame 时钟
-src/api/server.ts         127.0.0.1 上的 /health、/session、/search、/playlist/tracks、/recommend/*
-src/api/netease.ts        只调用 NeteaseCloudMusicApi 的登录、歌单、搜索、日推、雷达和歌曲地址
+src/api/server.ts         127.0.0.1 上的 /health、/session、/search、/playlist/tracks、/similar、/lyric
+src/api/netease.ts        只调用 NeteaseCloudMusicApi 的登录、歌单、搜索、相似、歌词和歌曲地址
 src/main/settings.ts      userData/settings.json，音量、主题、动效、控件显隐、舞台强度
 src/main/listen-log.ts    userData/listen-log.json，不含 Cookie
 src/shared/commands.ts    指令名称、危险操作和响应清洗
@@ -77,37 +79,35 @@ src/main/command-server.ts 127.0.0.1 上的指令 HTTP / WebSocket
 
 ## 搜索和播放 / Search and playback
 
-左侧搜歌名。能播的行可以点，点下去会把本次结果里能播的歌排成队列，并从这一首开始。灰色行写着「没有可播放的地址」，按钮是禁用的。
+左侧搜索分成四个页签：单曲、歌手、专辑、歌词（对应类型 1、100、10、1006）。单曲和歌词的结果是可以播放的歌曲。点歌手或专辑会打开另一张列表，带「返回」。每一行有播放和喜欢的快捷图标，以及菜单：播放、下一首播放、喜欢、收藏到…、分享链接。没登录时，喜欢和收藏会写明失败原因。灰色行写着「没有可播放的地址」。
 
-底部可以暂停、继续、拖动进度、改音量，也可以上一首 / 下一首。播完自动下一首；最后一首停在结尾。
+底部上一首、播放 / 暂停、下一首和音量是图标，带中文 `aria-label`。旁边留着列表循环、随机和探索。默认是列表循环。探索打开后，剩下不多于 3 首时会用当前和最近几首去要相似歌曲（`simi_song`），接到队列后面。关掉探索就不再追加。相似歌曲没拉到时会有提示。默认不显示「本地 API · 端口」；「指令总线」里可以打开。
 
 地址由本地 API 向网易云申请，只接受 `http` / `https`。申请失败时播放器停住，并写明「没有可播放的地址」或「请先登录」。Cookie 只留在主进程的 userData 里，不会进播放器快照，也不会交给页面保存。同目录的 `settings.json` 存音量、主题、动效、控件显隐和舞台强度，不存 Cookie。
 
-一次最多把歌单或推荐里的前 100 首放进队列。灰色曲目留在列表里，但不会进入队列。播完自动下一首，上一首 / 下一首也只在这个队列里移动。
+歌单按 `playlist_track_all` 的 offset 翻页，到空页或大约 2000 首为止。灰色曲目留在列表里，但不会进入队列。列表循环会回到第一首；顺序播放停在最后一首；单曲循环重复当前这一首。
 
 ## 歌单和推荐 / Playlists and recommendations
 
-登录后点左侧歌单名称，或点「每日推荐」「私人雷达」。列表和搜索结果用同一套播放。私人雷达来自官方每日推荐歌单里名称包含「私人雷达」的那一张，再用歌单曲目接口取出歌曲。账号没有这张歌单时，面板写「这个账号暂时没有私人雷达」。未登录时这三个入口会提示先登录。
+登录后点左侧歌单名称只载入列表。点「每日推荐」或「私人雷达」仍会开始播放，这是单独的官方入口。私人雷达来自官方每日推荐歌单里名称包含「私人雷达」的那一张，再用歌单曲目接口取出歌曲。账号没有这张歌单时，面板写「这个账号暂时没有私人雷达」。未登录时这两个推荐入口会提示先登录。
 
-After login, choose a playlist name or **每日推荐** / **私人雷达**. Those lists use the same player as search. 私人雷达 is the official daily playlist whose name contains that title; its tracks come from the playlist-track API. If the account has no such playlist, the panel says so. Signed-out requests ask you to log in first.
+After login, a playlist name only loads the list. **每日推荐** and **私人雷达** still start playback. 私人雷达 is the official daily playlist whose name contains that title. If the account has no such playlist, the panel says so. Signed-out recommendation requests ask you to log in first.
 
 ## 今日潮汐 / Tide today
 
-「今日潮汐」在搜索下面，和「推荐」里的每日推荐、私人雷达分开。点「查看今日潮汐」只列出曲目，不会自动开播；再点能播的一行，才会进队列并播放。灰色行仍然禁用。
+「今日潮汐 · 探索」在搜索下面，和「推荐」里的每日推荐、私人雷达分开。点「查看探索」只列出曲目，不会自动开播；再点能播的一行，才会进队列并播放。灰色行仍然禁用。
 
-这张列表不调用网易云的推荐接口。它按本机 `userData/listen-log.json` 里的播放和跳过次数来排：播放加分，不到 30 秒就切到后面的曲子算跳过。播完自然进入下一首不算跳过。文件里只有曲目编号、标题、歌手、时长、时间和播放或跳过，没有 Cookie。
+听过的部分来自本机 `userData/listen-log.json`：不到 30 秒就切到后面的曲子算跳过。播完自然进入下一首不算跳过。文件里只有曲目编号、标题、歌手、时长、时间和播放或跳过，没有 Cookie。
 
-不同曲子的播放不足 5 首时，会用已登录账号的喜欢列表来补。优先用网易云标成个人红心歌单的那一张（`specialType` 5）；没有这个字段时，再匹配「我喜欢的音乐」，或以「喜欢的音乐」结尾的名字，例如「神音天2333喜欢的音乐」。只是名字里带这几个字、但不是这张歌单的，不会压过红心歌单。没登录时，空列表会提示登录后再补。已经登录但没匹配到时，不会再叫你去登录。记录够了之后就不再混入这张歌单。界面里没有收藏按钮，所以日志只记播放和跳过。
+没听过的部分调用 NeteaseCloudMusicApi 的 `simi_song`。种子是最近听过的歌；听过的歌不够、并且已经登录时，种子改用喜欢歌单里的前几首，喜欢歌单本身不会整张倒进列表。相似歌曲不足 8 首时，才用 `recommend_songs`（每日推荐）补剩余名额。私人雷达不参与这张列表。相似歌曲请求失败时，界面会写明。
 
-**今日潮汐** sits under search, apart from **每日推荐** and **私人雷达**. **查看今日潮汐** lists tracks and does not start playback; choosing a playable row queues and plays it. Gray rows stay disabled.
+喜欢歌单仍优先 `specialType` 5，其次「昵称喜欢的音乐」或「我喜欢的音乐」。
 
-That list does not call NetEase recommendation APIs. It ranks `userData/listen-log.json`: a play counts up, and moving on within 30 seconds counts as a skip. Reaching the end of a track does not. The file stores track id, title, artist, duration, time, and play or skip. It does not store a cookie.
+**今日潮汐 · 探索** sits under search, apart from **每日推荐** and **私人雷达**. **查看探索** lists tracks and does not start playback. Heard tracks come from the local listen log. Unheard tracks come from `simi_song`. Daily songs fill only a short remainder, and 私人雷达 is not mixed in.
 
-When fewer than five different tracks have been played, the logged-in liked playlist fills the rest. Tide prefers the playlist NetEase marks as the personal liked list (`specialType` 5). Without that field it matches **我喜欢的音乐**, or a name that ends with **喜欢的音乐**, such as **神音天2333喜欢的音乐**. A playlist that merely contains those words does not outrank the marked list. Signed out, an empty log asks you to log in. Already logged in, a failed match does not ask you to log in again. A thicker log no longer mixes that playlist in. There is no like button, so the log records plays and skips only.
+Search has four tabs. A playable row starts at that song. A gray row says it has no URL.
 
-Search from the left panel. Choosing a playable row queues the playable hits from that search and starts there. A gray row says it has no URL and its button is disabled.
-
-The bar pauses, resumes, seeks, and changes volume, and it can move to the previous or next track. The queue advances when a track ends, and the last track stops at the end.
+The bar uses icons for previous, play or pause, next, and volume. Repeat defaults to the whole list. Explore appends `simi_song` results when three or fewer tracks remain. The API port line stays hidden unless the in-window bus panel turns it on.
 
 The loopback API asks NetEase for a URL and accepts only `http` / `https`. If that fails, playback stops with “no URL” or “sign in first”. The cookie stays in the main-process userData file. It is not part of the playback snapshot and the page does not store it. `settings.json` stores volume, the theme, motion strength, whether the controls are visible, and the stage strength. It does not store the cookie.
 
@@ -119,7 +119,9 @@ The loopback API asks NetEase for a URL and accepts only `http` / `https`. If th
 - `POST /command` 需要请求头 `Authorization: Bearer <令牌>`。令牌在 `userData/bus-token`，64 位十六进制，权限 `0600`。这不是 Cookie。
 - WebSocket `ws://127.0.0.1:39272/events?token=<令牌>` 推送播放和会话状态。响应和推送里不会出现 Cookie。
 
-播放指令有 `playback.get`、`play`、`pause`、`seek`、`volume`、`next`、`prev`、`queue`、`playHits`。`playback.volume` 只改当前音量，不写盘。只读指令有 `library.search`、`playlistTracks`、`daily`、`radar`、`tideToday`、`session`，以及 `settings.read`、`appearance.read`。
+窗口左侧「指令总线」可以展开，里面有端口说明、令牌路径、示例，以及播放和暂停。底栏默认不显示端口。
+
+播放指令有 `playback.get`、`play`、`pause`、`seek`、`volume`、`next`、`prev`、`queue`、`playHits`、`playback.mode`。`playback.mode` 可以改 `repeat`（`off` / `all` / `one`）、`shuffle` 和 `explore`，不需要 allow。`playback.volume` 只改当前音量，不写盘。只读指令有 `library.search`、`playlistTracks`、`daily`、`radar`、`tideToday`、`session`，以及 `settings.read`、`appearance.read`。
 
 `settings.write`、`appearance.write`、`session.logout`、`session.clearCookie` 默认拒绝，错误码 `denied`。单次请求带 `"allow": true`，或把指令名写进 `userData/bus-allow.json` 的 `allow` 数组，才会执行。这个文件不保存 Cookie。`playlist.organize` 同样默认拒绝；即使允许，也返回 `unsupported`，因为当前没有改网易云歌单的接口。
 
@@ -136,7 +138,9 @@ A script talks only to loopback. NetEase calls stay in the existing API process.
 
 `GET http://127.0.0.1:39272/health` needs no token. `POST /command` needs `Authorization: Bearer` the token in `userData/bus-token`. That file is not a cookie. `ws://127.0.0.1:39272/events?token=` pushes playback and session state. Cookie fields are removed from responses and events.
 
-Playback commands cover get, play, pause, seek, volume, next, previous, queue, and playHits. `playback.volume` changes the live volume and does not write settings. Library reads cover search, playlist tracks, daily, radar, 今日潮汐, and session, plus settings and appearance reads.
+The left panel has a **指令总线** disclosure with the port, the token path, an example, and play / pause. The footer hides the port by default.
+
+Playback commands cover get, play, pause, seek, volume, next, previous, queue, playHits, and `playback.mode` (`repeat`, `shuffle`, `explore`). Mode does not need allow. `playback.volume` changes the live volume and does not write settings. Library reads cover search, playlist tracks, daily, radar, 今日潮汐, and session, plus settings and appearance reads.
 
 `settings.write`, `appearance.write`, `session.logout`, and `session.clearCookie` return `denied` unless the request sets `"allow": true` or `userData/bus-allow.json` lists the command. That file stores no cookie. `playlist.organize` is denied the same way. If it is allowed, the result is `unsupported`, because this app cannot edit a NetEase playlist.
 
@@ -152,6 +156,6 @@ The zip is a portable folder, not an installer. Unzip it and run `Tide.exe`. The
 
 ## 下一步 / Next
 
-继续在 `feat/m1-kernel` 上提交即可。歌词跟唱不在这一版里。不要接 Spotify、QQ，也不要加壁纸或粒子系统。
+0.8 到此。歌词只做全文和当前句，不做沉浸动效。不要接 Spotify、QQ，不要加壁纸或粒子，也不要把 Grok 嵌进窗口。
 
-Keep committing on `feat/m1-kernel`. Synced lyrics are not in this revision. Spotify, QQ, wallpaper, and particle systems stay out.
+0.8 stops here. Lyrics are the full text and the current line, not an immersive stage. Spotify, QQ, wallpaper, particles, and an embedded Grok client stay out.

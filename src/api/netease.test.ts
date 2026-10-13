@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { describe, it } from "node:test";
-import { readDailySongs, readPlaylistTracks, readPlaylists, readQrCheck, readQrImage, readQrKey, readRadarId, readSearch, readSongUrl, readUser } from "./netease";
+import { readCatalog, readDailySongs, readLyricText, readPlaylistTracks, readPlaylists, readQrCheck, readQrImage, readQrKey, readRadarId, readSearch, readSimilar, readSongUrl, readUser } from "./netease";
 
 describe("netease adapters", () => {
   it("reads a logged-in account and ignores anonymous sessions", () => {
@@ -77,6 +77,12 @@ describe("netease adapters", () => {
     assert.equal(typeof ncm.playlist_track_all, "function");
     assert.equal(typeof ncm.recommend_songs, "function");
     assert.equal(typeof ncm.recommend_resource, "function");
+    assert.equal(typeof ncm.simi_song, "function");
+    assert.equal(typeof ncm.lyric, "function");
+    assert.equal(typeof ncm.like, "function");
+    assert.equal(typeof ncm.playlist_tracks, "function");
+    assert.equal(typeof ncm.artist_songs, "function");
+    assert.equal(typeof ncm.album, "function");
   });
 
   it("grays tracks that have no playable privilege", () => {
@@ -178,5 +184,25 @@ describe("netease adapters", () => {
     );
     assert.throws(() => readRadarId({ body: { code: 200, recommend: [{ id: 7, name: "其他" }] } }), /radar_missing/);
     assert.throws(() => readRadarId({ body: { code: 301 } }), /signed_out/);
+  });
+
+  it("reads simi_song rows and lyric-search songs separately from artists", () => {
+    assert.equal(readSimilar({
+      body: { code: 200, songs: [{ id: 20, name: "相似", dt: 1000, ar: [{ name: "甲" }] }] },
+    })[0]?.id, "20");
+    assert.equal(readSimilar({
+      body: { code: 200, songs: [{ id: 20, name: "相似", dt: 1000, ar: [{ name: "甲" }] }] },
+    })[0]?.playable, true);
+    const lyrics = readCatalog({
+      body: { code: 200, result: { songs: [{ id: 9, name: "词", dt: 1000, ar: [{ name: "甲" }], privilege: { st: 0, pl: 1 } }] } },
+    }, 1006);
+    assert.equal(lyrics.hits[0]?.id, "9");
+    assert.equal(lyrics.artists.length, 0);
+    const artists = readCatalog({
+      body: { code: 200, result: { artists: [{ id: 5, name: "周杰伦" }] } },
+    }, 100);
+    assert.equal(artists.artists[0]?.name, "周杰伦");
+    assert.equal(artists.hits.length, 0);
+    assert.equal(readLyricText({ body: { code: 200, lrc: { lyric: "[00:01.00]一句" } } }), "[00:01.00]一句");
   });
 });

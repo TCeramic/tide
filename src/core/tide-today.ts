@@ -31,11 +31,17 @@ export interface LikedTarget {
 const LIKED_SPECIAL_TYPE = 5;
 const LIKED_SUFFIX = "喜欢的音乐";
 const CLASSIC_LIKED_NAME = "我喜欢的音乐";
-const SIGNED_OUT_EMPTY = "还没有收听记录。登录后会用「我喜欢的音乐」补上今日潮汐。";
-const LOGGED_IN_EMPTY = "还没有收听记录，也没有找到喜欢的音乐。";
+const SIGNED_OUT_EMPTY = "还没有收听记录。登录后会按听过的歌找相似歌曲，补上今日潮汐 · 探索。";
+const LOGGED_IN_EMPTY = "还没有收听记录，相似歌曲也没有找到。";
 
-const TODAY_LIMIT = 20;
+const TODAY_LIMIT = 28;
+const HEARD_CAP = 10;
+/** Similar songs below this count may be topped up from daily recommend. Radar is not a source. */
+const SIMILAR_TARGET = 8;
 const THIN_DISTINCT_PLAYS = 5;
+
+/** Unheard explore tracks come from this NeteaseCloudMusicApi export, not a daily∪radar splice. */
+export const SIMILAR_API = "simi_song";
 /** Leaving a track before this point counts as a skip. */
 export const SKIP_WITHIN_MS = 30_000;
 
@@ -99,38 +105,70 @@ export function likedTargetFromSession(body: unknown): LikedTarget {
   };
 }
 
+export interface TideExploreSources {
+  /** Tracks from `simi_song`. This is the unheard pool. */
+  similar?: readonly SearchHit[];
+  /** Optional spare source. Used only when similar songs are scarce. Not mixed 1:1 with radar. */
+  daily?: readonly SearchHit[];
+  similarFailed?: boolean;
+  signedIn?: boolean;
+}
+
+/**
+ * 今日潮汐 · 探索. Heard rows come from the listen log.
+ * Unheard rows come from similar songs (`simi_song`). Daily recommend can fill
+ * only the remainder when that similar list is short. 私人雷达 is not read here.
+ */
 export function buildTideToday(
   events: readonly ListenEvent[],
-  seed: readonly SearchHit[] = [],
-  options?: { signedIn?: boolean },
+  sources: TideExploreSources = {},
 ): TideTodayList {
-  const local = ranked(events).slice(0, TODAY_LIMIT);
-  if (!isThin(events)) {
-    if (local.length === 0) {
-      return { hits: [], message: "这些记录里跳过得比较多，今天先不排。" };
+  const heard = ranked(events);
+  const heardIds = new Set(heard.map((hit) => hit.id));
+  const similar = unseen(sources.similar ?? [], heardIds);
+  const unheard = [...similar];
+  if (unheard.length < SIMILAR_TARGET) {
+    const seen = new Set([...heardIds, ...unheard.map((hit) => hit.id)]);
+    for (const hit of unseen(sources.daily ?? [], seen)) {
+      if (unheard.length >= SIMILAR_TARGET) break;
+      unheard.push(hit);
     }
-    return { hits: local, message: null };
   }
 
-  const hits = [...local];
-  const seen = new Set(hits.map((hit) => hit.id));
-  for (const hit of seed) {
+  const heardTake = heard.slice(0, heard.length > 0 && unheard.length > 0 ? HEARD_CAP : TODAY_LIMIT);
+  const hits = [...heardTake];
+  for (const hit of unheard) {
     if (hits.length >= TODAY_LIMIT) break;
-    if (!isSeedHit(hit) || seen.has(hit.id)) continue;
-    seen.add(hit.id);
     hits.push(hit);
   }
 
   if (hits.length === 0) {
-    return { hits: [], message: options?.signedIn ? LOGGED_IN_EMPTY : SIGNED_OUT_EMPTY };
+    if (sources.similarFailed) {
+      return { hits, message: sources.signedIn ? "相似歌曲暂时没有拉到。" : SIGNED_OUT_EMPTY };
+    }
+    return { hits, message: sources.signedIn ? LOGGED_IN_EMPTY : SIGNED_OUT_EMPTY };
   }
-  if (seed.length === 0) {
-    return { hits, message: "听得还不多，也没有找到「我喜欢的音乐」。" };
+  if (sources.similarFailed && similar.length === 0) {
+    return { hits, message: "相似歌曲暂时没有拉到，先按听过的排。" };
   }
-  if (local.length === 0) {
-    return { hits, message: "听得还不多，先从「我喜欢的音乐」里放了这些。" };
+  if (heard.length === 0) {
+    return { hits, message: "还没有收听记录，这些是按喜欢的歌找到的相似歌曲。" };
   }
-  return { hits, message: "听得还不多，后面用「我喜欢的音乐」补上。" };
+  if (similar.length === 0 && (sources.daily ?? []).length > 0) {
+    return { hits, message: "相似歌曲不够，后面用每日推荐补了一点。" };
+  }
+  return { hits, message: null };
+}
+
+function unseen(hits: readonly SearchHit[], seen: ReadonlySet<string>): SearchHit[] {
+  const rows: SearchHit[] = [];
+  const local = new Set(seen);
+  for (const hit of hits) {
+    if (!isSeedHit(hit) || local.has(hit.id)) continue;
+    local.add(hit.id);
+    rows.push(hit);
+  }
+  return rows;
 }
 
 function ranked(events: readonly ListenEvent[]): SearchHit[] {

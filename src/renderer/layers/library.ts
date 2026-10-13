@@ -1,8 +1,12 @@
-import type { ApiFailure, SearchHit, SearchResult, SessionSnapshot } from "../../shared/contract";
+import type { ApiFailure, PlaylistSummary, SearchHit, SearchResult, SessionSnapshot } from "../../shared/contract";
+import { fillTrackList } from "../track-row";
 
 /** Search, login, and playlist list inside #chrome. */
 export function mountLibrary(root: HTMLElement): {
   setApiReady: (ready: boolean) => void;
+  setBusPort: (port: number | undefined) => void;
+  setPlayback: (status: string) => void;
+  notify: (message: string) => void;
   destroy: () => void;
 } {
   const panel = document.createElement("aside");
@@ -17,14 +21,21 @@ export function mountLibrary(root: HTMLElement): {
   const searchInput = document.createElement("input");
   searchInput.type = "search";
   searchInput.className = "search-input";
-  searchInput.placeholder = "歌名";
+  searchInput.placeholder = "关键词";
   searchInput.maxLength = 80;
   searchInput.setAttribute("aria-label", "搜索");
   const searchButton = button("搜索");
   searchButton.type = "submit";
   searchButton.disabled = true;
   searchInput.disabled = true;
-  searchForm.append(searchInput, searchButton);
+  const tabs = document.createElement("div");
+  tabs.className = "search-tabs";
+  const tabSong = button("单曲");
+  const tabArtist = button("歌手");
+  const tabAlbum = button("专辑");
+  const tabLyric = button("歌词");
+  tabs.append(tabSong, tabArtist, tabAlbum, tabLyric);
+  searchForm.append(searchInput, searchButton, tabs);
 
   const searchNote = document.createElement("p");
   searchNote.className = "library-note";
@@ -33,9 +44,16 @@ export function mountLibrary(root: HTMLElement): {
   const hits = document.createElement("ul");
   hits.className = "hits";
 
+  const viewBar = document.createElement("div");
+  viewBar.className = "view-bar";
+  viewBar.hidden = true;
+  const back = button("返回");
+  const viewTitle = document.createElement("span");
+  viewBar.append(back, viewTitle);
+
   const tideHeading = document.createElement("h2");
-  tideHeading.textContent = "今日潮汐";
-  const tideButton = button("查看今日潮汐");
+  tideHeading.textContent = "今日潮汐 · 探索";
+  const tideButton = button("查看探索");
   const tideActions = document.createElement("div");
   tideActions.className = "library-actions";
   tideActions.append(tideButton);
@@ -91,15 +109,32 @@ export function mountLibrary(root: HTMLElement): {
   form.className = "library-form";
   form.append(qrButton, qr, qrNote, cookieInput, save);
 
+  const bus = document.createElement("details");
+  bus.className = "bus-panel";
+  const busSummary = document.createElement("summary");
+  busSummary.textContent = "指令总线";
+  const busBody = document.createElement("p");
+  busBody.className = "library-note";
+  busBody.textContent = "本机 127.0.0.1 。令牌在 userData/bus-token 。示例：POST /command {\"command\":\"playback.pause\"}";
+  const busPlay = button("播放");
+  const busPause = button("暂停");
+  const busStatus = document.createElement("p");
+  busStatus.className = "library-note";
+  busStatus.textContent = "状态：空闲";
+  const busPort = button("在底栏显示端口");
+  bus.append(busSummary, busBody, busPlay, busPause, busStatus, busPort);
+
   panel.append(
     searchHeading,
     searchForm,
     searchNote,
+    viewBar,
     hits,
     tideHeading,
     tideActions,
     recommendHeading,
     recommend,
+    bus,
     heading,
     note,
     actions,
@@ -110,6 +145,14 @@ export function mountLibrary(root: HTMLElement): {
 
   let pollTimer = 0;
   let apiReady = false;
+  let playlists: PlaylistSummary[] = [];
+  let searchType = 1;
+  const tabButtons = [
+    [tabSong, 1],
+    [tabArtist, 100],
+    [tabAlbum, 10],
+    [tabLyric, 1006],
+  ] as const;
   let searching = false;
   let opening = false;
   let sawReady = false;
@@ -130,6 +173,7 @@ export function mountLibrary(root: HTMLElement): {
       ?? (session.state === "invalid" ? "需要重新登录" : "登录网易云");
     note.textContent = session.message ?? "";
     note.classList.toggle("warn", session.state === "invalid");
+    playlists = session.playlists;
     list.replaceChildren();
     for (const playlist of session.playlists) {
       const item = document.createElement("li");
@@ -143,7 +187,7 @@ export function mountLibrary(root: HTMLElement): {
       count.textContent = String(playlist.trackCount);
       row.append(name, count);
       row.addEventListener("click", () => {
-        void openHits(() => window.tide.playlistTracks(playlist.id), playlist.name);
+        void showPlaylist(playlist.id, playlist.name);
       });
       item.append(row);
       list.append(item);
@@ -247,29 +291,43 @@ export function mountLibrary(root: HTMLElement): {
   });
 
   const renderHits = (rows: SearchHit[]) => {
-    hits.replaceChildren();
-    rows.forEach((hit, index) => {
-      const item = document.createElement("li");
-      const row = document.createElement("button");
-      row.type = "button";
-      row.className = hit.playable ? "hit" : "hit unavailable";
-      row.disabled = !hit.playable;
-      if (!hit.playable) row.title = "没有可播放的地址";
-      const title = document.createElement("span");
-      title.className = "hit-title";
-      title.textContent = hit.title;
-      const meta = document.createElement("span");
-      meta.className = "hit-meta";
-      meta.textContent = hit.playable ? hit.artist : `${hit.artist} · 没有可播放的地址`;
-      row.append(title, meta);
-      if (hit.playable) {
-        row.addEventListener("click", () => {
-          void window.tide.playHits(rows, index);
-        });
-      }
-      item.append(row);
-      hits.append(item);
-    });
+    fillTrackList(hits, rows, playlists, showSearchNote);
+  };
+
+  const showCatalog = (rows: SearchHit[], label: string) => {
+    viewBar.hidden = false;
+    viewTitle.textContent = `${label} · 已载 ${rows.length} 首`;
+    showSearchNote("", false);
+    renderHits(rows);
+  };
+
+  const showPlaylist = async (id: string, name: string) => {
+    if (opening || !apiReady || disposed) return;
+    opening = true;
+    showSearchNote(`正在读取${name}…`, false);
+    const result = await window.tide.playlistTracks(id);
+    opening = false;
+    if (disposed) return;
+    if (!result.ok) {
+      hits.replaceChildren();
+      showSearchNote(result.message, true);
+      return;
+    }
+    showCatalog(result.hits, name);
+  };
+
+  const showDetail = async (label: string, load: () => Promise<SearchResult | ApiFailure>) => {
+    if (opening || disposed) return;
+    opening = true;
+    showSearchNote(`正在读取${label}…`, false);
+    const result = await load();
+    opening = false;
+    if (disposed) return;
+    if (!result.ok) {
+      showSearchNote(result.message, true);
+      return;
+    }
+    showCatalog(result.hits, label);
   };
 
   const openHits = async (load: () => Promise<SearchResult | ApiFailure>, label: string) => {
@@ -320,7 +378,7 @@ export function mountLibrary(root: HTMLElement): {
         showSearchNote(result.message, true);
         return;
       }
-      showSearchNote(result.message ?? "今日潮汐", false);
+      showSearchNote(result.message ?? "今日潮汐 · 探索", false);
       renderHits(result.hits);
     })();
   });
@@ -330,6 +388,40 @@ export function mountLibrary(root: HTMLElement): {
     searchNote.classList.toggle("warn", warn);
     searchNote.hidden = message.length === 0;
   };
+
+  const markTab = () => {
+    for (const [element, type] of tabButtons) {
+      const on = type === searchType;
+      element.classList.toggle("on", on);
+      element.setAttribute("aria-pressed", on ? "true" : "false");
+    }
+  };
+  markTab();
+  for (const [element, type] of tabButtons) {
+    element.addEventListener("click", () => {
+      searchType = type;
+      markTab();
+    });
+  }
+
+  back.addEventListener("click", () => {
+    viewBar.hidden = true;
+    hits.replaceChildren();
+    showSearchNote("", false);
+  });
+
+  busPlay.addEventListener("click", () => {
+    void window.tide.play();
+  });
+  busPause.addEventListener("click", () => {
+    void window.tide.pause();
+  });
+  busPort.addEventListener("click", () => {
+    const next = localStorage.getItem("tide.debug.port") === "1" ? "0" : "1";
+    localStorage.setItem("tide.debug.port", next);
+    busPort.textContent = next === "1" ? "隐藏底栏端口" : "在底栏显示端口";
+    window.dispatchEvent(new Event("tide-debug-port"));
+  });
 
   searchForm.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -341,7 +433,7 @@ export function mountLibrary(root: HTMLElement): {
     }
     searching = true;
     searchButton.disabled = true;
-    void window.tide.search(keywords).then((result) => {
+    void window.tide.search(keywords, searchType).then((result) => {
       searching = false;
       if (disposed) return;
       searchButton.disabled = !apiReady;
@@ -350,12 +442,54 @@ export function mountLibrary(root: HTMLElement): {
         showSearchNote(result.message, true);
         return;
       }
-      showSearchNote(result.hits.length === 0 ? "没有找到歌曲" : "", false);
+      viewBar.hidden = true;
+      if (result.kind === "artists") {
+        renderNamed(result.artists, "没有找到歌手", (row) => {
+          void showDetail(row.name, () => window.tide.artistSongs(row.id));
+        });
+        return;
+      }
+      if (result.kind === "albums") {
+        renderNamed(result.albums.map((row) => ({ id: row.id, name: `${row.name} · ${row.artist}` })), "没有找到专辑", (row) => {
+          void showDetail(row.name, () => window.tide.albumTracks(row.id));
+        });
+        return;
+      }
+      const empty = searchType === 1006 ? "没有找到歌词对应的歌曲" : "没有找到歌曲";
+      showSearchNote(result.hits.length === 0 ? empty : "", false);
       renderHits(result.hits);
     });
   });
 
+  const renderNamed = (
+    rows: { id: string; name: string }[],
+    empty: string,
+    open: (row: { id: string; name: string }) => void,
+  ) => {
+    hits.replaceChildren();
+    showSearchNote(rows.length === 0 ? empty : "", rows.length === 0);
+    for (const row of rows) {
+      const item = document.createElement("li");
+      const buttonRow = button(row.name);
+      buttonRow.addEventListener("click", () => open(row));
+      item.append(buttonRow);
+      hits.append(item);
+    }
+  };
+
+  if (localStorage.getItem("tide.debug.port") === "1") busPort.textContent = "隐藏底栏端口";
+
   return {
+    setBusPort(port) {
+      if (typeof port !== "number" || !Number.isInteger(port)) return;
+      busBody.textContent = `本机 127.0.0.1:${port} 。令牌在 userData/bus-token 。示例：POST /command {"command":"playback.pause"}`;
+    },
+    setPlayback(status) {
+      busStatus.textContent = `状态：${status}`;
+    },
+    notify(message) {
+      showSearchNote(message, true);
+    },
     setApiReady(ready) {
       apiReady = ready;
       refresh.disabled = !ready;

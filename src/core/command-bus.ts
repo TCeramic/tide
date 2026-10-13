@@ -18,6 +18,7 @@ export interface CommandHost {
   playbackPrev(): Promise<unknown> | unknown;
   playbackQueue(queue: Track[], index?: number): Promise<unknown> | unknown;
   playbackPlayHits(hits: SearchHit[], index: number): Promise<unknown> | unknown;
+  playbackMode(patch: { repeat?: "off" | "all" | "one"; shuffle?: boolean; explore?: boolean }): Promise<unknown> | unknown;
   settingsRead(): Promise<unknown> | unknown;
   settingsWrite(volume: number): Promise<unknown> | unknown;
   appearanceRead(): Promise<unknown> | unknown;
@@ -82,6 +83,8 @@ async function run(command: CommandName, args: unknown, host: CommandHost): Prom
       return readQueue(record, host);
     case "playback.playHits":
       return readHits(record, host);
+    case "playback.mode":
+      return readMode(record, host);
     case "settings.read":
       return host.settingsRead();
     case "settings.write":
@@ -137,6 +140,24 @@ async function readHits(record: Record<string, unknown>, host: CommandHost): Pro
     hits.push(hit);
   }
   return host.playbackPlayHits(hits, record.index);
+}
+
+function readMode(record: Record<string, unknown>, host: CommandHost): Promise<unknown> | unknown | null {
+  const patch: { repeat?: "off" | "all" | "one"; shuffle?: boolean; explore?: boolean } = {};
+  if ("repeat" in record) {
+    if (record.repeat !== "off" && record.repeat !== "all" && record.repeat !== "one") return null;
+    patch.repeat = record.repeat;
+  }
+  if ("shuffle" in record) {
+    if (typeof record.shuffle !== "boolean") return null;
+    patch.shuffle = record.shuffle;
+  }
+  if ("explore" in record) {
+    if (typeof record.explore !== "boolean") return null;
+    patch.explore = record.explore;
+  }
+  if (patch.repeat === undefined && patch.shuffle === undefined && patch.explore === undefined) return null;
+  return host.playbackMode(patch);
 }
 
 function readAppearance(record: Record<string, unknown>, host: CommandHost): Promise<unknown> | unknown | null {
