@@ -1,12 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
 import { isAudioLevel, type AudioLevel } from "../core/audio-level";
+import { EMPTY_MEDIA_SHORTCUTS, mediaShortcutsFromUnknown, type MediaShortcutMap } from "../core/media-keys";
 import { isThemeId, type Appearance, type ThemeId } from "../shared/contract";
 
 export interface TideSettings extends Appearance {
   volume: number;
   /** `song_url_v1` level. Old files without this field use standard. */
   quality: AudioLevel;
+  /** Optional accelerators for drivers that cannot send media keys. Empty means unset. */
+  mediaShortcuts: MediaShortcutMap;
 }
 
 const DEFAULT_VOLUME = 0.8;
@@ -26,7 +29,8 @@ export function settingsFromUnknown(value: unknown): TideSettings {
     ? clamp(record.motion)
     : 1;
   const quality: AudioLevel = isAudioLevel(record.quality) ? record.quality : "standard";
-  return { volume, chromeVisible, stageLevel, theme, motion, quality };
+  const mediaShortcuts = mediaShortcutsFromUnknown(record.mediaShortcuts);
+  return { volume, chromeVisible, stageLevel, theme, motion, quality, mediaShortcuts };
 }
 
 function clamp(value: number): number {
@@ -40,7 +44,7 @@ export class SettingsStore {
     try {
       return settingsFromUnknown(JSON.parse(fs.readFileSync(this.filePath, "utf8")));
     } catch {
-      return { volume: DEFAULT_VOLUME, chromeVisible: true, stageLevel: 1, theme: "tide", motion: 1, quality: "standard" };
+      return { volume: DEFAULT_VOLUME, chromeVisible: true, stageLevel: 1, theme: "tide", motion: 1, quality: "standard", mediaShortcuts: { ...EMPTY_MEDIA_SHORTCUTS } };
     }
   }
 

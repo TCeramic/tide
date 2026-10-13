@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 import type { AudioLevel } from "../core/audio-level";
-import { mediaKeyMode } from "../core/media-keys";
+import { mediaKeyMode, type MediaShortcutMap } from "../core/media-keys";
 import { Ipc, type ApiFailure, type Appearance, type HealthStatus, type LyricPayload, type MediaCue, type PlaybackBusEvent, type PlaybackSnapshot, type QrCheck, type QrTicket, type QueueRequest, type SearchHit, type SearchResult, type SessionSnapshot, type TideBridge, type TideToday, type Track } from "../shared/contract";
 
 function listen<T>(channel: string, listener: (payload: T) => void): () => void {
@@ -43,6 +43,9 @@ const tide: TideBridge = {
   fmTrash: (id) => ipcRenderer.invoke(Ipc.fmTrash, id) as Promise<ApiFailure | { ok: true; message: string }>,
   getQuality: () => ipcRenderer.invoke(Ipc.qualityGet) as Promise<AudioLevel>,
   setQuality: (level) => ipcRenderer.invoke(Ipc.qualitySet, level) as Promise<AudioLevel>,
+  getMediaShortcuts: () => ipcRenderer.invoke(Ipc.mediaShortcutsGet) as Promise<{ shortcuts: MediaShortcutMap; messages: string[] }>,
+  setMediaShortcuts: (shortcuts) => ipcRenderer.invoke(Ipc.mediaShortcutsSet, shortcuts) as Promise<{ shortcuts: MediaShortcutMap; messages: string[] }>,
+  hardwareKey: (action) => ipcRenderer.invoke(Ipc.hardwareKey, action) as Promise<PlaybackSnapshot>,
   likeSong: (id, like) => ipcRenderer.invoke(Ipc.likeSong, id, like) as Promise<ApiFailure | { ok: true; message: string }>,
   collectSong: (playlistId, trackId) => ipcRenderer.invoke(Ipc.collectSong, playlistId, trackId) as Promise<ApiFailure | { ok: true; message: string }>,
   playNext: (hit: SearchHit) => ipcRenderer.invoke(Ipc.playNext, hit) as Promise<PlaybackSnapshot>,

@@ -62,6 +62,25 @@ describe("PlaybackMachine", () => {
     assert.equal(pauses, 1);
   });
 
+  it("stop pauses and returns to the start of the current track", () => {
+    const machine = new PlaybackMachine();
+    machine.setQueue([track("a", 10_000)]);
+    machine.play();
+    machine.tick(1500);
+    let seeks = 0;
+    machine.events.on("seek", (payload) => {
+      seeks += 1;
+      assert.equal(payload.positionMs, 0);
+    });
+    const stopped = machine.stop();
+    assert.equal(stopped.status, "paused");
+    assert.equal(stopped.positionMs, 0);
+    assert.equal(seeks, 1);
+    const again = machine.stop();
+    assert.equal(again.positionMs, 0);
+    assert.equal(seeks, 2);
+  });
+
   it("clamps seek and volume and emits those events", () => {
     const machine = new PlaybackMachine();
     machine.setQueue([track("a", 5000)]);

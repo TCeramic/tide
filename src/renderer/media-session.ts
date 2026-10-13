@@ -6,10 +6,11 @@ export function installMediaSession(): void {
   const session = navigator.mediaSession;
   if (!session || window.tide.mediaKeys !== "session") return;
   const run: Record<(typeof MEDIA_SESSION_ACTIONS)[number], () => void> = {
-    play: () => void window.tide.play(),
-    pause: () => void window.tide.pause(),
-    nexttrack: () => void window.tide.next(),
-    previoustrack: () => void window.tide.previous(),
+    play: () => void window.tide.hardwareKey("play"),
+    pause: () => void window.tide.hardwareKey("pause"),
+    nexttrack: () => void window.tide.hardwareKey("next"),
+    previoustrack: () => void window.tide.hardwareKey("previous"),
+    stop: () => void window.tide.hardwareKey("stop"),
   };
   for (const action of MEDIA_SESSION_ACTIONS) {
     try {

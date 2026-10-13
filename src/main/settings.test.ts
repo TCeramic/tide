@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
+import { EMPTY_MEDIA_SHORTCUTS } from "../core/media-keys";
 import { SettingsStore, settingsFromUnknown } from "./settings";
 
 describe("settings", () => {
@@ -14,6 +15,7 @@ describe("settings", () => {
       theme: "tide",
       motion: 1,
       quality: "standard",
+      mediaShortcuts: { ...EMPTY_MEDIA_SHORTCUTS },
     });
     assert.deepEqual(settingsFromUnknown({ volume: -1, stageLevel: 2, chromeVisible: false, theme: "dusk", motion: 2, quality: "hires" }), {
       volume: 0,
@@ -22,6 +24,7 @@ describe("settings", () => {
       theme: "dusk",
       motion: 1,
       quality: "hires",
+      mediaShortcuts: { ...EMPTY_MEDIA_SHORTCUTS },
     });
     assert.deepEqual(settingsFromUnknown({ volume: "0.2", motion: 0, quality: "surround" }), {
       volume: 0.8,
@@ -30,6 +33,7 @@ describe("settings", () => {
       theme: "tide",
       motion: 0,
       quality: "standard",
+      mediaShortcuts: { ...EMPTY_MEDIA_SHORTCUTS },
     });
     assert.equal("cookie" in settingsFromUnknown({ volume: 0.5, cookie: "MUSIC_U=secret" }), false);
   });
@@ -42,7 +46,15 @@ describe("settings", () => {
     assert.equal(store.read().volume, 0.35);
     store.write({ volume: 0.2 });
     const saved = JSON.parse(fs.readFileSync(file, "utf8")) as Record<string, unknown>;
-    assert.deepEqual(saved, { volume: 0.2, chromeVisible: true, stageLevel: 1, theme: "tide", motion: 1, quality: "standard" });
+    assert.deepEqual(saved, {
+      volume: 0.2,
+      chromeVisible: true,
+      stageLevel: 1,
+      theme: "tide",
+      motion: 1,
+      quality: "standard",
+      mediaShortcuts: { ...EMPTY_MEDIA_SHORTCUTS },
+    });
     store.write({ theme: "dusk", motion: 0 });
     const themed = JSON.parse(fs.readFileSync(file, "utf8")) as Record<string, unknown>;
     assert.equal(themed.theme, "dusk");

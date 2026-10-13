@@ -1,5 +1,15 @@
 # 更新记录 / Changelog
 
+## 0.8.2
+
+- 硬件媒体键（下一首、上一首、播放/暂停、停止）在窗口失焦、最小化、以及还没播放过时也会生效。Windows 上不再只靠 `navigator.mediaSession`：全局快捷键一直注册，聚焦窗口再收 `WM_APPCOMMAND`（`app-command` 与 `hookWindowMessage`）。
+- 同一次按键若同时到达快捷键、`WM_APPCOMMAND` 和 Media Session，只执行一次，避免播放/暂停被连点两次。
+- 「可编程按键」可保存额外组合键（例如 `Ctrl+Alt+Right`），给只能发普通按键的罗技 G HUB / Options+。注册失败或组合已被占用时，界面会写明原因，该组合不会假装生效。
+- **Windows 真机验证仍待完成。** 本环境不能按下 `VK_MEDIA_*` 或罗技驱动发出的 `WM_APPCOMMAND`。
+- 健康检查版本为 `0.8.2`。
+
+Hardware media keys keep working when the window is unfocused, minimized, or idle. One press runs one action. Custom shortcuts can stand in for drivers that only send ordinary combos. A real Windows machine still has to confirm the keys.
+
 ## 0.8.1
 
 - 播放队列可以查看、移除、拖动或上下移动、清空。
