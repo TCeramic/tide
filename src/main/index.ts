@@ -1,7 +1,7 @@
 import { app, BrowserWindow, globalShortcut, ipcMain } from "electron";
 import path from "node:path";
 import { isAudioLevel } from "../core/audio-level";
-import { MEDIA_SHORTCUTS, shortcutAction } from "../core/media-keys";
+import { MEDIA_SHORTCUTS, mediaKeyMode, shortcutAction } from "../core/media-keys";
 import { PlaybackMachine } from "../core/playback/machine";
 import { DEFAULT_API_PORT, DEFAULT_BUS_PORT, Ipc, type Appearance, type HealthStatus } from "../shared/contract";
 import { checkHealth, serverBundlePath, startApiProcess, type ApiProcess } from "./api-host";
@@ -134,21 +134,23 @@ app.whenReady().then(async () => {
     if (!isAudioLevel(level)) return settings.read().quality;
     return settings.write({ quality: level }).quality;
   });
-  for (const accelerator of MEDIA_SHORTCUTS) {
-    const action = shortcutAction(accelerator);
-    if (!action) continue;
-    try {
-      globalShortcut.register(accelerator, () => {
-        if (action === "toggle") {
-          if (machine.getState().status === "playing") playback.control.pause();
-          else void playback.control.play();
-          return;
-        }
-        if (action === "next") void playback.control.next();
-        else void playback.control.previous();
-      });
-    } catch {
-      // This OS may not expose the media key. The in-window bar still works.
+  if (mediaKeyMode(process.platform) === "shortcut") {
+    for (const accelerator of MEDIA_SHORTCUTS) {
+      const action = shortcutAction(accelerator);
+      if (!action) continue;
+      try {
+        globalShortcut.register(accelerator, () => {
+          if (action === "toggle") {
+            if (machine.getState().status === "playing") playback.control.pause();
+            else void playback.control.play();
+            return;
+          }
+          if (action === "next") void playback.control.next();
+          else void playback.control.previous();
+        });
+      } catch {
+        // This OS may not expose the media key. The in-window bar still works.
+      }
     }
   }
   detachPlayback = playback.detach;

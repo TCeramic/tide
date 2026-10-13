@@ -240,8 +240,16 @@ describe("netease adapters", () => {
     assert.deepEqual(received, ["false", "true"]);
   });
 
-  it("maps a duplicate collect (code 502) before a generic failure", () => {
-    assert.throws(() => readCollect({ body: { code: 502 } }), { message: "already_in_playlist" });
-    assert.throws(() => readCollect({ body: { code: 400 } }), { message: "collect_failed" });
+  it("reads a duplicate collect from the nested playlist_tracks body", () => {
+    const wrapped = (code: number, message: string) => ({
+      status: 200,
+      body: { status: 200, body: { code, message } },
+    });
+    assert.throws(
+      () => readCollect(wrapped(502, "歌单内歌曲重复")),
+      { message: "already_in_playlist" },
+    );
+    assert.throws(() => readCollect(wrapped(400, "参数错误")), { message: "collect_failed" });
+    assert.doesNotThrow(() => readCollect(wrapped(200, "ok")));
   });
 });

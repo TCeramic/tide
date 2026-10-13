@@ -190,6 +190,8 @@ export interface QueueRequest {
 
 /** Surface exposed on `window.tide` by the preload script. */
 export interface TideBridge {
+  /** `session` on Windows, `shortcut` elsewhere. Only one media-key path is armed. */
+  mediaKeys: "session" | "shortcut";
   getHealth(): Promise<HealthStatus>;
   onHealth(listener: (status: HealthStatus) => void): () => void;
   getPlayback(): Promise<PlaybackSnapshot>;

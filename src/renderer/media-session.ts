@@ -1,10 +1,10 @@
 import { MEDIA_SESSION_ACTIONS } from "../core/media-keys";
 import type { PlaybackSnapshot } from "../shared/contract";
 
-/** Windows SMTC (and other OS media controls) read this session. Handlers call the same playback commands as the bar. */
+/** Windows SMTC reads this session. Action handlers run only on Windows, so they do not double-fire with globalShortcut. */
 export function installMediaSession(): void {
   const session = navigator.mediaSession;
-  if (!session) return;
+  if (!session || window.tide.mediaKeys !== "session") return;
   const run: Record<(typeof MEDIA_SESSION_ACTIONS)[number], () => void> = {
     play: () => void window.tide.play(),
     pause: () => void window.tide.pause(),

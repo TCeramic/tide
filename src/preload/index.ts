@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 import type { AudioLevel } from "../core/audio-level";
+import { mediaKeyMode } from "../core/media-keys";
 import { Ipc, type ApiFailure, type Appearance, type HealthStatus, type LyricPayload, type MediaCue, type PlaybackBusEvent, type PlaybackSnapshot, type QrCheck, type QrTicket, type QueueRequest, type SearchHit, type SearchResult, type SessionSnapshot, type TideBridge, type TideToday, type Track } from "../shared/contract";
 
 function listen<T>(channel: string, listener: (payload: T) => void): () => void {
@@ -11,6 +12,7 @@ function listen<T>(channel: string, listener: (payload: T) => void): () => void 
 }
 
 const tide: TideBridge = {
+  mediaKeys: mediaKeyMode(process.platform),
   getHealth: () => ipcRenderer.invoke(Ipc.healthGet) as Promise<HealthStatus>,
   onHealth: (listener) => listen<HealthStatus>(Ipc.health, listener),
   getPlayback: () => ipcRenderer.invoke(Ipc.playbackGet) as Promise<PlaybackSnapshot>,

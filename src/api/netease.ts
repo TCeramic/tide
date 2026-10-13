@@ -361,18 +361,27 @@ export function readCatalog(result: unknown, type: number): CatalogPage {
 }
 
 export function readMutation(result: unknown, failed: string): void {
-  const body = bodyOf(result) ?? asRecord(asRecord(asRecord(result)?.body)?.body);
-  const code = asNumber(body?.code);
+  const code = mutationCode(result);
   if (code === 301) throw new Error("signed_out");
   if (code != null && code !== 200) throw new Error(failed);
   if (code == null && asNumber(asRecord(result)?.status) !== 200) throw new Error(failed);
 }
 
-/** `playlist_tracks` returns body code 502 when the song is already in the playlist. */
+/**
+ * `playlist_tracks` spreads the request answer into `body`, so a duplicate is
+ * `{ status:200, body:{ status:200, body:{ code:502, message:"歌单内歌曲重复" } } }`.
+ */
 export function readCollect(result: unknown): void {
-  const body = bodyOf(result) ?? asRecord(asRecord(asRecord(result)?.body)?.body);
-  if (asNumber(body?.code) === 502) throw new Error("already_in_playlist");
+  if (mutationCode(result) === 502) throw new Error("already_in_playlist");
   readMutation(result, "collect_failed");
+}
+
+/** Prefer `body.body.code` from the playlist_tracks wrapper, then the outer code. */
+function mutationCode(result: unknown): number | null {
+  const body = asRecord(asRecord(result)?.body);
+  const nested = asNumber(asRecord(body?.body)?.code);
+  if (nested != null) return nested;
+  return asNumber(body?.code);
 }
 
 /** Playlist id for 私人雷达 inside the official daily-playlist list. */
