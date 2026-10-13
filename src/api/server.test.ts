@@ -18,7 +18,7 @@ function listen(server: http.Server): Promise<number> {
 }
 
 describe("tide api", () => {
-  const server = createTideApiServer();
+  const server = createTideApiServer({ cookieFile: null });
   let port = 0;
 
   after(async () => {

@@ -34,6 +34,7 @@ await build({
   ...nodeBundle,
   entryPoints: [path.join(root, "src/api/server.ts")],
   outfile: path.join(dist, "api/server.js"),
+  external: [...nodeBundle.external, "NeteaseCloudMusicApi"],
 });
 
 await build({

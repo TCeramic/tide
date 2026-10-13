@@ -2,7 +2,7 @@ import type { PlaybackEvents, PlaybackSnapshot, Track } from "../core/playback/t
 
 export type { PlaybackErrorCode, PlaybackEvents, PlaybackSnapshot, PlaybackStatus, Track } from "../core/playback/types";
 
-export const TIDE_VERSION = "0.1.0";
+export const TIDE_VERSION = "0.2.0";
 export const DEFAULT_API_PORT = 39271;
 export const API_READY_PREFIX = "TIDE_API_READY ";
 
@@ -18,7 +18,53 @@ export const Ipc = {
   volume: "tide:cmd:volume",
   queue: "tide:cmd:queue",
   track: "tide:cmd:track",
+  sessionGet: "tide:session:get",
+  sessionCookie: "tide:session:cookie",
+  sessionLogout: "tide:session:logout",
+  sessionQrStart: "tide:session:qr:start",
+  sessionQrCheck: "tide:session:qr:check",
 } as const;
+
+export type SessionState = "signed_out" | "logged_in" | "invalid";
+
+export interface SessionUser {
+  id: string;
+  nickname: string;
+}
+
+export interface PlaylistSummary {
+  id: string;
+  name: string;
+  trackCount: number;
+}
+
+export interface SessionSnapshot {
+  ok: true;
+  state: SessionState;
+  message: string | null;
+  user: SessionUser | null;
+  playlists: PlaylistSummary[];
+}
+
+export interface QrTicket {
+  ok: true;
+  key: string;
+  qrimg: string;
+  qrurl: string;
+}
+
+export interface QrCheck {
+  ok: true;
+  code: number;
+  message: string;
+  session: SessionSnapshot | null;
+}
+
+export interface ApiFailure {
+  ok: false;
+  error: string;
+  message: string;
+}
 
 export interface HealthStatus {
   ok: boolean;
@@ -49,4 +95,9 @@ export interface TideBridge {
   setVolume(volume: number): Promise<PlaybackSnapshot>;
   setQueue(queue: Track[], index?: number): Promise<PlaybackSnapshot>;
   changeTrack(index: number): Promise<PlaybackSnapshot>;
+  getSession(): Promise<SessionSnapshot | ApiFailure>;
+  saveCookie(cookie: string): Promise<SessionSnapshot | ApiFailure>;
+  logout(): Promise<SessionSnapshot | ApiFailure>;
+  startQr(): Promise<QrTicket | ApiFailure>;
+  checkQr(key: string): Promise<QrCheck | ApiFailure>;
 }
