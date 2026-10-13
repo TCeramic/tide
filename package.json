@@ -1,0 +1,55 @@
+{
+  "name": "tide",
+  "version": "0.7.0",
+  "private": true,
+  "description": "潮汐 Tide — a personal, unofficial desktop music player",
+  "main": "dist/main.js",
+  "license": "MIT",
+  "author": "TCeramic",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "npm run build && electron .",
+    "dist": "npm run build && electron-builder --win zip --x64",
+    "dist:setup": "npm run build && electron-builder --win nsis --x64",
+    "typecheck": "tsc --noEmit",
+    "test": "node scripts/test.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.21",
+    "electron": "44.7.0",
+    "electron-builder": "26.15.3",
+    "esbuild": "0.28.2",
+    "typescript": "5.9.3"
+  },
+  "dependencies": {
+    "NeteaseCloudMusicApi": "4.32.0"
+  },
+  "build": {
+    "appId": "dev.tceramic.tide",
+    "productName": "Tide",
+    "executableName": "Tide",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "!dist/**/*.map",
+      "package.json"
+    ],
+    "asar": true,
+    "npmRebuild": false,
+    "win": {
+      "target": [
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    }
+  }
+}
