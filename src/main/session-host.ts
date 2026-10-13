@@ -29,11 +29,34 @@ export function attachSession(getPort: () => number | null): () => void {
   });
   ipcMain.handle(Ipc.daily, () => loopbackJson(getPort(), "GET", "/recommend/daily"));
   ipcMain.handle(Ipc.radar, () => loopbackJson(getPort(), "GET", "/recommend/radar"));
-  ipcMain.handle(Ipc.search, (_event, keywords: unknown) => {
+  ipcMain.handle(Ipc.personalFm, () => loopbackJson(getPort(), "GET", "/personal/fm"));
+  ipcMain.handle(Ipc.fmTrash, (_event, id: unknown) => {
+    if (typeof id !== "string" || !/^\d{1,20}$/.test(id)) {
+      return { ok: false, error: "bad_id", message: "曲目编号无效" } satisfies ApiFailure;
+    }
+    return loopbackJson(getPort(), "POST", "/fm/trash", { id });
+  });
+  ipcMain.handle(Ipc.search, (_event, keywords: unknown, type: unknown) => {
     if (typeof keywords !== "string") return emptyQuery();
     const query = keywords.trim().slice(0, 80);
     if (query.length === 0) return emptyQuery();
-    return loopbackJson(getPort(), "GET", `/search?keywords=${encodeURIComponent(query)}`);
+    const kind = type === 100 || type === 10 || type === 1006 || type === 1 ? type : 1;
+    return loopbackJson(getPort(), "GET", `/search?keywords=${encodeURIComponent(query)}&type=${kind}`);
+  });
+  ipcMain.handle(Ipc.artistSongs, (_event, id: unknown) => trackList(getPort(), "/artist/songs", id));
+  ipcMain.handle(Ipc.albumTracks, (_event, id: unknown) => trackList(getPort(), "/album/tracks", id));
+  ipcMain.handle(Ipc.lyric, (_event, id: unknown) => trackList(getPort(), "/lyric", id));
+  ipcMain.handle(Ipc.likeSong, (_event, id: unknown, like: unknown) => {
+    if (typeof id !== "string" || !/^\d{1,20}$/.test(id)) {
+      return { ok: false, error: "bad_id", message: "曲目编号无效" } satisfies ApiFailure;
+    }
+    return loopbackJson(getPort(), "POST", "/song/like", { id, like: like !== false });
+  });
+  ipcMain.handle(Ipc.collectSong, (_event, playlistId: unknown, trackId: unknown) => {
+    if (typeof playlistId !== "string" || typeof trackId !== "string") {
+      return { ok: false, error: "bad_id", message: "歌单或曲目编号无效" } satisfies ApiFailure;
+    }
+    return loopbackJson(getPort(), "POST", "/song/collect", { playlistId, trackId });
   });
 
   return () => {
@@ -43,9 +66,16 @@ export function attachSession(getPort: () => number | null): () => void {
     ipcMain.removeHandler(Ipc.sessionCookie);
     ipcMain.removeHandler(Ipc.sessionQrCheck);
     ipcMain.removeHandler(Ipc.search);
+    ipcMain.removeHandler(Ipc.artistSongs);
+    ipcMain.removeHandler(Ipc.albumTracks);
+    ipcMain.removeHandler(Ipc.lyric);
+    ipcMain.removeHandler(Ipc.likeSong);
+    ipcMain.removeHandler(Ipc.collectSong);
     ipcMain.removeHandler(Ipc.playlistTracks);
     ipcMain.removeHandler(Ipc.daily);
     ipcMain.removeHandler(Ipc.radar);
+    ipcMain.removeHandler(Ipc.personalFm);
+    ipcMain.removeHandler(Ipc.fmTrash);
   };
 }
 
@@ -55,6 +85,13 @@ export function loopbackJson(port: number | null, method: string, pathname: stri
 
 function missingMusicU(): ApiFailure {
   return { ok: false, error: "missing_music_u", message: "Cookie 里需要有 MUSIC_U" };
+}
+
+function trackList(port: number | null, pathname: string, id: unknown): Promise<unknown> {
+  if (typeof id !== "string" || !/^\d{1,20}$/.test(id)) {
+    return Promise.resolve({ ok: false, error: "bad_id", message: "编号无效" } satisfies ApiFailure);
+  }
+  return loopbackJson(port, "GET", `${pathname}?id=${encodeURIComponent(id)}`);
 }
 
 function emptyQuery(): ApiFailure {

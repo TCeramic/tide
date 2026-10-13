@@ -1,6 +1,7 @@
 import type { HealthStatus, PlaybackSnapshot } from "../../shared/contract";
 
 const DISCLAIMER_KEY = "tide.risk.ack";
+const PORT_KEY = "tide.debug.port";
 
 const STATUS_LABEL: Record<PlaybackSnapshot["status"], string> = {
   idle: "空闲",
@@ -17,6 +18,14 @@ const ERROR_LABEL: Record<NonNullable<PlaybackSnapshot["error"]>, string> = {
   signed_out: "请先登录",
 };
 
+const REPEAT_CYCLE = ["off", "all", "one"] as const;
+
+const REPEAT_LABEL: Record<(typeof REPEAT_CYCLE)[number], string> = {
+  off: "顺序播放",
+  all: "列表循环",
+  one: "单曲循环",
+};
+
 export function mountChrome(root: HTMLElement): {
   setPlayback: (snapshot: PlaybackSnapshot) => void;
   setHealth: (status: HealthStatus) => void;
@@ -25,7 +34,6 @@ export function mountChrome(root: HTMLElement): {
   root.replaceChildren();
 
   let latest: PlaybackSnapshot | null = null;
-  let currentIndex = -1;
 
   const disclaimer = document.createElement("section");
   disclaimer.className = "disclaimer";
@@ -56,20 +64,33 @@ export function mountChrome(root: HTMLElement): {
   wordmark.className = "wordmark";
   wordmark.textContent = "潮汐";
 
-  const prev = button("上一首", () => {
-    const index = currentIndex - 1;
-    if (index >= 0) void window.tide.changeTrack(index);
+  const prev = iconButton("上一首", svg("M16 5v14L7 12z", true), () => {
+    void window.tide.previous();
   });
-  const play = button("播放", () => {
+  const play = iconButton("播放", PLAY_PATH, () => {
     if (latest?.status === "playing") void window.tide.pause();
     else void window.tide.play();
   });
   play.classList.add("play");
-  const next = button("下一首", () => {
-    if (!latest) return;
-    const index = currentIndex + 1;
-    if (index < latest.queue.length) void window.tide.changeTrack(index);
+  const next = iconButton("下一首", svg("M8 5v14l9-7z", true), () => {
+    void window.tide.next();
   });
+  const mode = iconButton("列表循环", svg("M7 7h8a4 4 0 0 1 0 8H8"), () => {
+    const current = latest?.repeat ?? "all";
+    const index = REPEAT_CYCLE.indexOf(current);
+    const repeat = REPEAT_CYCLE[(index + 1) % REPEAT_CYCLE.length] ?? "all";
+    void window.tide.setMode({ repeat });
+  });
+  const shuffle = iconButton("随机播放", svg("M6 7h4l8 10M18 7h-4L6 17"), () => {
+    void window.tide.setMode({ shuffle: !(latest?.shuffle ?? false) });
+  });
+  const explore = iconButton("探索续播", svg("M12 6v12M6 12h12"), () => {
+    void window.tide.setMode({ explore: !(latest?.explore ?? false) });
+  });
+
+  const controls = document.createElement("div");
+  controls.className = "transport-controls";
+  controls.append(prev, play, next, mode, shuffle, explore);
 
   const meta = document.createElement("div");
   meta.className = "meta";
@@ -116,16 +137,29 @@ export function mountChrome(root: HTMLElement): {
     void window.tide.setVolume(Number(volume.value) / 100);
   });
 
+  const volumeIcon = document.createElement("span");
+  volumeIcon.className = "volume-icon";
+  volumeIcon.setAttribute("aria-hidden", "true");
+  volumeIcon.innerHTML = svg("M4 10h3l5-4v12l-5-4H4m11-5a4 4 0 0 1 0 6");
+  const volumeWrap = document.createElement("div");
+  volumeWrap.className = "volume";
+  volumeWrap.append(volumeIcon, volume);
+
   const health = document.createElement("span");
   health.className = "health";
   health.textContent = "本地 API · 检查中";
 
-  transport.append(wordmark, prev, play, next, meta, seek, volume, health);
+  const showPort = () => {
+    health.hidden = !readPort();
+  };
+  window.addEventListener("tide-debug-port", showPort);
+  showPort();
+
+  transport.append(wordmark, controls, meta, seek, volumeWrap, health);
   root.append(disclaimer, transport);
 
   const setPlayback = (snapshot: PlaybackSnapshot) => {
     latest = snapshot;
-    currentIndex = snapshot.index;
     const track = snapshot.index >= 0 ? snapshot.queue[snapshot.index] : undefined;
     title.textContent = track?.title ?? "没有曲目";
     const status = STATUS_LABEL[snapshot.status];
@@ -136,9 +170,19 @@ export function mountChrome(root: HTMLElement): {
       ? `${status} · ${error}`
       : `${track?.artist ?? "潮汐"} · ${status} · ${position} / ${duration}`;
 
-    play.textContent = snapshot.status === "playing" ? "暂停" : snapshot.status === "loading" ? "…" : "播放";
-    prev.disabled = snapshot.index <= 0;
-    next.disabled = snapshot.index < 0 || snapshot.index >= snapshot.queue.length - 1;
+    const playing = snapshot.status === "playing";
+    play.setAttribute("aria-label", playing ? "暂停" : "播放");
+    play.innerHTML = playing ? PAUSE_PATH : PLAY_PATH;
+    const hasQueue = snapshot.queue.length > 0 && snapshot.index >= 0;
+    const atStart = snapshot.index <= 0;
+    const atEnd = snapshot.index < 0 || snapshot.index >= snapshot.queue.length - 1;
+    prev.disabled = !hasQueue || (atStart && snapshot.repeat !== "all");
+    next.disabled = !hasQueue || (atEnd && snapshot.repeat !== "all" && !(snapshot.shuffle && snapshot.queue.length > 1));
+
+    mode.setAttribute("aria-label", REPEAT_LABEL[snapshot.repeat]);
+    mode.setAttribute("aria-pressed", snapshot.repeat === "off" ? "false" : "true");
+    shuffle.setAttribute("aria-pressed", snapshot.shuffle ? "true" : "false");
+    explore.setAttribute("aria-pressed", snapshot.explore ? "true" : "false");
 
     const durationMs = track?.durationMs ?? 0;
     seek.max = String(durationMs);
@@ -150,20 +194,35 @@ export function mountChrome(root: HTMLElement): {
   const setHealth = (status: HealthStatus) => {
     health.dataset.ok = status.ok ? "true" : "false";
     health.textContent = status.ok ? `本地 API · ${status.port ?? ""}` : "本地 API · 未就绪";
+    showPort();
   };
 
   return {
     setPlayback,
     setHealth,
-    destroy: () => root.replaceChildren(),
+    destroy: () => {
+      window.removeEventListener("tide-debug-port", showPort);
+      root.replaceChildren();
+    },
   };
 }
 
-function button(label: string, onClick: () => void): HTMLButtonElement {
+const PLAY_PATH = svg("M8 5v14l11-7z", true);
+const PAUSE_PATH = svg("M7 5h4v14H7zm6 0h4v14h-4z", true);
+
+function svg(body: string, filled = false): string {
+  const paint = filled
+    ? `fill="currentColor"`
+    : `fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"`;
+  return `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" ${paint}>${body}</svg>`;
+}
+
+function iconButton(label: string, markup: string, onClick: () => void): HTMLButtonElement {
   const element = document.createElement("button");
   element.type = "button";
-  element.className = "text-button";
-  element.textContent = label;
+  element.className = "icon-button";
+  element.setAttribute("aria-label", label);
+  element.innerHTML = markup;
   element.addEventListener("click", onClick);
   return element;
 }
@@ -188,5 +247,13 @@ function writeAck(): void {
     localStorage.setItem(DISCLAIMER_KEY, "1");
   } catch {
     // The card still closes for this session when storage is unavailable.
+  }
+}
+
+function readPort(): boolean {
+  try {
+    return localStorage.getItem(PORT_KEY) === "1";
+  } catch {
+    return false;
   }
 }

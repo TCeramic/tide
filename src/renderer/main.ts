@@ -1,10 +1,11 @@
 import { EventBus } from "../core/events";
 import type { PlaybackEvents } from "../core/playback/types";
-import { isThemeId, type Appearance, type PlaybackBusEvent, type TideBridge } from "../shared/contract";
+import { isThemeId, type Appearance, type PlaybackBusEvent, type PlaybackSnapshot, type TideBridge } from "../shared/contract";
 import { createRafClock } from "./clock";
 import { mountChrome } from "./layers/chrome";
 import { mountLibrary } from "./layers/library";
 import { mountLyrics } from "./layers/lyrics";
+import { installMediaSession, syncMediaSession } from "./media-session";
 import { mountPlayer } from "./player";
 import { mountStage } from "./layers/stage";
 
@@ -23,6 +24,26 @@ if (!stage || !lyrics || !chrome) {
 }
 
 const chromeRoot = chrome;
+
+const PLAYBACK_LABEL = {
+  idle: "空闲",
+  loading: "载入",
+  playing: "播放中",
+  paused: "已暂停",
+  error: "出错",
+} as const;
+
+function showPlayback(snapshot: PlaybackSnapshot): void {
+  chromeLayer.setPlayback(snapshot);
+  const track = snapshot.index >= 0 ? (snapshot.queue[snapshot.index] ?? null) : null;
+  lyricsLayer.setTrack(track);
+  lyricsLayer.setPosition(snapshot.positionMs);
+  library.setPlayback(PLAYBACK_LABEL[snapshot.status]);
+  library.setQueue(snapshot);
+  syncMediaSession(snapshot);
+}
+
+installMediaSession();
 
 const stopStage = mountStage(stage);
 const lyricsLayer = mountLyrics(lyrics);
@@ -103,26 +124,21 @@ window.tide.onEvent((event: PlaybackBusEvent) => {
   }
 });
 
-window.tide.onPlayback((snapshot) => {
-  chromeLayer.setPlayback(snapshot);
-  const track = snapshot.index >= 0 ? (snapshot.queue[snapshot.index] ?? null) : null;
-  lyricsLayer.setTrack(track);
-});
+window.tide.onPlayback(showPlayback);
+window.tide.onNotice((message) => library.notify(message));
 
 window.tide.onHealth((status) => {
   chromeLayer.setHealth(status);
   library.setApiReady(status.ok);
+  library.setBusPort(status.busPort);
 });
 
-void window.tide.getPlayback().then((snapshot) => {
-  chromeLayer.setPlayback(snapshot);
-  const track = snapshot.index >= 0 ? (snapshot.queue[snapshot.index] ?? null) : null;
-  lyricsLayer.setTrack(track);
-});
+void window.tide.getPlayback().then(showPlayback);
 
 void window.tide.getHealth().then((status) => {
   chromeLayer.setHealth(status);
   library.setApiReady(status.ok);
+  library.setBusPort(status.busPort);
 });
 
 window.addEventListener("beforeunload", () => {

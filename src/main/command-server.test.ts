@@ -21,6 +21,7 @@ function host(): CommandHost & { calls: string[] } {
     playbackPrev: () => ({ status: "paused" }),
     playbackQueue: () => ({ status: "paused" }),
     playbackPlayHits: () => ({ status: "paused" }),
+    playbackMode: () => ({ status: "paused", repeat: "all", explore: false }),
     settingsRead: () => ({ volume: 0.8, chromeVisible: true, stageLevel: 1 }),
     settingsWrite: () => {
       calls.push("settings.write");
@@ -67,7 +68,7 @@ describe("command server", { concurrency: 1 }, () => {
     const healthBody = (await health.json()) as { ok: boolean; service: string; version: string };
     assert.equal(health.status, 200);
     assert.equal(healthBody.service, "tide-bus");
-    assert.equal(healthBody.version, "0.7.0");
+    assert.equal(healthBody.version, "0.8.1");
 
     const naked = await fetch(`http://127.0.0.1:${server.port}/command`, {
       method: "POST",

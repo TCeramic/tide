@@ -1,5 +1,7 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, globalShortcut, ipcMain } from "electron";
 import path from "node:path";
+import { isAudioLevel } from "../core/audio-level";
+import { MEDIA_SHORTCUTS, mediaKeyMode, shortcutAction } from "../core/media-keys";
 import { PlaybackMachine } from "../core/playback/machine";
 import { DEFAULT_API_PORT, DEFAULT_BUS_PORT, Ipc, type Appearance, type HealthStatus } from "../shared/contract";
 import { checkHealth, serverBundlePath, startApiProcess, type ApiProcess } from "./api-host";
@@ -15,6 +17,7 @@ app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
 if (process.env.TIDE_USER_DATA) app.setPath("userData", process.env.TIDE_USER_DATA);
 
 let mainWindow: BrowserWindow | null = null;
+let activeBusPort = DEFAULT_BUS_PORT;
 let apiProcess: ApiProcess | null = null;
 let apiPort: number | null = null;
 let detachPlayback: (() => void) | null = null;
@@ -64,8 +67,8 @@ async function publishHealth(): Promise<void> {
   const win = mainWindow;
   if (!win || win.isDestroyed()) return;
   const status: HealthStatus = apiPort == null
-    ? { ok: false, error: "stopped" }
-    : await checkHealth(apiPort);
+    ? { ok: false, error: "stopped", busPort: activeBusPort }
+    : { ...(await checkHealth(apiPort)), busPort: activeBusPort };
   if (win.isDestroyed()) return;
   win.webContents.send(Ipc.health, status);
 }
@@ -115,8 +118,8 @@ function shutdown(): void {
 app.whenReady().then(async () => {
   ipcMain.handle(Ipc.healthGet, () =>
     apiPort == null
-      ? Promise.resolve({ ok: false, error: "stopped" } satisfies HealthStatus)
-      : checkHealth(apiPort),
+      ? Promise.resolve({ ok: false, error: "stopped", busPort: activeBusPort } satisfies HealthStatus)
+      : checkHealth(apiPort).then((status) => ({ ...status, busPort: activeBusPort })),
   );
 
   const settings = new SettingsStore(path.join(app.getPath("userData"), "settings.json"));
@@ -125,7 +128,31 @@ app.whenReady().then(async () => {
   machine.setVolume(settings.read().volume);
   const playback = attachPlayback(() => mainWindow, machine, () => apiPort, (volume) => {
     settings.write({ volume });
-  }, listenLog);
+  }, listenLog, () => settings.read().quality);
+  ipcMain.handle(Ipc.qualityGet, () => settings.read().quality);
+  ipcMain.handle(Ipc.qualitySet, (_event, level: unknown) => {
+    if (!isAudioLevel(level)) return settings.read().quality;
+    return settings.write({ quality: level }).quality;
+  });
+  if (mediaKeyMode(process.platform) === "shortcut") {
+    for (const accelerator of MEDIA_SHORTCUTS) {
+      const action = shortcutAction(accelerator);
+      if (!action) continue;
+      try {
+        globalShortcut.register(accelerator, () => {
+          if (action === "toggle") {
+            if (machine.getState().status === "playing") playback.control.pause();
+            else void playback.control.play();
+            return;
+          }
+          if (action === "next") void playback.control.next();
+          else void playback.control.previous();
+        });
+      } catch {
+        // This OS may not expose the media key. The in-window bar still works.
+      }
+    }
+  }
   detachPlayback = playback.detach;
   detachSession = attachSession(() => apiPort);
   for (const type of ["play", "pause", "seek", "volume", "queue", "track-change"] as const) {
@@ -134,10 +161,11 @@ app.whenReady().then(async () => {
     });
   }
   const busPort = Number(process.env.TIDE_BUS_PORT ?? DEFAULT_BUS_PORT);
+  activeBusPort = Number.isInteger(busPort) && busPort >= 0 && busPort <= 65535 ? busPort : DEFAULT_BUS_PORT;
   try {
     commandServer = await startCommandServer({
       token: new BusTokenStore(path.join(app.getPath("userData"), "bus-token")).read(),
-      port: Number.isInteger(busPort) && busPort >= 0 && busPort <= 65535 ? busPort : DEFAULT_BUS_PORT,
+      port: activeBusPort,
       readAllow: () => new BusAllowStore(path.join(app.getPath("userData"), "bus-allow.json")).read(),
       getSession: () => loopbackJson(apiPort, "GET", "/session"),
       onClient: (send) => {
@@ -154,6 +182,7 @@ app.whenReady().then(async () => {
         playbackPrev: () => playback.control.previous(),
         playbackQueue: (queue, index) => playback.control.queue({ queue, index }),
         playbackPlayHits: async (hits, index) => (await playback.control.playHits(hits, index)) ?? playback.control.get(),
+        playbackMode: (patch) => playback.control.setMode(patch),
         settingsRead: () => settings.read(),
         settingsWrite: (volume) => {
           const next = settings.write({ volume });
@@ -215,6 +244,9 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  globalShortcut.unregisterAll();
+  ipcMain.removeHandler(Ipc.qualityGet);
+  ipcMain.removeHandler(Ipc.qualitySet);
   stopApi();
   const bus = commandServer;
   commandServer = null;

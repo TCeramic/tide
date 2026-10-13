@@ -1,5 +1,7 @@
 export type PlaybackStatus = "idle" | "loading" | "playing" | "paused" | "error";
 
+export type RepeatMode = "off" | "all" | "one";
+
 export type PlaybackErrorCode = "empty_queue" | "track_missing" | "no_url" | "signed_out";
 
 export interface Track {
@@ -16,6 +18,9 @@ export interface PlaybackSnapshot {
   positionMs: number;
   volume: number;
   error: PlaybackErrorCode | null;
+  repeat: RepeatMode;
+  shuffle: boolean;
+  explore: boolean;
 }
 
 /** Domain events the kernel publishes. Names match the M1 contract. */

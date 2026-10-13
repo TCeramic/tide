@@ -1,6 +1,8 @@
 import path from "node:path";
 import { createRequire } from "node:module";
-import type { PlaylistSummary, SearchHit, SessionUser } from "../shared/contract";
+import type { AudioLevel } from "../core/audio-level";
+import { loadPlaylistPages } from "../core/playlist-pages";
+import type { AlbumSummary, ArtistSummary, PlaylistSummary, SearchHit, SessionUser } from "../shared/contract";
 
 interface NcmBody {
   code?: number;
@@ -37,9 +39,19 @@ interface NcmModule {
   user_playlist(query: { uid: string; limit?: number; cookie?: string }): Promise<NcmResult>;
   cloudsearch(query: { keywords: string; type?: number; limit?: number; cookie?: string }): Promise<unknown>;
   song_url(query: { id: string; br?: number; cookie?: string }): Promise<unknown>;
+  song_url_v1(query: { id: string; level: string; cookie?: string }): Promise<unknown>;
+  personal_fm(query: { cookie?: string }): Promise<unknown>;
+  fm_trash(query: { id: string; cookie?: string }): Promise<unknown>;
+  login_refresh(query: { cookie?: string }): Promise<NcmResult>;
   playlist_track_all(query: { id: string; limit?: number; cookie?: string }): Promise<unknown>;
   recommend_songs(query: { cookie?: string }): Promise<unknown>;
   recommend_resource(query: { cookie?: string }): Promise<unknown>;
+  simi_song(query: { id: string; limit?: number; cookie?: string }): Promise<unknown>;
+  lyric(query: { id: string; cookie?: string }): Promise<unknown>;
+  like(query: { id: string; like: "true" | "false"; cookie?: string }): Promise<unknown>;
+  playlist_tracks(query: { op: "add" | "del"; pid: string; tracks: string; cookie?: string }): Promise<unknown>;
+  artist_songs(query: { id: string; limit?: number; cookie?: string }): Promise<unknown>;
+  album(query: { id: string; cookie?: string }): Promise<unknown>;
 }
 
 export interface QrImage {
@@ -57,6 +69,17 @@ export interface SongMedia {
   signedOut: boolean;
 }
 
+export interface LyricBundle {
+  lyric: string;
+  translation: string;
+  romaji: string;
+}
+
+export interface LoginRefresh {
+  cookie: string | null;
+  expired: boolean;
+}
+
 /** Calls into the pinned NeteaseCloudMusicApi package. No HTTP surface of its own. */
 export interface NeteaseClient {
   qrKey(): Promise<string>;
@@ -65,10 +88,27 @@ export interface NeteaseClient {
   loginStatus(cookie: string): Promise<SessionUser | null>;
   playlists(cookie: string, uid: string): Promise<PlaylistSummary[]>;
   search(keywords: string, cookie: string | null): Promise<SearchHit[]>;
-  songUrl(id: string, cookie: string | null): Promise<SongMedia>;
+  songUrl(id: string, cookie: string | null, level: AudioLevel): Promise<SongMedia>;
   playlistTracks(id: string, cookie: string): Promise<SearchHit[]>;
   dailySongs(cookie: string): Promise<SearchHit[]>;
   radarId(cookie: string): Promise<string>;
+  /** Similar songs via `simi_song`. Not daily recommend and not 私人雷达. */
+  similarSongs(id: string, cookie: string | null): Promise<SearchHit[]>;
+  searchKind(keywords: string, type: number, cookie: string | null): Promise<CatalogPage>;
+  artistSongs(id: string, cookie: string | null): Promise<SearchHit[]>;
+  albumTracks(id: string, cookie: string | null): Promise<SearchHit[]>;
+  lyric(id: string, cookie: string | null): Promise<LyricBundle>;
+  personalFm(cookie: string): Promise<SearchHit[]>;
+  fmTrash(id: string, cookie: string): Promise<void>;
+  refreshLogin(cookie: string): Promise<LoginRefresh>;
+  likeSong(id: string, like: boolean, cookie: string): Promise<void>;
+  collectSong(playlistId: string, trackId: string, cookie: string): Promise<void>;
+}
+
+export interface CatalogPage {
+  hits: SearchHit[];
+  artists: ArtistSummary[];
+  albums: AlbumSummary[];
 }
 
 export function createNeteaseClient(module: NcmModule = loadNeteaseModule()): NeteaseClient {
@@ -91,12 +131,82 @@ export function createNeteaseClient(module: NcmModule = loadNeteaseModule()): Ne
     async search(keywords, cookie) {
       return readSearch(await module.cloudsearch(withCookie({ keywords, type: 1, limit: 20 }, cookie)));
     },
-    async songUrl(id, cookie) {
-      return readSongUrl(await module.song_url(withCookie({ id, br: 128000 }, cookie)));
+    async songUrl(id, cookie, level) {
+      return readSongUrl(await module.song_url_v1(withCookie({ id, level }, cookie)));
     },
     async playlistTracks(id, cookie) {
       try {
-        return readPlaylistTracks(await module.playlist_track_all(withCookie({ id, limit: CATALOG_LIMIT }, cookie)));
+        return await loadPlaylistPages(async (offset, limit) => (
+          readPlaylistTracks(await module.playlist_track_all(withCookie({ id, limit, offset }, cookie)))
+        ));
+      } catch (error) {
+        rethrowSignedOut(error);
+      }
+    },
+    async similarSongs(id, cookie) {
+      try {
+        return readSimilar(await module.simi_song(withCookie({ id, limit: 20 }, cookie)));
+      } catch (error) {
+        rethrowSignedOut(error);
+      }
+    },
+    async searchKind(keywords, type, cookie) {
+      return readCatalog(await module.cloudsearch(withCookie({ keywords, type, limit: 20 }, cookie)), type);
+    },
+    async artistSongs(id, cookie) {
+      try {
+        return readSimilar(await module.artist_songs(withCookie({ id, limit: 50 }, cookie)));
+      } catch (error) {
+        rethrowSignedOut(error);
+      }
+    },
+    async albumTracks(id, cookie) {
+      try {
+        return readAlbum(await module.album(withCookie({ id }, cookie)));
+      } catch (error) {
+        rethrowSignedOut(error);
+      }
+    },
+    async lyric(id, cookie) {
+      try {
+        return readLyricBundle(await module.lyric(withCookie({ id }, cookie)));
+      } catch (error) {
+        rethrowSignedOut(error);
+      }
+    },
+    async personalFm(cookie) {
+      try {
+        return readPersonalFm(await module.personal_fm(withCookie({}, cookie)));
+      } catch (error) {
+        rethrowSignedOut(error);
+      }
+    },
+    async fmTrash(id, cookie) {
+      try {
+        readMutation(await module.fm_trash(withCookie({ id }, cookie)), "fm_trash_failed");
+      } catch (error) {
+        rethrowSignedOut(error);
+      }
+    },
+    async refreshLogin(cookie) {
+      return readLoginRefresh(await module.login_refresh(withCookie({}, cookie)));
+    },
+    async likeSong(id, like, cookie) {
+      try {
+        // NeteaseCloudMusicApi 4.32.0 treats anything other than the string "false" as a like.
+        const flag = like ? "true" : "false";
+        readMutation(await module.like(withCookie({ id, like: flag }, cookie)), "like_failed");
+      } catch (error) {
+        rethrowSignedOut(error);
+      }
+    },
+    async collectSong(playlistId, trackId, cookie) {
+      try {
+        readCollect(await module.playlist_tracks(withCookie({
+          op: "add",
+          pid: playlistId,
+          tracks: trackId,
+        }, cookie)));
       } catch (error) {
         rethrowSignedOut(error);
       }
@@ -190,6 +300,90 @@ export function readDailySongs(result: unknown): SearchHit[] {
   return collectHits(data?.dailySongs, data?.privileges, CATALOG_LIMIT);
 }
 
+/** `simi_song` rows. Missing privilege is kept playable so explore is not emptied by a thin payload. */
+export function readSimilar(result: unknown): SearchHit[] {
+  const body = requireOk(result, "similar_failed");
+  const songs = body.songs ?? asRecord(body.data)?.songs;
+  return collectHits(songs, body.privileges, 30, true);
+}
+
+export function readAlbum(result: unknown): SearchHit[] {
+  const body = requireOk(result, "album_failed");
+  const album = asRecord(body.album);
+  const songs = body.songs ?? album?.songs;
+  return collectHits(songs, body.privileges, CATALOG_LIMIT, true);
+}
+
+export function readLyricText(result: unknown): string {
+  return readLyricBundle(result).lyric;
+}
+
+export function readLyricBundle(result: unknown): LyricBundle {
+  const body = requireOk(result, "lyric_failed");
+  const text = (key: string) => {
+    const row = asRecord(body[key]);
+    return typeof row?.lyric === "string" ? row.lyric : "";
+  };
+  return { lyric: text("lrc"), translation: text("tlyric"), romaji: text("romalrc") };
+}
+
+/** `personal_fm` songs. Privilege is often missing, so a row stays playable. */
+export function readPersonalFm(result: unknown): SearchHit[] {
+  const body = requireOk(result, "fm_failed");
+  const data = body.data;
+  const songs = Array.isArray(data) ? data : asRecord(data)?.data;
+  return collectHits(songs, null, 10, true);
+}
+
+export function readLoginRefresh(result: unknown): LoginRefresh {
+  const record = asRecord(result);
+  const body = asRecord(record?.body);
+  const code = asNumber(body?.code);
+  if (code === 301 || code === 400 || asNumber(record?.status) === 301) {
+    return { cookie: null, expired: true };
+  }
+  if (code != null && code !== 200) return { cookie: null, expired: true };
+  const fromBody = typeof body?.cookie === "string" ? body.cookie : "";
+  const fromList = Array.isArray(record?.cookie) ? (record.cookie as unknown[]).filter((item) => typeof item === "string").join(";") : "";
+  const cookie = (fromBody || fromList).trim();
+  return { cookie: cookie.length > 0 ? cookie : null, expired: false };
+}
+
+export function readCatalog(result: unknown, type: number): CatalogPage {
+  const body = bodyOf(result);
+  const code = asNumber(body?.code);
+  if (code === 301) throw new Error("signed_out");
+  if (code !== 200) throw new Error("search_failed");
+  const record = asRecord(body?.result);
+  if (type === 100) return { hits: [], artists: readArtistRows(record?.artists), albums: [] };
+  if (type === 10) return { hits: [], artists: [], albums: readAlbumRows(record?.albums) };
+  return { hits: collectHits(record?.songs, null, MAX_HITS), artists: [], albums: [] };
+}
+
+export function readMutation(result: unknown, failed: string): void {
+  const code = mutationCode(result);
+  if (code === 301) throw new Error("signed_out");
+  if (code != null && code !== 200) throw new Error(failed);
+  if (code == null && asNumber(asRecord(result)?.status) !== 200) throw new Error(failed);
+}
+
+/**
+ * `playlist_tracks` spreads the request answer into `body`, so a duplicate is
+ * `{ status:200, body:{ status:200, body:{ code:502, message:"歌单内歌曲重复" } } }`.
+ */
+export function readCollect(result: unknown): void {
+  if (mutationCode(result) === 502) throw new Error("already_in_playlist");
+  readMutation(result, "collect_failed");
+}
+
+/** Prefer `body.body.code` from the playlist_tracks wrapper, then the outer code. */
+function mutationCode(result: unknown): number | null {
+  const body = asRecord(asRecord(result)?.body);
+  const nested = asNumber(asRecord(body?.body)?.code);
+  if (nested != null) return nested;
+  return asNumber(body?.code);
+}
+
 /** Playlist id for 私人雷达 inside the official daily-playlist list. */
 export function readRadarId(result: unknown): string {
   const body = requireOk(result, "radar_failed");
@@ -237,13 +431,13 @@ function bodyOf(result: unknown): Record<string, unknown> | null {
   return asRecord(asRecord(result)?.body);
 }
 
-function collectHits(songs: unknown, privileges: unknown, limit: number): SearchHit[] {
+function collectHits(songs: unknown, privileges: unknown, limit: number, unknownPlayable = false): SearchHit[] {
   if (!Array.isArray(songs)) return [];
   const hits: SearchHit[] = [];
   for (let index = 0; index < songs.length; index += 1) {
     const song = asRecord(songs[index]);
     if (!song) continue;
-    const hit = toHit(song, privilegeFor(song, privileges, index));
+    const hit = toHit(song, privilegeFor(song, privileges, index), unknownPlayable);
     if (!hit) continue;
     hits.push(hit);
     if (hits.length >= limit) break;
@@ -251,21 +445,29 @@ function collectHits(songs: unknown, privileges: unknown, limit: number): Search
   return hits;
 }
 
-function toHit(song: Record<string, unknown>, privilege: Record<string, unknown> | null): SearchHit | null {
+function toHit(
+  song: Record<string, unknown>,
+  privilege: Record<string, unknown> | null,
+  unknownPlayable = false,
+): SearchHit | null {
   const id = song.id == null ? "" : String(song.id);
   const name = typeof song.name === "string" ? song.name.trim() : "";
   if (!/^\d{1,20}$/.test(id) || name.length === 0) return null;
-  const duration = asNumber(song.dt);
+  const duration = asNumber(song.dt) ?? asNumber(song.duration);
   return {
     id,
     title: name.slice(0, 200),
-    artist: readArtists(song.ar),
+    artist: readArtists(song.ar ?? song.artists ?? song.ar),
     durationMs: duration == null ? 0 : Math.min(MAX_DURATION_MS, Math.max(0, Math.trunc(duration))),
-    playable: playableOf(song, privilege),
+    playable: playableOf(song, privilege, unknownPlayable),
   };
 }
 
-function playableOf(song: Record<string, unknown>, privilege: Record<string, unknown> | null): boolean {
+function playableOf(
+  song: Record<string, unknown>,
+  privilege: Record<string, unknown> | null,
+  unknownPlayable = false,
+): boolean {
   const source = privilege ?? asRecord(song.privilege);
   if (source && (asNumber(source.st) != null || asNumber(source.pl) != null)) {
     const st = asNumber(source.st);
@@ -273,7 +475,40 @@ function playableOf(song: Record<string, unknown>, privilege: Record<string, unk
     return st != null && st >= 0 && pl != null && pl > 0;
   }
   const st = asNumber(song.st);
-  return st != null && st >= 0;
+  if (st == null) return unknownPlayable;
+  return st >= 0;
+}
+
+function readArtistRows(value: unknown): ArtistSummary[] {
+  if (!Array.isArray(value)) return [];
+  const rows: ArtistSummary[] = [];
+  for (const item of value) {
+    const row = asRecord(item);
+    const id = row?.id == null ? "" : String(row.id);
+    const name = typeof row?.name === "string" ? row.name.trim() : "";
+    if (!/^\d{1,20}$/.test(id) || name.length === 0) continue;
+    rows.push({ id, name: name.slice(0, 200) });
+    if (rows.length >= MAX_HITS) break;
+  }
+  return rows;
+}
+
+function readAlbumRows(value: unknown): AlbumSummary[] {
+  if (!Array.isArray(value)) return [];
+  const rows: AlbumSummary[] = [];
+  for (const item of value) {
+    const row = asRecord(item);
+    const id = row?.id == null ? "" : String(row.id);
+    const name = typeof row?.name === "string" ? row.name.trim() : "";
+    if (!/^\d{1,20}$/.test(id) || name.length === 0) continue;
+    const artistRecord = asRecord(row?.artist);
+    const artist = typeof artistRecord?.name === "string" && artistRecord.name.trim().length > 0
+      ? artistRecord.name.trim().slice(0, 200)
+      : readArtists(row?.artists);
+    rows.push({ id, name: name.slice(0, 200), artist });
+    if (rows.length >= MAX_HITS) break;
+  }
+  return rows;
 }
 
 function privilegeFor(

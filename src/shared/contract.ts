@@ -1,8 +1,9 @@
+import type { AudioLevel } from "../core/audio-level";
 import type { PlaybackEvents, PlaybackSnapshot, Track } from "../core/playback/types";
 
 export type { PlaybackErrorCode, PlaybackEvents, PlaybackSnapshot, PlaybackStatus, Track } from "../core/playback/types";
 
-export const TIDE_VERSION = "0.7.0";
+export const TIDE_VERSION = "0.8.1";
 export const DEFAULT_API_PORT = 39271;
 export const DEFAULT_BUS_PORT = 39272;
 export const API_READY_PREFIX = "TIDE_API_READY ";
@@ -25,6 +26,23 @@ export const Ipc = {
   sessionQrStart: "tide:session:qr:start",
   sessionQrCheck: "tide:session:qr:check",
   search: "tide:search",
+  artistSongs: "tide:artist:songs",
+  albumTracks: "tide:album:tracks",
+  lyric: "tide:lyric",
+  likeSong: "tide:song:like",
+  collectSong: "tide:song:collect",
+  playNext: "tide:cmd:play-next",
+  next: "tide:cmd:next",
+  previous: "tide:cmd:previous",
+  mode: "tide:cmd:mode",
+  notice: "tide:notice",
+  queueRemove: "tide:cmd:queue-remove",
+  queueMove: "tide:cmd:queue-move",
+  queueClear: "tide:cmd:queue-clear",
+  personalFm: "tide:fm",
+  fmTrash: "tide:fm:trash",
+  qualityGet: "tide:quality:get",
+  qualitySet: "tide:quality:set",
   playlistTracks: "tide:playlist:tracks",
   daily: "tide:recommend:daily",
   radar: "tide:recommend:radar",
@@ -63,9 +81,38 @@ export interface SearchHit {
   playable: boolean;
 }
 
+export interface ArtistSummary {
+  id: string;
+  name: string;
+}
+
+export interface AlbumSummary {
+  id: string;
+  name: string;
+  artist: string;
+}
+
+export type SearchKind = "songs" | "artists" | "albums";
+
 export interface SearchResult {
   ok: true;
+  kind: SearchKind;
   hits: SearchHit[];
+  artists: ArtistSummary[];
+  albums: AlbumSummary[];
+}
+
+export interface LyricLine {
+  timeMs: number;
+  text: string;
+}
+
+export interface LyricPayload {
+  ok: true;
+  trackId: string;
+  lines: LyricLine[];
+  translation: LyricLine[];
+  romaji: LyricLine[];
 }
 
 /** First-party daily list. Built from the local listen log, not NetEase recommend APIs. */
@@ -127,6 +174,8 @@ export interface HealthStatus {
   ok: boolean;
   service?: string;
   port?: number;
+  /** Command-bus port. Present on the window health event, not on the API /health JSON. */
+  busPort?: number;
   error: string | null;
 }
 
@@ -141,6 +190,8 @@ export interface QueueRequest {
 
 /** Surface exposed on `window.tide` by the preload script. */
 export interface TideBridge {
+  /** `session` on Windows, `shortcut` elsewhere. Only one media-key path is armed. */
+  mediaKeys: "session" | "shortcut";
   getHealth(): Promise<HealthStatus>;
   onHealth(listener: (status: HealthStatus) => void): () => void;
   getPlayback(): Promise<PlaybackSnapshot>;
@@ -157,7 +208,24 @@ export interface TideBridge {
   logout(): Promise<SessionSnapshot | ApiFailure>;
   startQr(): Promise<QrTicket | ApiFailure>;
   checkQr(key: string): Promise<QrCheck | ApiFailure>;
-  search(keywords: string): Promise<SearchResult | ApiFailure>;
+  search(keywords: string, type?: number): Promise<SearchResult | ApiFailure>;
+  artistSongs(id: string): Promise<SearchResult | ApiFailure>;
+  albumTracks(id: string): Promise<SearchResult | ApiFailure>;
+  lyric(id: string): Promise<LyricPayload | ApiFailure>;
+  queueRemove(index: number): Promise<PlaybackSnapshot>;
+  queueMove(from: number, to: number): Promise<PlaybackSnapshot>;
+  queueClear(): Promise<PlaybackSnapshot>;
+  personalFm(): Promise<SearchResult | ApiFailure>;
+  fmTrash(id: string): Promise<ApiFailure | { ok: true; message: string }>;
+  getQuality(): Promise<AudioLevel>;
+  setQuality(level: AudioLevel): Promise<AudioLevel>;
+  likeSong(id: string, like: boolean): Promise<ApiFailure | { ok: true; message: string }>;
+  collectSong(playlistId: string, trackId: string): Promise<ApiFailure | { ok: true; message: string }>;
+  playNext(hit: SearchHit): Promise<PlaybackSnapshot>;
+  next(): Promise<PlaybackSnapshot>;
+  previous(): Promise<PlaybackSnapshot>;
+  setMode(patch: { repeat?: "off" | "all" | "one"; shuffle?: boolean; explore?: boolean }): Promise<PlaybackSnapshot>;
+  onNotice(listener: (message: string) => void): () => void;
   playlistTracks(id: string): Promise<SearchResult | ApiFailure>;
   dailyRecommend(): Promise<SearchResult | ApiFailure>;
   radar(): Promise<SearchResult | ApiFailure>;

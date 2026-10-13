@@ -10,6 +10,7 @@ export const COMMANDS = [
   "playback.prev",
   "playback.queue",
   "playback.playHits",
+  "playback.mode",
   "settings.read",
   "settings.write",
   "appearance.read",

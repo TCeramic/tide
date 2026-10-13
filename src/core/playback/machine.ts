@@ -1,4 +1,6 @@
 import { EventBus } from "../events";
+import { followingIndex, previousIndex, type RepeatMode } from "./order";
+import { moveQueueItem, removeQueueItem } from "./queue-edit";
 import type { PlaybackErrorCode, PlaybackEvents, PlaybackSnapshot, Track } from "./types";
 
 const DEFAULT_VOLUME = 0.8;
@@ -30,6 +32,9 @@ export class PlaybackMachine {
     positionMs: 0,
     volume: DEFAULT_VOLUME,
     error: null,
+    repeat: "all",
+    shuffle: false,
+    explore: false,
   };
 
   getState(): PlaybackSnapshot {
@@ -126,6 +131,9 @@ export class PlaybackMachine {
         index: -1,
         positionMs: 0,
         error: null,
+        repeat: this.snapshot.repeat,
+        shuffle: this.snapshot.shuffle,
+        explore: this.snapshot.explore,
       };
       const snapshot = this.getState();
       this.events.emit("queue", { snapshot });
@@ -182,8 +190,109 @@ export class PlaybackMachine {
       return false;
     }
 
-    const following = this.snapshot.index + 1;
-    if (following < this.snapshot.queue.length) {
+    return this.finishFrom(track);
+  }
+
+  setRepeat(repeat: RepeatMode): PlaybackSnapshot {
+    if (repeat !== "off" && repeat !== "all" && repeat !== "one") return this.getState();
+    this.snapshot = { ...this.snapshot, repeat };
+    return this.getState();
+  }
+
+  setShuffle(shuffle: boolean): PlaybackSnapshot {
+    this.snapshot = { ...this.snapshot, shuffle };
+    return this.getState();
+  }
+
+  setExplore(explore: boolean): PlaybackSnapshot {
+    this.snapshot = { ...this.snapshot, explore };
+    return this.getState();
+  }
+
+  removeAt(index: number): PlaybackSnapshot {
+    const edited = removeQueueItem(this.snapshot.queue, this.snapshot.index, index);
+    if (!edited) return this.getState();
+    return this.applyQueueEdit(edited.queue, edited.index, edited.trackChanged);
+  }
+
+  moveTrack(from: number, to: number): PlaybackSnapshot {
+    const edited = moveQueueItem(this.snapshot.queue, this.snapshot.index, from, to);
+    if (!edited) return this.getState();
+    return this.applyQueueEdit(edited.queue, edited.index, edited.trackChanged);
+  }
+
+  clearQueue(): PlaybackSnapshot {
+    return this.setQueue([]);
+  }
+
+  /** Append tracks that are not already queued. The current index stays put. */
+  appendTracks(tracks: readonly Track[]): PlaybackSnapshot {
+    const seen = new Set(this.snapshot.queue.map((track) => track.id));
+    const extra = tracks.map(cloneTrack).filter((track) => {
+      if (seen.has(track.id)) return false;
+      seen.add(track.id);
+      return true;
+    });
+    if (extra.length === 0) return this.getState();
+    this.snapshot = { ...this.snapshot, queue: [...this.snapshot.queue, ...extra] };
+    const snapshot = this.getState();
+    this.events.emit("queue", { snapshot });
+    return snapshot;
+  }
+
+  /** Place a track so it plays after the current one. */
+  insertNext(track: Track): PlaybackSnapshot {
+    const clean = cloneTrack(track);
+    const queue = this.snapshot.queue.filter((item) => item.id !== clean.id);
+    let index = this.snapshot.index;
+    if (index >= queue.length) index = queue.length - 1;
+    const removedBefore = this.snapshot.queue.findIndex((item) => item.id === clean.id);
+    if (removedBefore >= 0 && removedBefore < this.snapshot.index) index -= 1;
+    const at = index < 0 ? queue.length : index + 1;
+    queue.splice(at, 0, clean);
+    this.snapshot = { ...this.snapshot, queue, index: Math.max(index, 0) };
+    const snapshot = this.getState();
+    this.events.emit("queue", { snapshot });
+    return snapshot;
+  }
+
+  nextIndex(): number | null {
+    return followingIndex(
+      this.snapshot.queue.length,
+      this.snapshot.index,
+      this.snapshot.repeat,
+      this.snapshot.shuffle,
+    );
+  }
+
+  previousIndex(): number | null {
+    return previousIndex(this.snapshot.queue.length, this.snapshot.index, this.snapshot.repeat);
+  }
+
+  /**
+   * The current track ended. Single repeat restarts it. Otherwise follow
+   * the repeat and shuffle rules, or pause on the last track.
+   */
+  finish(): PlaybackSnapshot {
+    const track = this.currentTrack();
+    if (!track || this.snapshot.status !== "playing") return this.getState();
+    this.finishFrom(track);
+    return this.getState();
+  }
+
+  private finishFrom(track: Track): boolean {
+    if (this.snapshot.repeat === "one") {
+      this.snapshot = { ...this.snapshot, positionMs: 0, status: "playing", error: null };
+      this.events.emit("track-change", { index: this.snapshot.index, snapshot: this.getState() });
+      return true;
+    }
+    const following = followingIndex(
+      this.snapshot.queue.length,
+      this.snapshot.index,
+      this.snapshot.repeat,
+      this.snapshot.shuffle,
+    );
+    if (following != null) {
       this.snapshot = {
         ...this.snapshot,
         index: following,
@@ -194,10 +303,24 @@ export class PlaybackMachine {
       this.events.emit("track-change", { index: following, snapshot: this.getState() });
       return true;
     }
-
     this.snapshot = { ...this.snapshot, positionMs: track.durationMs, status: "paused" };
     this.events.emit("pause", { snapshot: this.getState() });
     return true;
+  }
+
+  private applyQueueEdit(queue: Track[], index: number, trackChanged: boolean): PlaybackSnapshot {
+    if (queue.length === 0) return this.setQueue([]);
+    this.snapshot = {
+      ...this.snapshot,
+      queue,
+      index,
+      positionMs: trackChanged ? 0 : this.snapshot.positionMs,
+      error: null,
+    };
+    const snapshot = this.getState();
+    this.events.emit("queue", { snapshot });
+    if (trackChanged) this.events.emit("track-change", { index, snapshot: this.getState() });
+    return this.getState();
   }
 
   private currentTrack(): Track | null {

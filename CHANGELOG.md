@@ -1,5 +1,34 @@
 # 更新记录 / Changelog
 
+## 0.8.1
+
+- 播放队列可以查看、移除、拖动或上下移动、清空。
+- 系统媒体键（播放/暂停、上一首、下一首）和窗口里的 Media Session 走同一套播放命令。Windows 只走 Media Session，其它系统只走全局快捷键，一次按键只触发一次。
+- 收藏时读取 `playlist_tracks` 嵌套的 `body.body.code`。502（「歌单内歌曲重复」）提示「已在歌单中」；其它非 200 提示收藏失败。
+- 歌词可以在原文、翻译、罗马音之间切换，并按 0.5 秒调整偏移。翻译和罗马音来自 `lyric` 的 `tlyric` 与 `romalrc`。
+- 私人 FM 使用 `personal_fm`。不喜欢使用 `fm_trash`，然后从队列拿掉当前这首。
+- 音质选择走 `song_url_v1` 的 level（标准、极高、无损、Hi-Res）。选中的档位没有地址时会降到更低档，并写明原因。
+- 读取登录状态时调用 `login_refresh`。Cookie 过期会显示「登录已过期，请重新扫码或粘贴 Cookie。」，不会假装仍然登录。
+- 健康检查版本为 `0.8.1`。
+
+Queue editing, media keys, lyric variants, personal FM, audio quality, and a visible expired-login prompt.
+
+## 0.8.0
+
+- 点歌单名称只载入曲目，显示已载数量，不自动播放。点能播的一行才从那一首开始。`playlist_track_all` 按 offset 翻页，到空页或大约 2000 首。
+- **今日潮汐 · 探索**：听过的来自本地收听日志；没听过的来自 `simi_song`。相似歌曲不足 8 首时，`recommend_songs` 只补剩余名额。私人雷达不进入这张列表。相似歌曲失败时有说明。列表不自动播放。
+- 播放模式：顺序、列表循环（默认）、单曲循环、随机。`playback.mode` 不需要 allow。
+- 探索打开时，队列剩余不多于 3 首就用当前和最近几首调用 `simi_song` 追加。关掉就停止。失败有提示。不把每日推荐整表接上。
+- 底栏上一首、播放 / 暂停、下一首、音量改为图标，`aria-label` 为中文。列表循环、随机、探索留在同一条栏上。
+- 歌词层拉取 `lyric`，显示全文，当前句随进度变化。没有歌词不会把窗口弄崩。换曲后旧歌词不会套到新曲上。
+- 搜索四个页签：单曲、歌手、专辑、歌词（类型 1 / 100 / 10 / 1006）。点歌手或专辑打开另一张列表，可以返回。歌词页签的结果是可播歌曲。
+- 歌曲行菜单：播放、下一首播放、喜欢、收藏到…、分享链接。播放和喜欢有行内图标。未登录或失败会写明原因。喜欢用 `like`，收藏用 `playlist_tracks`。
+- 窗口里可以展开「指令总线」。底栏「本地 API · 端口」默认隐藏。
+- 取消喜欢传给 `like` 的是字符串 `"false"`。`playlist_tracks` 返回 502（已经在歌单里）时提示「已在歌单中」。
+- 健康检查版本为 `0.8.0`。NeteaseCloudMusicApi 仍是 `4.32.0`。要求 Node.js `>=22`。
+
+Playlists load without autoplay. 今日潮汐 · 探索 and queue continuation use `simi_song`. Search, lyrics, track menus, icon transport, and a discoverable command bus land in this revision. Health is `0.8.0`.
+
 ## 0.7.0
 
 - 两套主题：`tide`（青夜，默认）和 `dusk`（暖夜）。只改现有 `#stage`、`#lyrics`、`#chrome` 的颜色和洗色。

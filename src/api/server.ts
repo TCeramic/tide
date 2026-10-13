@@ -2,6 +2,7 @@ import http from "node:http";
 import path from "node:path";
 import { CookieStore } from "./cookie";
 import { createNeteaseClient, type NeteaseClient } from "./netease";
+import { parseLrc } from "../core/lyrics";
 import { asFailure, SessionError, SessionService } from "./session";
 import { API_READY_PREFIX, DEFAULT_API_PORT, TIDE_VERSION } from "../shared/contract";
 
@@ -26,10 +27,20 @@ export function createTideApiServer(options: TideApiOptions = {}): http.Server {
     loginStatus: (cookie) => client().loginStatus(cookie),
     playlists: (cookie, uid) => client().playlists(cookie, uid),
     search: (keywords, cookie) => client().search(keywords, cookie),
-    songUrl: (id, cookie) => client().songUrl(id, cookie),
+    songUrl: (id, cookie, level) => client().songUrl(id, cookie, level),
     playlistTracks: (id, cookie) => client().playlistTracks(id, cookie),
     dailySongs: (cookie) => client().dailySongs(cookie),
     radarId: (cookie) => client().radarId(cookie),
+    similarSongs: (id, cookie) => client().similarSongs(id, cookie),
+    searchKind: (keywords, type, cookie) => client().searchKind(keywords, type, cookie),
+    artistSongs: (id, cookie) => client().artistSongs(id, cookie),
+    albumTracks: (id, cookie) => client().albumTracks(id, cookie),
+    lyric: (id, cookie) => client().lyric(id, cookie),
+    personalFm: (cookie) => client().personalFm(cookie),
+    fmTrash: (id, cookie) => client().fmTrash(id, cookie),
+    refreshLogin: (cookie) => client().refreshLogin(cookie),
+    likeSong: (id, like, cookie) => client().likeSong(id, like, cookie),
+    collectSong: (playlistId, trackId, cookie) => client().collectSong(playlistId, trackId, cookie),
   });
 
   function client(): NeteaseClient {
@@ -88,28 +99,94 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse, sessio
     return;
   }
   if (req.method === "GET" && pathname === "/search") {
-    const hits = await session.search(url.searchParams.get("keywords") ?? "");
-    writeJson(res, 200, { ok: true, hits });
+    const type = Number(url.searchParams.get("type") ?? "1");
+    const page = await session.searchCatalog(url.searchParams.get("keywords") ?? "", type);
+    writeJson(res, 200, { ok: true, ...page });
+    return;
+  }
+  if (req.method === "GET" && pathname === "/similar") {
+    const hits = await session.similarSongs(url.searchParams.get("id") ?? "");
+    writeJson(res, 200, { ok: true, hits, source: "simi_song" });
+    return;
+  }
+  if (req.method === "GET" && pathname === "/artist/songs") {
+    const hits = await session.artistSongs(url.searchParams.get("id") ?? "");
+    writeJson(res, 200, { ok: true, kind: "songs", hits, artists: [], albums: [] });
+    return;
+  }
+  if (req.method === "GET" && pathname === "/album/tracks") {
+    const hits = await session.albumTracks(url.searchParams.get("id") ?? "");
+    writeJson(res, 200, { ok: true, kind: "songs", hits, artists: [], albums: [] });
+    return;
+  }
+  if (req.method === "GET" && pathname === "/lyric") {
+    const trackId = url.searchParams.get("id") ?? "";
+    const bundle = await session.lyric(trackId);
+    writeJson(res, 200, {
+      ok: true,
+      trackId,
+      lines: parseLrc(bundle.lyric),
+      translation: parseLrc(bundle.translation),
+      romaji: parseLrc(bundle.romaji),
+    });
+    return;
+  }
+  if (req.method === "GET" && pathname === "/personal/fm") {
+    const hits = await session.personalFm();
+    writeJson(res, 200, { ok: true, kind: "songs", hits, artists: [], albums: [] });
+    return;
+  }
+  if (req.method === "POST" && pathname === "/fm/trash") {
+    const body = await readJson(req);
+    const record = body && typeof body === "object" ? body as { id?: unknown } : {};
+    const message = await session.fmTrash(typeof record.id === "string" ? record.id : "");
+    writeJson(res, 200, { ok: true, message });
+    return;
+  }
+  if (req.method === "POST" && pathname === "/song/like") {
+    const body = await readJson(req);
+    const record = body && typeof body === "object" ? body as { id?: unknown; like?: unknown } : {};
+    const message = await session.likeSong(
+      typeof record.id === "string" ? record.id : "",
+      record.like !== false,
+    );
+    writeJson(res, 200, { ok: true, message });
+    return;
+  }
+  if (req.method === "POST" && pathname === "/song/collect") {
+    const body = await readJson(req);
+    const record = body && typeof body === "object" ? body as { playlistId?: unknown; trackId?: unknown } : {};
+    const message = await session.collectSong(
+      typeof record.playlistId === "string" ? record.playlistId : "",
+      typeof record.trackId === "string" ? record.trackId : "",
+    );
+    writeJson(res, 200, { ok: true, message });
     return;
   }
   if (req.method === "GET" && pathname === "/song/url") {
-    const media = await session.mediaUrl(url.searchParams.get("id") ?? "");
-    writeJson(res, 200, { ok: true, url: media.url, signedOut: media.signedOut });
+    const media = await session.mediaUrl(url.searchParams.get("id") ?? "", url.searchParams.get("level"));
+    writeJson(res, 200, {
+      ok: true,
+      url: media.url,
+      signedOut: media.signedOut,
+      level: media.level,
+      requested: media.requested,
+    });
     return;
   }
   if (req.method === "GET" && pathname === "/playlist/tracks") {
     const hits = await session.playlistTracks(url.searchParams.get("id") ?? "");
-    writeJson(res, 200, { ok: true, hits });
+    writeJson(res, 200, { ok: true, kind: "songs", hits, artists: [], albums: [], loaded: hits.length });
     return;
   }
   if (req.method === "GET" && pathname === "/recommend/daily") {
     const hits = await session.dailySongs();
-    writeJson(res, 200, { ok: true, hits });
+    writeJson(res, 200, { ok: true, kind: "songs", hits, artists: [], albums: [] });
     return;
   }
   if (req.method === "GET" && pathname === "/recommend/radar") {
     const hits = await session.radarSongs();
-    writeJson(res, 200, { ok: true, hits });
+    writeJson(res, 200, { ok: true, kind: "songs", hits, artists: [], albums: [] });
     return;
   }
   if (pathname === "/session" || pathname.startsWith("/session/")) {

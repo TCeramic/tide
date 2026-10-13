@@ -4,14 +4,17 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { after, before, describe, it } from "node:test";
+import { CookieStore } from "./cookie";
 import type { NeteaseClient } from "./netease";
 import { createTideApiServer } from "./server";
+import { SessionError, SessionService } from "./session";
 
 const validCookie = "MUSIC_U=tide-test; __csrf=1";
 
-function fakeNetease(): NeteaseClient & { checks: number } {
+function fakeNetease(): NeteaseClient & { checks: number; expired: boolean } {
   return {
     checks: 0,
+    expired: false,
     async qrKey() {
       return "unikey-12345678";
     },
@@ -64,6 +67,46 @@ function fakeNetease(): NeteaseClient & { checks: number } {
     async radarId() {
       return "42";
     },
+    async similarSongs() {
+      return [{ id: "20", title: "相似", artist: "潮汐", durationMs: 1000, playable: true }];
+    },
+    async searchKind(keywords, type) {
+      if (type === 100) return { hits: [], artists: [{ id: "5", name: keywords }], albums: [] };
+      if (type === 10) return { hits: [], artists: [], albums: [{ id: "6", name: keywords, artist: "潮汐" }] };
+      if (keywords === "locked") throw new Error("signed_out");
+      return {
+        hits: [
+          { id: "1", title: "青花瓷", artist: "周杰伦", durationMs: 229000, playable: true },
+          { id: "2", title: "无地址", artist: "未知", durationMs: 1000, playable: false },
+        ],
+        artists: [],
+        albums: [],
+      };
+    },
+    async artistSongs(id) {
+      return [{ id, title: "热门", artist: "歌手", durationMs: 1000, playable: true }];
+    },
+    async albumTracks(id) {
+      return [{ id, title: "专辑曲", artist: "歌手", durationMs: 1000, playable: true }];
+    },
+    async lyric() {
+      return { lyric: "[00:01.00]一句", translation: "[00:01.00]a line", romaji: "" };
+    },
+    async personalFm() {
+      return [{ id: "4", title: "FM", artist: "潮汐", durationMs: 1000, playable: true }];
+    },
+    async fmTrash() {
+      return undefined;
+    },
+    async refreshLogin() {
+      return { cookie: null, expired: this.expired };
+    },
+    async likeSong() {
+      return undefined;
+    },
+    async collectSong() {
+      return undefined;
+    },
   };
 }
 
@@ -94,6 +137,8 @@ interface Payload {
   hits?: { id?: string; title?: string; playable?: boolean }[];
   url?: string | null;
   signedOut?: boolean;
+  level?: string;
+  requested?: string;
 }
 
 async function call(port: number, method: string, pathname: string, body?: unknown): Promise<{ status: number; json: Payload }> {
@@ -207,6 +252,8 @@ describe("session routes", { concurrency: 1 }, () => {
     assert.equal(ok.status, 200);
     assert.equal(ok.json.url, "http://music.126.net/a.mp3");
     assert.equal(ok.json.signedOut, false);
+    assert.equal(ok.json.level, "standard");
+    assert.equal(ok.json.requested, "standard");
     assert.equal(JSON.stringify(ok.json).includes("MUSIC_U"), false);
     const missing = await call(port, "GET", "/song/url?id=2");
     assert.equal(missing.json.url, null);
@@ -244,5 +291,38 @@ describe("session routes", { concurrency: 1 }, () => {
     assert.equal(daily.json.hits?.[0]?.title, "日推");
     const radar = await call(port, "GET", "/recommend/radar");
     assert.equal(radar.json.hits?.[0]?.title, "雷达");
+    const fm = await call(port, "GET", "/personal/fm");
+    assert.equal(fm.json.hits?.[0]?.title, "FM");
+  });
+
+  it("shows an expired cookie instead of staying logged in", async () => {
+    fs.writeFileSync(cookieFile, validCookie, { mode: 0o600 });
+    netease.expired = true;
+    const { json } = await call(port, "GET", "/session");
+    netease.expired = false;
+    assert.equal(json.state, "invalid");
+    assert.match(json.message ?? "", /登录已过期/);
+    assert.equal(fs.existsSync(cookieFile), true);
+  });
+});
+
+describe("duplicate collect", () => {
+  it("turns playlist code 502 into 已在歌单中", async () => {
+    const store = new CookieStore(null);
+    store.write(validCookie);
+    const session = new SessionService(store, {
+      async collectSong() {
+        throw new Error("already_in_playlist");
+      },
+    } as unknown as NeteaseClient);
+    await assert.rejects(
+      () => session.collectSong("9", "1"),
+      (error: unknown) => {
+        assert.ok(error instanceof SessionError);
+        assert.equal(error.message, "已在歌单中");
+        assert.equal(error.status, 409);
+        return true;
+      },
+    );
   });
 });

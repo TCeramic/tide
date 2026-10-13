@@ -20,6 +20,7 @@ function host(overrides: Partial<CommandHost> = {}): CommandHost & { calls: stri
     playbackPrev: () => mark("playback.prev"),
     playbackQueue: () => mark("playback.queue"),
     playbackPlayHits: () => mark("playback.playHits"),
+    playbackMode: () => mark("playback.mode"),
     settingsRead: () => ({ volume: 0.8, cookie: "MUSIC_U=secret" }),
     settingsWrite: () => mark("settings.write"),
     appearanceRead: () => ({ chromeVisible: true, stageLevel: 1 }),
@@ -74,6 +75,21 @@ describe("command bus", () => {
     assert.equal(unsupported.ok, false);
     if (!unsupported.ok) assert.equal(unsupported.error, "unsupported");
     assert.deepEqual(api.calls, []);
+  });
+
+  it("sets repeat, shuffle, and explore without an allow flag", async () => {
+    const api = host();
+    const set = await dispatchCommand(
+      { command: "playback.mode", args: { repeat: "one", shuffle: false, explore: true } },
+      api,
+      [],
+    );
+    assert.equal(set.ok, true);
+    assert.deepEqual(api.calls, ["playback.mode"]);
+    const missing = await dispatchCommand({ command: "playback.mode", args: {} }, api, []);
+    assert.equal(missing.ok, false);
+    if (!missing.ok) assert.equal(missing.error, "bad_args");
+    assert.deepEqual(api.calls, ["playback.mode"]);
   });
 
   it("writes a theme and motion only when that request is allowed", async () => {
