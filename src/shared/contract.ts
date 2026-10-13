@@ -2,7 +2,7 @@ import type { PlaybackEvents, PlaybackSnapshot, Track } from "../core/playback/t
 
 export type { PlaybackErrorCode, PlaybackEvents, PlaybackSnapshot, PlaybackStatus, Track } from "../core/playback/types";
 
-export const TIDE_VERSION = "0.6.0";
+export const TIDE_VERSION = "0.7.0";
 export const DEFAULT_API_PORT = 39271;
 export const DEFAULT_BUS_PORT = 39272;
 export const API_READY_PREFIX = "TIDE_API_READY ";
@@ -37,10 +37,22 @@ export const Ipc = {
   appearance: "tide:appearance",
 } as const;
 
-/** Local UI knobs. No wallpaper and no particle system. */
+/** Existing wash themes. `tide` is the default teal night; `dusk` is the warm night. */
+export const THEMES = ["tide", "dusk"] as const;
+
+export type ThemeId = (typeof THEMES)[number];
+
+export function isThemeId(value: unknown): value is ThemeId {
+  return typeof value === "string" && (THEMES as readonly string[]).includes(value);
+}
+
+/** Local UI knobs on #stage, #lyrics, and #chrome. No wallpaper and no particle system. */
 export interface Appearance {
   chromeVisible: boolean;
   stageLevel: number;
+  theme: ThemeId;
+  /** 0 freezes the existing wash phase. 1 is the full phase travel. */
+  motion: number;
 }
 
 export interface SearchHit {

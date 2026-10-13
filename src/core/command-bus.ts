@@ -1,4 +1,4 @@
-import type { SearchHit, Track } from "../shared/contract";
+import { isThemeId, type Appearance, type SearchHit, type Track } from "../shared/contract";
 import {
   commandPermitted,
   failure,
@@ -21,7 +21,7 @@ export interface CommandHost {
   settingsRead(): Promise<unknown> | unknown;
   settingsWrite(volume: number): Promise<unknown> | unknown;
   appearanceRead(): Promise<unknown> | unknown;
-  appearanceWrite(patch: { chromeVisible?: boolean; stageLevel?: number }): Promise<unknown> | unknown;
+  appearanceWrite(patch: Partial<Appearance>): Promise<unknown> | unknown;
   librarySearch(keywords: string): Promise<unknown> | unknown;
   libraryPlaylistTracks(id: string): Promise<unknown> | unknown;
   libraryDaily(): Promise<unknown> | unknown;
@@ -140,7 +140,7 @@ async function readHits(record: Record<string, unknown>, host: CommandHost): Pro
 }
 
 function readAppearance(record: Record<string, unknown>, host: CommandHost): Promise<unknown> | unknown | null {
-  const patch: { chromeVisible?: boolean; stageLevel?: number } = {};
+  const patch: Partial<Appearance> = {};
   if ("chromeVisible" in record) {
     if (typeof record.chromeVisible !== "boolean") return null;
     patch.chromeVisible = record.chromeVisible;
@@ -149,7 +149,20 @@ function readAppearance(record: Record<string, unknown>, host: CommandHost): Pro
     if (typeof record.stageLevel !== "number" || !Number.isFinite(record.stageLevel)) return null;
     patch.stageLevel = record.stageLevel;
   }
-  if (patch.chromeVisible === undefined && patch.stageLevel === undefined) return null;
+  if ("theme" in record) {
+    if (!isThemeId(record.theme)) return null;
+    patch.theme = record.theme;
+  }
+  if ("motion" in record) {
+    if (typeof record.motion !== "number" || !Number.isFinite(record.motion)) return null;
+    patch.motion = record.motion;
+  }
+  if (
+    patch.chromeVisible === undefined
+    && patch.stageLevel === undefined
+    && patch.theme === undefined
+    && patch.motion === undefined
+  ) return null;
   return host.appearanceWrite(patch);
 }
 

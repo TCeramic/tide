@@ -76,6 +76,40 @@ describe("command bus", () => {
     assert.deepEqual(api.calls, []);
   });
 
+  it("writes a theme and motion only when that request is allowed", async () => {
+    let patch: unknown = null;
+    const api = host({
+      appearanceWrite: (value) => {
+        patch = value;
+        api.calls.push("appearance.write");
+        return value;
+      },
+    });
+    const denied = await dispatchCommand({
+      command: "appearance.write",
+      args: { theme: "dusk", motion: 0 },
+    }, api, []);
+    assert.equal(denied.ok, false);
+    if (!denied.ok) assert.equal(denied.error, "denied");
+    assert.equal(patch, null);
+
+    const wrote = await dispatchCommand({
+      command: "appearance.write",
+      args: { theme: "dusk", motion: 0 },
+      allow: true,
+    }, api, []);
+    assert.equal(wrote.ok, true);
+    assert.deepEqual(patch, { theme: "dusk", motion: 0 });
+
+    const unknown = await dispatchCommand({
+      command: "appearance.write",
+      args: { theme: "wallpaper" },
+      allow: true,
+    }, api, []);
+    assert.equal(unknown.ok, false);
+    if (!unknown.ok) assert.equal(unknown.error, "bad_args");
+  });
+
   it("rejects unknown commands and keeps cookies out of the allow file", () => {
     assert.deepEqual(allowListFromUnknown({
       allow: ["settings.write", "playback.pause", "cookie"],

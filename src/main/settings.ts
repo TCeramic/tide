@@ -1,10 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
+import { isThemeId, type Appearance, type ThemeId } from "../shared/contract";
 
-export interface TideSettings {
+export interface TideSettings extends Appearance {
   volume: number;
-  chromeVisible: boolean;
-  stageLevel: number;
 }
 
 const DEFAULT_VOLUME = 0.8;
@@ -19,7 +18,11 @@ export function settingsFromUnknown(value: unknown): TideSettings {
   const stageLevel = typeof record.stageLevel === "number" && Number.isFinite(record.stageLevel)
     ? clamp(record.stageLevel)
     : 1;
-  return { volume, chromeVisible, stageLevel };
+  const theme: ThemeId = isThemeId(record.theme) ? record.theme : "tide";
+  const motion = typeof record.motion === "number" && Number.isFinite(record.motion)
+    ? clamp(record.motion)
+    : 1;
+  return { volume, chromeVisible, stageLevel, theme, motion };
 }
 
 function clamp(value: number): number {
@@ -33,7 +36,7 @@ export class SettingsStore {
     try {
       return settingsFromUnknown(JSON.parse(fs.readFileSync(this.filePath, "utf8")));
     } catch {
-      return { volume: DEFAULT_VOLUME, chromeVisible: true, stageLevel: 1 };
+      return { volume: DEFAULT_VOLUME, chromeVisible: true, stageLevel: 1, theme: "tide", motion: 1 };
     }
   }
 

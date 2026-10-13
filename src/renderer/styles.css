@@ -7,9 +7,24 @@
   --tide-accent-dim: #1d5c59;
   --tide-danger: #e07a72;
   --tide-line: rgba(231, 242, 244, 0.14);
+  --tide-wash: rgba(62, 198, 192, 0.22);
+  --tide-panel: rgba(7, 16, 24, 0.88);
   --tide-chrome-h: 92px;
   --tide-font: "Segoe UI", "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
   --tide-phase: 0.35;
+  color-scheme: dark;
+}
+
+:root[data-theme="dusk"] {
+  --tide-bg: #1a0e12;
+  --tide-bg-raise: #3a1c24;
+  --tide-fg: #f8eee6;
+  --tide-muted: #d2aa98;
+  --tide-accent: #e8a15a;
+  --tide-accent-dim: #8a4e28;
+  --tide-line: rgba(248, 238, 230, 0.16);
+  --tide-wash: rgba(232, 161, 90, 0.28);
+  --tide-panel: rgba(26, 14, 18, 0.9);
   color-scheme: dark;
 }
 
@@ -47,7 +62,7 @@ body {
   background:
     radial-gradient(
       90% 70% at calc(18% + var(--tide-phase) * 64%) 115%,
-      rgba(62, 198, 192, 0.22),
+      var(--tide-wash),
       transparent 58%
     ),
     linear-gradient(180deg, var(--tide-bg) 0%, var(--tide-bg-raise) 100%);
@@ -107,7 +122,7 @@ body {
   padding: 18px 20px 16px;
   border: 1px solid var(--tide-line);
   border-radius: 14px;
-  background: rgba(7, 16, 24, 0.82);
+  background: var(--tide-panel);
 }
 
 .disclaimer h1 {
@@ -133,7 +148,7 @@ body {
   padding: 14px 14px 16px;
   border: 1px solid var(--tide-line);
   border-radius: 14px;
-  background: rgba(7, 16, 24, 0.88);
+  background: var(--tide-panel);
 }
 
 .library h2 {
@@ -305,7 +320,7 @@ body {
   height: var(--tide-chrome-h);
   padding: 0 20px;
   border-top: 1px solid var(--tide-line);
-  background: rgba(7, 16, 24, 0.9);
+  background: var(--tide-panel);
 }
 
 .wordmark {

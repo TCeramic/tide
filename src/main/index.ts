@@ -81,8 +81,13 @@ function stopApi(): void {
   running?.stop();
 }
 
-function appearanceOf(value: { chromeVisible: boolean; stageLevel: number }): Appearance {
-  return { chromeVisible: value.chromeVisible, stageLevel: value.stageLevel };
+function appearanceOf(value: Appearance): Appearance {
+  return {
+    chromeVisible: value.chromeVisible,
+    stageLevel: value.stageLevel,
+    theme: value.theme,
+    motion: value.motion,
+  };
 }
 
 function pushAppearance(): void {

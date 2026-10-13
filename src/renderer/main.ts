@@ -1,6 +1,6 @@
 import { EventBus } from "../core/events";
 import type { PlaybackEvents } from "../core/playback/types";
-import type { Appearance, PlaybackBusEvent, TideBridge } from "../shared/contract";
+import { isThemeId, type Appearance, type PlaybackBusEvent, type TideBridge } from "../shared/contract";
 import { createRafClock } from "./clock";
 import { mountChrome } from "./layers/chrome";
 import { mountLibrary } from "./layers/library";
@@ -39,11 +39,22 @@ bus.on("track-change", (payload) => {
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 let stopClock = (): void => undefined;
 let motionOn = false;
+let motionAmount = 1;
 
-function setStageMotion(level: number): void {
-  document.documentElement.style.setProperty("--tide-stage", String(Math.min(1, Math.max(0, level))));
-  const wantMotion = level > 0 && !reduceMotion;
-  if (wantMotion === motionOn) return;
+function clamp01(value: number, fallback: number): number {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(1, Math.max(0, value));
+}
+
+function setStageMotion(level: number, motion: number): void {
+  const stage = clamp01(level, 1);
+  motionAmount = clamp01(motion, 1);
+  document.documentElement.style.setProperty("--tide-stage", String(stage));
+  const wantMotion = stage > 0 && motionAmount > 0 && !reduceMotion;
+  if (wantMotion === motionOn) {
+    if (!wantMotion) document.documentElement.style.setProperty("--tide-phase", "0.5");
+    return;
+  }
   motionOn = wantMotion;
   stopClock();
   if (!wantMotion) {
@@ -52,17 +63,19 @@ function setStageMotion(level: number): void {
     return;
   }
   stopClock = createRafClock((frame) => {
-    const phase = (frame.elapsedMs % 12000) / 12000;
+    const raw = (frame.elapsedMs % 12000) / 12000;
+    const phase = 0.5 + (raw - 0.5) * motionAmount;
     document.documentElement.style.setProperty("--tide-phase", phase.toFixed(4));
   });
 }
 
 function applyAppearance(appearance: Appearance): void {
+  document.documentElement.dataset.theme = isThemeId(appearance.theme) ? appearance.theme : "tide";
   chromeRoot.hidden = !appearance.chromeVisible;
-  setStageMotion(appearance.stageLevel);
+  setStageMotion(appearance.stageLevel, appearance.motion);
 }
 
-applyAppearance({ chromeVisible: true, stageLevel: 1 });
+applyAppearance({ chromeVisible: true, stageLevel: 1, theme: "tide", motion: 1 });
 window.tide.onAppearance(applyAppearance);
 
 window.tide.onEvent((event: PlaybackBusEvent) => {
