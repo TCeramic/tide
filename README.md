@@ -1,8 +1,8 @@
 # 潮汐 Tide
 
-潮汐是一个 **Windows 优先** 的个人桌面音乐播放器（Electron）。当前是 **M6**：本机指令总线可以控制播放、读取歌库，并在明确允许时改本机设置。今日潮汐、搜索、歌单和官方推荐仍走原来的队列。能播的行可以点开播放；没有地址的是灰色的，点不了。
+潮汐是一个 **Windows 优先** 的个人桌面音乐播放器（Electron）。当前是 **M7**：现有界面可以在两套主题之间切换，洗色相位也能调强度。这两项和播放、歌库一样走本机指令总线；写设置仍要明确允许。今日潮汐、搜索、歌单和官方推荐仍走原来的队列。能播的行可以点开播放；没有地址的是灰色的，点不了。
 
-Tide is a **Windows-first** personal desktop music player. This revision is **M6**: a loopback command bus can drive playback and read the library, and it can change local settings only when that write is explicitly allowed. 今日潮汐, search, playlists, and the official lists still use the same queue. Playable rows can be played. Rows with no URL are gray and cannot be selected.
+Tide is a **Windows-first** personal desktop music player. This revision is **M7**: the existing window can switch between two themes, and the wash phase has a strength control. Both go through the loopback command bus, and settings writes still need an explicit allow. 今日潮汐, search, playlists, and the official lists still use the same queue. Playable rows can be played. Rows with no URL are gray and cannot be selected.
 
 ## 风险声明 / Risk
 
@@ -34,7 +34,7 @@ curl http://127.0.0.1:39271/health
 ```
 
 ```json
-{ "ok": true, "service": "tide", "version": "0.6.0" }
+{ "ok": true, "service": "tide", "version": "0.7.0" }
 ```
 
 `npm test` 跑状态机、搜索结果整理、今日潮汐排序、收听日志、指令总线、Cookie 判断和登录 / 搜索路由。`npm run typecheck` 只做类型检查。
@@ -69,7 +69,7 @@ src/renderer/player.ts    窗口里的 audio 元素
 src/renderer/clock.ts     requestAnimationFrame 时钟
 src/api/server.ts         127.0.0.1 上的 /health、/session、/search、/playlist/tracks、/recommend/*
 src/api/netease.ts        只调用 NeteaseCloudMusicApi 的登录、歌单、搜索、日推、雷达和歌曲地址
-src/main/settings.ts      userData/settings.json，音量、控件显隐、舞台强度
+src/main/settings.ts      userData/settings.json，音量、主题、动效、控件显隐、舞台强度
 src/main/listen-log.ts    userData/listen-log.json，不含 Cookie
 src/shared/commands.ts    指令名称、危险操作和响应清洗
 src/main/command-server.ts 127.0.0.1 上的指令 HTTP / WebSocket
@@ -81,7 +81,7 @@ src/main/command-server.ts 127.0.0.1 上的指令 HTTP / WebSocket
 
 底部可以暂停、继续、拖动进度、改音量，也可以上一首 / 下一首。播完自动下一首；最后一首停在结尾。
 
-地址由本地 API 向网易云申请，只接受 `http` / `https`。申请失败时播放器停住，并写明「没有可播放的地址」或「请先登录」。Cookie 只留在主进程的 userData 里，不会进播放器快照，也不会交给页面保存。同目录的 `settings.json` 存音量、控件显隐和舞台强度，不存 Cookie。
+地址由本地 API 向网易云申请，只接受 `http` / `https`。申请失败时播放器停住，并写明「没有可播放的地址」或「请先登录」。Cookie 只留在主进程的 userData 里，不会进播放器快照，也不会交给页面保存。同目录的 `settings.json` 存音量、主题、动效、控件显隐和舞台强度，不存 Cookie。
 
 一次最多把歌单或推荐里的前 100 首放进队列。灰色曲目留在列表里，但不会进入队列。播完自动下一首，上一首 / 下一首也只在这个队列里移动。
 
@@ -109,7 +109,7 @@ Search from the left panel. Choosing a playable row queues the playable hits fro
 
 The bar pauses, resumes, seeks, and changes volume, and it can move to the previous or next track. The queue advances when a track ends, and the last track stops at the end.
 
-The loopback API asks NetEase for a URL and accepts only `http` / `https`. If that fails, playback stops with “no URL” or “sign in first”. The cookie stays in the main-process userData file. It is not part of the playback snapshot and the page does not store it. `settings.json` stores volume, whether the controls are visible, and the stage strength. It does not store the cookie.
+The loopback API asks NetEase for a URL and accepts only `http` / `https`. If that fails, playback stops with “no URL” or “sign in first”. The cookie stays in the main-process userData file. It is not part of the playback snapshot and the page does not store it. `settings.json` stores volume, the theme, motion strength, whether the controls are visible, and the stage strength. It does not store the cookie.
 
 ## 指令总线 / Command bus
 
@@ -121,9 +121,16 @@ The loopback API asks NetEase for a URL and accepts only `http` / `https`. If th
 
 播放指令有 `playback.get`、`play`、`pause`、`seek`、`volume`、`next`、`prev`、`queue`、`playHits`。`playback.volume` 只改当前音量，不写盘。只读指令有 `library.search`、`playlistTracks`、`daily`、`radar`、`tideToday`、`session`，以及 `settings.read`、`appearance.read`。
 
-`settings.write`、`appearance.write`（界面显隐和舞台强度）、`session.logout`、`session.clearCookie` 默认拒绝，错误码 `denied`。单次请求带 `"allow": true`，或把指令名写进 `userData/bus-allow.json` 的 `allow` 数组，才会执行。这个文件不保存 Cookie。`playlist.organize` 同样默认拒绝；即使允许，也返回 `unsupported`，因为当前没有改网易云歌单的接口。
+`settings.write`、`appearance.write`、`session.logout`、`session.clearCookie` 默认拒绝，错误码 `denied`。单次请求带 `"allow": true`，或把指令名写进 `userData/bus-allow.json` 的 `allow` 数组，才会执行。这个文件不保存 Cookie。`playlist.organize` 同样默认拒绝；即使允许，也返回 `unsupported`，因为当前没有改网易云歌单的接口。
 
-`appearance.write` 只动已有界面：`chromeVisible` 隐藏或显示控件层，`stageLevel` 从 0 到 1 调整现有潮汐背景的强度。不会加壁纸或粒子。
+`appearance.write` 只动已有的 `#stage`、`#lyrics`、`#chrome`。`theme` 取 `tide`（默认的青夜）或 `dusk`（暖夜）。`motion` 从 0 到 1，0 停住现有洗色相位，1 是完整摆动。`chromeVisible` 隐藏或显示控件层，`stageLevel` 从 0 到 1 调整洗色不透明度。不会加壁纸或粒子。未知主题名会被拒绝。
+
+```bash
+curl -X POST http://127.0.0.1:39272/command \
+  -H "Authorization: Bearer <bus-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"command":"appearance.write","allow":true,"args":{"theme":"dusk","motion":0.4}}'
+```
 
 A script talks only to loopback. NetEase calls stay in the existing API process. The bus does not publish NeteaseCloudMusicApi’s route table.
 
@@ -133,10 +140,18 @@ Playback commands cover get, play, pause, seek, volume, next, previous, queue, a
 
 `settings.write`, `appearance.write`, `session.logout`, and `session.clearCookie` return `denied` unless the request sets `"allow": true` or `userData/bus-allow.json` lists the command. That file stores no cookie. `playlist.organize` is denied the same way. If it is allowed, the result is `unsupported`, because this app cannot edit a NetEase playlist.
 
-`appearance.write` only toggles the existing chrome layer and the strength of the existing tide wash (`stageLevel` from 0 to 1). It does not add wallpaper or particles.
+`appearance.write` only changes the existing `#stage`, `#lyrics`, and `#chrome` layers. `theme` is `tide` (the default teal night) or `dusk` (a warm night). `motion` runs from 0 to 1: 0 freezes the existing wash phase, and 1 is the full travel. `chromeVisible` hides the controls. `stageLevel` sets the wash opacity from 0 to 1. There is no wallpaper and no particle system. An unknown theme name is rejected.
+
+## Windows 包 / Windows package
+
+`npm run dist` 用 electron-builder 打一个 Windows x64 zip，里面是 `Tide.exe` 和依赖。不签名。产物在 `release/`，已忽略，不要提交。
+
+`npm run dist:setup` 打 NSIS 安装包。这需要 Windows，或装了 Wine 的机器。这台 Linux 云主机只验证 zip。
+
+The zip is a portable folder, not an installer. Unzip it and run `Tide.exe`. The command bus token is created in `%APPDATA%\tide\bus-token` on first launch. `npm run dist:setup` builds the NSIS installer and needs Windows or Wine.
 
 ## 下一步 / Next
 
-继续在 `feat/m1-kernel` 上提交即可。歌词跟唱和安装包都不在这一版里。不要接 Spotify、QQ，也不要加壁纸或粒子系统。
+继续在 `feat/m1-kernel` 上提交即可。歌词跟唱不在这一版里。不要接 Spotify、QQ，也不要加壁纸或粒子系统。
 
-Keep committing on `feat/m1-kernel`. Synced lyrics and an installer are not in this revision. Spotify, QQ, wallpaper, and particle systems stay out.
+Keep committing on `feat/m1-kernel`. Synced lyrics are not in this revision. Spotify, QQ, wallpaper, and particle systems stay out.
