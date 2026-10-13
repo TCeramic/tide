@@ -1,36 +1,23 @@
-import { buildTideToday, isThin, type ListenEvent } from "../core/tide-today";
+import { buildTideToday, isThin, likedTargetFromSession, type ListenEvent } from "../core/tide-today";
 import { loopbackJson } from "./session-host";
 import type { SearchHit, TideToday } from "../shared/contract";
 
-const LIKED_NAME = "我喜欢的音乐";
-
 export async function loadTideToday(port: number | null, events: readonly ListenEvent[]): Promise<TideToday> {
-  const seed = isThin(events) ? await likedSeed(port) : [];
-  const list = buildTideToday(events, seed);
+  if (!isThin(events)) {
+    const list = buildTideToday(events, []);
+    return { ok: true, hits: list.hits, message: list.message };
+  }
+  const session = port == null ? null : await loopbackJson(port, "GET", "/session");
+  const target = likedTargetFromSession(session);
+  const seed = target.playlistId ? await likedTracks(port, target.playlistId) : [];
+  const list = buildTideToday(events, seed, { signedIn: target.signedIn });
   return { ok: true, hits: list.hits, message: list.message };
 }
 
-async function likedSeed(port: number | null): Promise<SearchHit[]> {
+async function likedTracks(port: number | null, playlistId: string): Promise<SearchHit[]> {
   if (port == null) return [];
-  const session = await loopbackJson(port, "GET", "/session");
-  const likedId = likedPlaylistId(session);
-  if (!likedId) return [];
-  const body = await loopbackJson(port, "GET", `/playlist/tracks?id=${encodeURIComponent(likedId)}`);
+  const body = await loopbackJson(port, "GET", `/playlist/tracks?id=${encodeURIComponent(playlistId)}`);
   return readHits(body);
-}
-
-function likedPlaylistId(body: unknown): string | null {
-  if (!body || typeof body !== "object") return null;
-  const record = body as { ok?: unknown; state?: unknown; playlists?: unknown };
-  if (record.ok !== true || record.state !== "logged_in" || !Array.isArray(record.playlists)) return null;
-  for (const item of record.playlists) {
-    if (!item || typeof item !== "object") continue;
-    const playlist = item as { id?: unknown; name?: unknown };
-    if (playlist.name === LIKED_NAME && typeof playlist.id === "string" && /^\d{1,20}$/.test(playlist.id)) {
-      return playlist.id;
-    }
-  }
-  return null;
 }
 
 function readHits(body: unknown): SearchHit[] {

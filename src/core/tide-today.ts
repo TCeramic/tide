@@ -17,6 +17,23 @@ export interface TideTodayList {
   message: string | null;
 }
 
+export interface LikedPlaylist {
+  id: string;
+  name: string;
+  specialType?: number;
+}
+
+export interface LikedTarget {
+  signedIn: boolean;
+  playlistId: string | null;
+}
+
+const LIKED_SPECIAL_TYPE = 5;
+const LIKED_SUFFIX = "喜欢的音乐";
+const CLASSIC_LIKED_NAME = "我喜欢的音乐";
+const SIGNED_OUT_EMPTY = "还没有收听记录。登录后会用「我喜欢的音乐」补上今日潮汐。";
+const LOGGED_IN_EMPTY = "还没有收听记录，也没有找到喜欢的音乐。";
+
 const TODAY_LIMIT = 20;
 const THIN_DISTINCT_PLAYS = 5;
 /** Leaving a track before this point counts as a skip. */
@@ -37,10 +54,56 @@ export function isThin(events: readonly ListenEvent[]): boolean {
 }
 
 /**
- * Rank tracks from local play/skip events.
- * When fewer than five distinct tracks have been played, fill from a liked-playlist seed.
+ * Pick the personal liked playlist.
+ * `specialType` 5 wins. Otherwise the nickname form, then 「我喜欢的音乐」,
+ * then any name that ends with 「喜欢的音乐」.
  */
-export function buildTideToday(events: readonly ListenEvent[], seed: readonly SearchHit[] = []): TideTodayList {
+export function pickLikedPlaylistId(playlists: readonly LikedPlaylist[], nickname?: string | null): string | null {
+  const usable = playlists.filter((playlist) => /^\d{1,20}$/.test(playlist.id) && playlist.name.trim().length > 0);
+  const marked = usable.find((playlist) => playlist.specialType === LIKED_SPECIAL_TYPE);
+  if (marked) return marked.id;
+  const nick = nickname?.trim();
+  if (nick) {
+    const personal = usable.find((playlist) => playlist.name.trim() === `${nick}${LIKED_SUFFIX}`);
+    if (personal) return personal.id;
+  }
+  const classic = usable.find((playlist) => playlist.name.trim() === CLASSIC_LIKED_NAME);
+  if (classic) return classic.id;
+  const suffix = usable.find((playlist) => playlist.name.trim().endsWith(LIKED_SUFFIX));
+  return suffix?.id ?? null;
+}
+
+export function likedTargetFromSession(body: unknown): LikedTarget {
+  if (!body || typeof body !== "object") return { signedIn: false, playlistId: null };
+  const record = body as { ok?: unknown; state?: unknown; user?: unknown; playlists?: unknown };
+  if (record.ok !== true || record.state !== "logged_in" || !Array.isArray(record.playlists)) {
+    return { signedIn: false, playlistId: null };
+  }
+  const nickname = record.user && typeof record.user === "object"
+    ? (record.user as { nickname?: unknown }).nickname
+    : null;
+  const playlists: LikedPlaylist[] = [];
+  for (const item of record.playlists) {
+    if (!item || typeof item !== "object") continue;
+    const playlist = item as { id?: unknown; name?: unknown; specialType?: unknown };
+    if (typeof playlist.id !== "string" || typeof playlist.name !== "string") continue;
+    const candidate: LikedPlaylist = { id: playlist.id, name: playlist.name };
+    if (typeof playlist.specialType === "number" && Number.isInteger(playlist.specialType)) {
+      candidate.specialType = playlist.specialType;
+    }
+    playlists.push(candidate);
+  }
+  return {
+    signedIn: true,
+    playlistId: pickLikedPlaylistId(playlists, typeof nickname === "string" ? nickname : null),
+  };
+}
+
+export function buildTideToday(
+  events: readonly ListenEvent[],
+  seed: readonly SearchHit[] = [],
+  options?: { signedIn?: boolean },
+): TideTodayList {
   const local = ranked(events).slice(0, TODAY_LIMIT);
   if (!isThin(events)) {
     if (local.length === 0) {
@@ -59,7 +122,7 @@ export function buildTideToday(events: readonly ListenEvent[], seed: readonly Se
   }
 
   if (hits.length === 0) {
-    return { hits: [], message: "还没有收听记录。登录后会用「我喜欢的音乐」补上今日潮汐。" };
+    return { hits: [], message: options?.signedIn ? LOGGED_IN_EMPTY : SIGNED_OUT_EMPTY };
   }
   if (seed.length === 0) {
     return { hits, message: "听得还不多，也没有找到「我喜欢的音乐」。" };

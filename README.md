@@ -46,13 +46,13 @@ curl http://127.0.0.1:39271/health
 1. **扫码。** 点「显示二维码」，用网易云 App 扫码并在手机上确认。二维码过期就再点一次。
 2. **粘贴 Cookie。** 从已登录的网页版复制请求头里的 Cookie，贴进输入框，点「保存 Cookie」。内容里必须有 `MUSIC_U`，否则会被拒绝。
 
-登录成功后，面板列出账号昵称和歌单（名称与曲数）。点一个歌单会把里面的曲目放进队列，并从第一首能播的开始连续播放。搜索不依赖登录。「今日潮汐」也不依赖登录：没有收听记录时会说明原因；登录后如果记录还少，会用名为「我喜欢的音乐」的歌单来补。每日推荐和私人雷达需要登录；账号拿不到时会写明原因。部分曲目仍会因为版权、地区或会员限制没有地址。
+登录成功后，面板列出账号昵称和歌单（名称与曲数）。点一个歌单会把里面的曲目放进队列，并从第一首能播的开始连续播放。搜索不依赖登录。「今日潮汐」也不依赖登录：没有收听记录时会说明原因；登录后如果记录还少，会用账号里的「喜欢的音乐」来补。歌单名常常是「昵称喜欢的音乐」，不一定是「我喜欢的音乐」。每日推荐和私人雷达需要登录；账号拿不到时会写明原因。部分曲目仍会因为版权、地区或会员限制没有地址。
 
 Cookie 写在 Electron `userData` 目录的 `netease.cookie`（Windows 上一般是 `%APPDATA%/tide/netease.cookie`）。Unix 上文件权限是 `0600`。`.gitignore` 已忽略 `*.cookie` 和 `userData/`。
 
 点「退出登录」会删掉这个文件。如果保存的 Cookie 已失效，面板会写明「登录已失效，请重新登录」，可以扫码、粘贴新 Cookie，或点「清除登录」。
 
-The left panel accepts a NetEase QR login or a pasted cookie that contains `MUSIC_U`. After login it lists your playlists. Opening one queues its tracks and plays from the first playable row. The cookie is stored only in Electron userData as `netease.cookie`. Logout deletes it. An invalid cookie asks you to log in again. Search works without a cookie. **今日潮汐** does too: an empty listen log explains itself, and a thin log can be filled from the playlist named **我喜欢的音乐** after login. Daily recommendations and 私人雷达 need a login, and the panel says so when the account cannot load them. Some tracks still have no URL because of region, copyright, or membership limits.
+The left panel accepts a NetEase QR login or a pasted cookie that contains `MUSIC_U`. After login it lists your playlists. Opening one queues its tracks and plays from the first playable row. The cookie is stored only in Electron userData as `netease.cookie`. Logout deletes it. An invalid cookie asks you to log in again. Search works without a cookie. **今日潮汐** does too: an empty listen log explains itself, and a thin log can be filled from the account’s liked playlist after login. That playlist is often named **昵称喜欢的音乐**, not only **我喜欢的音乐**. Daily recommendations and 私人雷达 need a login, and the panel says so when the account cannot load them. Some tracks still have no URL because of region, copyright, or membership limits.
 
 完成一次真实扫码需要能打开网易云 App 的手机，开发机上不一定能代点确认。
 
@@ -95,13 +95,13 @@ After login, choose a playlist name or **每日推荐** / **私人雷达**. Thos
 
 这张列表不调用网易云的推荐接口。它按本机 `userData/listen-log.json` 里的播放和跳过次数来排：播放加分，不到 30 秒就切到后面的曲子算跳过。播完自然进入下一首不算跳过。文件里只有曲目编号、标题、歌手、时长、时间和播放或跳过，没有 Cookie。
 
-不同曲子的播放不足 5 首时，会用已登录账号里名为「我喜欢的音乐」的歌单来补。没登录、或找不到这张歌单时，面板会说明原因，列表可以为空。记录够了之后就不再混入这张歌单。界面里没有收藏按钮，所以日志只记播放和跳过。
+不同曲子的播放不足 5 首时，会用已登录账号的喜欢列表来补。优先用网易云标成个人红心歌单的那一张（`specialType` 5）；没有这个字段时，再匹配「我喜欢的音乐」，或以「喜欢的音乐」结尾的名字，例如「神音天2333喜欢的音乐」。只是名字里带这几个字、但不是这张歌单的，不会压过红心歌单。没登录时，空列表会提示登录后再补。已经登录但没匹配到时，不会再叫你去登录。记录够了之后就不再混入这张歌单。界面里没有收藏按钮，所以日志只记播放和跳过。
 
 **今日潮汐** sits under search, apart from **每日推荐** and **私人雷达**. **查看今日潮汐** lists tracks and does not start playback; choosing a playable row queues and plays it. Gray rows stay disabled.
 
 That list does not call NetEase recommendation APIs. It ranks `userData/listen-log.json`: a play counts up, and moving on within 30 seconds counts as a skip. Reaching the end of a track does not. The file stores track id, title, artist, duration, time, and play or skip. It does not store a cookie.
 
-When fewer than five different tracks have been played, the logged-in playlist named **我喜欢的音乐** fills the rest. If you are signed out or that playlist is missing, the panel says so and the list can be empty. A thicker log no longer mixes that playlist in. There is no like button, so the log records plays and skips only.
+When fewer than five different tracks have been played, the logged-in liked playlist fills the rest. Tide prefers the playlist NetEase marks as the personal liked list (`specialType` 5). Without that field it matches **我喜欢的音乐**, or a name that ends with **喜欢的音乐**, such as **神音天2333喜欢的音乐**. A playlist that merely contains those words does not outrank the marked list. Signed out, an empty log asks you to log in. Already logged in, a failed match does not ask you to log in again. A thicker log no longer mixes that playlist in. There is no like button, so the log records plays and skips only.
 
 Search from the left panel. Choosing a playable row queues the playable hits from that search and starts there. A gray row says it has no URL and its button is disabled.
 

@@ -71,6 +71,8 @@ export interface PlaylistSummary {
   id: string;
   name: string;
   trackCount: number;
+  /** NetEase playlist kind. 5 is the personal liked-songs list. */
+  specialType?: number;
 }
 
 export interface SessionSnapshot {

@@ -32,12 +32,16 @@ describe("netease adapters", () => {
         body: {
           code: 200,
           playlist: [
-            { id: 9, name: "我喜欢的音乐", trackCount: 3 },
+            { id: 9, name: "神音天2333喜欢的音乐", trackCount: 3, specialType: 5 },
+            { id: 8, name: "普通歌单", trackCount: 1, specialType: 0 },
             { id: "skip" },
           ],
         },
       }),
-      [{ id: "9", name: "我喜欢的音乐", trackCount: 3 }],
+      [
+        { id: "9", name: "神音天2333喜欢的音乐", trackCount: 3, specialType: 5 },
+        { id: "8", name: "普通歌单", trackCount: 1, specialType: 0 },
+      ],
     );
     assert.equal(readQrKey({ body: { data: { unikey: "abc" } } }), "abc");
     assert.deepEqual(

@@ -21,6 +21,7 @@ interface NcmPlaylist {
   id?: number | string;
   name?: string;
   trackCount?: number;
+  specialType?: number;
 }
 
 interface NcmResult {
@@ -136,7 +137,15 @@ export function readPlaylists(result: NcmResult): PlaylistSummary[] {
     const trackCount = typeof item.trackCount === "number" && Number.isFinite(item.trackCount)
       ? Math.max(0, Math.trunc(item.trackCount))
       : 0;
-    playlists.push({ id: String(item.id), name: item.name.trim().slice(0, 200), trackCount });
+    const summary: PlaylistSummary = {
+      id: String(item.id),
+      name: item.name.trim().slice(0, 200),
+      trackCount,
+    };
+    if (typeof item.specialType === "number" && Number.isInteger(item.specialType)) {
+      summary.specialType = item.specialType;
+    }
+    playlists.push(summary);
     if (playlists.length >= 100) break;
   }
   return playlists;
