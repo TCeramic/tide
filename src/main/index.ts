@@ -4,6 +4,7 @@ import { PlaybackMachine } from "../core/playback/machine";
 import { DEFAULT_API_PORT, Ipc, type HealthStatus, type Track } from "../shared/contract";
 import { checkHealth, serverBundlePath, startApiProcess, type ApiProcess } from "./api-host";
 import { attachPlayback } from "./playback-host";
+import { attachSession } from "./session-host";
 
 /** Placeholder rows so the transport has something to drive. Not a catalog. */
 const PLACEHOLDER_QUEUE: Track[] = [
@@ -15,6 +16,7 @@ let mainWindow: BrowserWindow | null = null;
 let apiProcess: ApiProcess | null = null;
 let apiPort: number | null = null;
 let detachPlayback: (() => void) | null = null;
+let detachSession: (() => void) | null = null;
 let healthTimer: ReturnType<typeof setInterval> | null = null;
 let quitting = false;
 
@@ -79,6 +81,8 @@ function shutdown(): void {
   stopApi();
   detachPlayback?.();
   detachPlayback = null;
+  detachSession?.();
+  detachSession = null;
   app.quit();
 }
 
@@ -90,14 +94,17 @@ app.whenReady().then(async () => {
   );
 
   detachPlayback = attachPlayback(() => mainWindow, machine);
+  detachSession = attachSession(() => apiPort);
   machine.setQueue(PLACEHOLDER_QUEUE, 0);
 
   mainWindow = createWindow();
 
   const requestedPort = Number(process.env.TIDE_API_PORT ?? DEFAULT_API_PORT);
+  const cookieFile = path.join(app.getPath("userData"), "netease.cookie");
   apiProcess = startApiProcess(
     serverBundlePath(),
     Number.isInteger(requestedPort) ? requestedPort : DEFAULT_API_PORT,
+    { TIDE_COOKIE_FILE: cookieFile },
   );
   try {
     const bound = await apiProcess.ready;
@@ -128,6 +135,8 @@ app.on("before-quit", () => {
   stopApi();
   detachPlayback?.();
   detachPlayback = null;
+  detachSession?.();
+  detachSession = null;
 });
 
 process.on("SIGINT", shutdown);

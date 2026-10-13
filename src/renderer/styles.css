@@ -65,7 +65,7 @@ body {
 #lyrics {
   display: grid;
   place-items: center;
-  padding: 72px 32px var(--tide-chrome-h);
+  padding: 72px 32px var(--tide-chrome-h) 336px;
   pointer-events: none;
   text-align: center;
 }
@@ -90,9 +90,6 @@ body {
 }
 
 #chrome {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
   pointer-events: none;
 }
 
@@ -101,9 +98,11 @@ body {
 }
 
 .disclaimer {
-  align-self: center;
-  width: min(560px, calc(100% - 48px));
-  margin-top: 28px;
+  position: absolute;
+  top: 20px;
+  left: 328px;
+  right: 24px;
+  width: auto;
   padding: 18px 20px 16px;
   border: 1px solid var(--tide-line);
   border-radius: 14px;
@@ -123,7 +122,98 @@ body {
   line-height: 1.55;
 }
 
+.library {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  bottom: calc(var(--tide-chrome-h) + 12px);
+  width: 288px;
+  overflow: auto;
+  padding: 14px 14px 16px;
+  border: 1px solid var(--tide-line);
+  border-radius: 14px;
+  background: rgba(7, 16, 24, 0.88);
+}
+
+.library h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.library-note {
+  margin: 0 0 10px;
+  color: var(--tide-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.library-note.warn {
+  color: var(--tide-danger);
+}
+
+.library-actions,
+.library-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.playlist {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+
+.playlist li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--tide-line);
+  font-size: 13px;
+}
+
+.playlist li span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.playlist .count {
+  color: var(--tide-muted);
+  flex: none;
+}
+
+.qr {
+  display: block;
+  width: 168px;
+  height: 168px;
+  margin: 4px 0;
+  background: #fff;
+  border-radius: 8px;
+}
+
+.cookie-input {
+  width: 100%;
+  flex: 1 0 100%;
+  min-height: 72px;
+  resize: vertical;
+  border: 1px solid var(--tide-line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--tide-fg);
+  font: inherit;
+  font-size: 12px;
+  padding: 8px;
+}
+
 .transport {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
   display: grid;
   grid-template-columns: auto auto auto auto minmax(140px, 1fr) minmax(120px, 1.2fr) 88px auto;
   gap: 12px;
@@ -204,6 +294,22 @@ input[type="range"] {
 }
 
 @media (max-width: 860px) {
+  #lyrics {
+    padding-left: 24px;
+    padding-top: 280px;
+  }
+
+  .disclaimer,
+  .library {
+    position: static;
+    width: auto;
+    margin: 12px;
+  }
+
+  .library {
+    max-height: 240px;
+  }
+
   .lyrics-title {
     font-size: 28px;
   }

@@ -3,6 +3,7 @@ import type { PlaybackEvents } from "../core/playback/types";
 import type { PlaybackBusEvent, TideBridge } from "../shared/contract";
 import { createRafClock } from "./clock";
 import { mountChrome } from "./layers/chrome";
+import { mountLibrary } from "./layers/library";
 import { mountLyrics } from "./layers/lyrics";
 import { mountStage } from "./layers/stage";
 
@@ -23,6 +24,7 @@ if (!stage || !lyrics || !chrome) {
 const stopStage = mountStage(stage);
 const lyricsLayer = mountLyrics(lyrics);
 const chromeLayer = mountChrome(chrome);
+const library = mountLibrary(chrome);
 
 const bus = new EventBus<PlaybackEvents>();
 bus.on("track-change", (payload) => {
@@ -75,6 +77,7 @@ window.tide.onPlayback((snapshot) => {
 
 window.tide.onHealth((status) => {
   chromeLayer.setHealth(status);
+  library.setApiReady(status.ok);
 });
 
 void window.tide.getPlayback().then((snapshot) => {
@@ -85,6 +88,7 @@ void window.tide.getPlayback().then((snapshot) => {
 
 void window.tide.getHealth().then((status) => {
   chromeLayer.setHealth(status);
+  library.setApiReady(status.ok);
 });
 
 window.addEventListener("beforeunload", () => {
@@ -92,4 +96,5 @@ window.addEventListener("beforeunload", () => {
   stopStage();
   lyricsLayer.destroy();
   chromeLayer.destroy();
+  library.destroy();
 });

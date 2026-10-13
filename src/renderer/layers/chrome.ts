@@ -34,7 +34,7 @@ export function mountChrome(root: HTMLElement): {
 
   const disclaimerBody = document.createElement("p");
   disclaimerBody.textContent =
-    "潮汐是非官方客户端，仅供个人自用。登录、Cookie 与接口可能失效，并可能带来账号风险。继续使用即表示这些后果由你自行承担。 Unofficial client for personal use. Account risk is yours.";
+    "潮汐是非官方客户端，仅供个人自用。使用非官方接口和 Cookie（含 MUSIC_U）可能违反网易云服务条款，并可能导致接口失效或账号受限。继续使用即表示这些后果由你自行承担。 Unofficial client for personal use. Account limits are your risk.";
 
   const ack = document.createElement("button");
   ack.type = "button";

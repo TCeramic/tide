@@ -17,10 +17,15 @@ const STOP_GRACE_MS = 1500;
  * Spawn the loopback API as a child of the Electron process.
  * `ELECTRON_RUN_AS_NODE` lets the same binary act as Node when the app is packaged.
  */
-export function startApiProcess(serverPath: string, port: number): ApiProcess {
+export function startApiProcess(
+  serverPath: string,
+  port: number,
+  extraEnv: Record<string, string> = {},
+): ApiProcess {
   const child = spawn(process.execPath, [serverPath], {
     env: {
       ...process.env,
+      ...extraEnv,
       ELECTRON_RUN_AS_NODE: "1",
       TIDE_API_PORT: String(port),
     },
