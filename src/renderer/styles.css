@@ -412,6 +412,98 @@ body {
   margin: 8px 0 12px;
 }
 
+.queue-panel {
+  margin: 8px 0 12px;
+}
+
+.queue-panel summary {
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.queue-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.queue-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--tide-line);
+}
+
+.queue-row.current .queue-title {
+  color: var(--tide-accent);
+}
+
+.queue-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+}
+
+.queue-row .text-button {
+  padding: 2px 6px;
+  font-size: 11px;
+}
+
+.quality {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  color: var(--tide-muted);
+  font-size: 12px;
+}
+
+.quality select {
+  border: 1px solid var(--tide-line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--tide-fg);
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 6px;
+}
+
+.lyric-tools {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 12px;
+  pointer-events: auto;
+}
+
+.lyric-toggle {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.lyric-toggle[aria-pressed="true"] {
+  border-color: var(--tide-accent-dim);
+  color: var(--tide-accent);
+}
+
+.lyric-offset {
+  color: var(--tide-muted);
+  font-size: 12px;
+  align-self: center;
+}
+
 .bus-panel summary {
   cursor: pointer;
   font-size: 14px;

@@ -1,4 +1,5 @@
 import { ipcMain, type BrowserWindow, type IpcMainEvent } from "electron";
+import { AUDIO_LEVEL_LABEL, isAudioLevel } from "../core/audio-level";
 import { queueFromHits } from "../core/playback/hits";
 import { exploreSeedIds, pickExploreAdditions, shouldExtendQueue } from "../core/explore-queue";
 import { PlaybackMachine } from "../core/playback/machine";
@@ -30,6 +31,9 @@ export interface PlaybackControl {
   setMode(patch: { repeat?: "off" | "all" | "one"; shuffle?: boolean; explore?: boolean }): PlaybackSnapshot;
   next(): Promise<PlaybackSnapshot>;
   previous(): Promise<PlaybackSnapshot>;
+  removeAt(index: number): Promise<PlaybackSnapshot>;
+  moveTrack(from: number, to: number): PlaybackSnapshot;
+  clearQueue(): PlaybackSnapshot;
 }
 
 const MAX_QUEUE = 2000;
@@ -43,6 +47,7 @@ export function attachPlayback(
   getPort: () => number | null,
   persistVolume?: (volume: number) => void,
   listenLog?: ListenLog,
+  getQuality?: () => string,
 ): { detach: () => void; control: PlaybackControl } {
   let generation = 0;
   let currentMedia: { trackId: string; url: string } | null = null;
@@ -107,13 +112,23 @@ export function attachPlayback(
     currentMedia = null;
     sendMedia(track.id, null);
     const port = getPort();
-    const body = port == null ? null : await loopbackJson(port, "GET", `/song/url?id=${encodeURIComponent(track.id)}`);
+    const requested = isAudioLevel(getQuality?.()) ? getQuality?.() : "standard";
+    const level = isAudioLevel(requested) ? requested : "standard";
+    const body = port == null
+      ? null
+      : await loopbackJson(port, "GET", `/song/url?id=${encodeURIComponent(track.id)}&level=${level}`);
     if (token !== generation) return machine.getState();
     const media = readMediaBody(body);
     if (!media.url) {
       currentMedia = null;
       sendMedia(track.id, null);
+      if (media.signedOut) send(Ipc.notice, "登录已过期，请重新登录");
       return publish(machine.fail(media.signedOut ? "signed_out" : "no_url"));
+    }
+    if (media.level && media.requested && media.level !== media.requested) {
+      const from = isAudioLevel(media.requested) ? AUDIO_LEVEL_LABEL[media.requested] : media.requested;
+      const to = isAudioLevel(media.level) ? AUDIO_LEVEL_LABEL[media.level] : media.level;
+      send(Ipc.notice, `这一首没有${from}，已改用${to}。`);
     }
     currentMedia = { trackId: track.id, url: media.url };
     sendMedia(track.id, media.url);
@@ -208,6 +223,50 @@ export function attachPlayback(
       if (index == null) return Promise.resolve(machine.getState());
       return goTo(index);
     },
+    removeAt: (index) => reloadIfTrackChanged(() => machine.removeAt(index)),
+    moveTrack: (from, to) => {
+      const beforeId = currentId();
+      const next = machine.moveTrack(from, to);
+      if (next.queue.length === 0) stopMedia();
+      else if (liveStatus() && beforeId !== currentId()) {
+        generation += 1;
+        void loadCurrent(generation);
+      }
+      return next;
+    },
+    clearQueue: () => {
+      stopMedia();
+      return machine.clearQueue();
+    },
+  };
+
+  const currentId = () => {
+    const state = machine.getState();
+    return state.index >= 0 ? state.queue[state.index]?.id : undefined;
+  };
+  const liveStatus = () => {
+    const status = machine.getState().status;
+    return status === "playing" || status === "loading";
+  };
+  const stopMedia = () => {
+    currentMedia = null;
+    generation += 1;
+    sendMedia("", null);
+  };
+  const reloadIfTrackChanged = (edit: () => PlaybackSnapshot): Promise<PlaybackSnapshot> => {
+    const beforeId = currentId();
+    const live = liveStatus();
+    const next = edit();
+    if (next.queue.length === 0) {
+      stopMedia();
+      return Promise.resolve(next);
+    }
+    if (live && beforeId !== currentId()) {
+      currentMedia = null;
+      generation += 1;
+      return loadCurrent(generation);
+    }
+    return Promise.resolve(next);
   };
 
   let extending = false;
@@ -275,6 +334,13 @@ export function attachPlayback(
   ipcMain.handle(Ipc.playNext, (_event, hit: unknown) => control.playNext(hit) ?? control.get());
   ipcMain.handle(Ipc.next, () => control.next());
   ipcMain.handle(Ipc.previous, () => control.previous());
+  ipcMain.handle(Ipc.queueRemove, (_event, index: unknown) => (
+    typeof index === "number" ? control.removeAt(index) : control.get()
+  ));
+  ipcMain.handle(Ipc.queueMove, (_event, from: unknown, to: unknown) => (
+    typeof from === "number" && typeof to === "number" ? control.moveTrack(from, to) : control.get()
+  ));
+  ipcMain.handle(Ipc.queueClear, () => control.clearQueue());
   ipcMain.handle(Ipc.mode, (_event, patch: unknown) => {
     if (!patch || typeof patch !== "object") return control.get();
     const record = patch as { repeat?: unknown; shuffle?: unknown; explore?: unknown };
@@ -331,6 +397,9 @@ export function attachPlayback(
       ipcMain.removeHandler(Ipc.playNext);
       ipcMain.removeHandler(Ipc.next);
       ipcMain.removeHandler(Ipc.previous);
+      ipcMain.removeHandler(Ipc.queueRemove);
+      ipcMain.removeHandler(Ipc.queueMove);
+      ipcMain.removeHandler(Ipc.queueClear);
       ipcMain.removeHandler(Ipc.mode);
       ipcMain.removeHandler(Ipc.ended);
       ipcMain.removeHandler(Ipc.fail);
@@ -360,12 +429,14 @@ function isHttpUrl(value: string): boolean {
   }
 }
 
-function readMediaBody(body: unknown): { url: string | null; signedOut: boolean } {
+function readMediaBody(body: unknown): { url: string | null; signedOut: boolean; level?: string; requested?: string } {
   if (!body || typeof body !== "object") return { url: null, signedOut: false };
-  const record = body as { error?: unknown; url?: unknown; signedOut?: unknown };
-  if (record.signedOut === true || record.error === "signed_out") return { url: null, signedOut: true };
-  if (typeof record.url === "string" && isHttpUrl(record.url)) return { url: record.url, signedOut: false };
-  return { url: null, signedOut: false };
+  const record = body as { error?: unknown; url?: unknown; signedOut?: unknown; level?: unknown; requested?: unknown };
+  const level = typeof record.level === "string" ? record.level : undefined;
+  const requested = typeof record.requested === "string" ? record.requested : undefined;
+  if (record.signedOut === true || record.error === "signed_out") return { url: null, signedOut: true, level, requested };
+  if (typeof record.url === "string" && isHttpUrl(record.url)) return { url: record.url, signedOut: false, level, requested };
+  return { url: null, signedOut: false, level, requested };
 }
 
 function parseHits(value: unknown): SearchHit[] | null {

@@ -27,7 +27,7 @@ export function createTideApiServer(options: TideApiOptions = {}): http.Server {
     loginStatus: (cookie) => client().loginStatus(cookie),
     playlists: (cookie, uid) => client().playlists(cookie, uid),
     search: (keywords, cookie) => client().search(keywords, cookie),
-    songUrl: (id, cookie) => client().songUrl(id, cookie),
+    songUrl: (id, cookie, level) => client().songUrl(id, cookie, level),
     playlistTracks: (id, cookie) => client().playlistTracks(id, cookie),
     dailySongs: (cookie) => client().dailySongs(cookie),
     radarId: (cookie) => client().radarId(cookie),
@@ -36,6 +36,9 @@ export function createTideApiServer(options: TideApiOptions = {}): http.Server {
     artistSongs: (id, cookie) => client().artistSongs(id, cookie),
     albumTracks: (id, cookie) => client().albumTracks(id, cookie),
     lyric: (id, cookie) => client().lyric(id, cookie),
+    personalFm: (cookie) => client().personalFm(cookie),
+    fmTrash: (id, cookie) => client().fmTrash(id, cookie),
+    refreshLogin: (cookie) => client().refreshLogin(cookie),
     likeSong: (id, like, cookie) => client().likeSong(id, like, cookie),
     collectSong: (playlistId, trackId, cookie) => client().collectSong(playlistId, trackId, cookie),
   });
@@ -118,9 +121,26 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse, sessio
   }
   if (req.method === "GET" && pathname === "/lyric") {
     const trackId = url.searchParams.get("id") ?? "";
-    const text = await session.lyric(trackId);
-    const lines = parseLrc(text);
-    writeJson(res, 200, { ok: true, trackId, lines });
+    const bundle = await session.lyric(trackId);
+    writeJson(res, 200, {
+      ok: true,
+      trackId,
+      lines: parseLrc(bundle.lyric),
+      translation: parseLrc(bundle.translation),
+      romaji: parseLrc(bundle.romaji),
+    });
+    return;
+  }
+  if (req.method === "GET" && pathname === "/personal/fm") {
+    const hits = await session.personalFm();
+    writeJson(res, 200, { ok: true, kind: "songs", hits, artists: [], albums: [] });
+    return;
+  }
+  if (req.method === "POST" && pathname === "/fm/trash") {
+    const body = await readJson(req);
+    const record = body && typeof body === "object" ? body as { id?: unknown } : {};
+    const message = await session.fmTrash(typeof record.id === "string" ? record.id : "");
+    writeJson(res, 200, { ok: true, message });
     return;
   }
   if (req.method === "POST" && pathname === "/song/like") {
@@ -144,8 +164,14 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse, sessio
     return;
   }
   if (req.method === "GET" && pathname === "/song/url") {
-    const media = await session.mediaUrl(url.searchParams.get("id") ?? "");
-    writeJson(res, 200, { ok: true, url: media.url, signedOut: media.signedOut });
+    const media = await session.mediaUrl(url.searchParams.get("id") ?? "", url.searchParams.get("level"));
+    writeJson(res, 200, {
+      ok: true,
+      url: media.url,
+      signedOut: media.signedOut,
+      level: media.level,
+      requested: media.requested,
+    });
     return;
   }
   if (req.method === "GET" && pathname === "/playlist/tracks") {

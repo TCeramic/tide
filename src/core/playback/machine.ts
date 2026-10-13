@@ -1,5 +1,6 @@
 import { EventBus } from "../events";
 import { followingIndex, previousIndex, type RepeatMode } from "./order";
+import { moveQueueItem, removeQueueItem } from "./queue-edit";
 import type { PlaybackErrorCode, PlaybackEvents, PlaybackSnapshot, Track } from "./types";
 
 const DEFAULT_VOLUME = 0.8;
@@ -208,6 +209,22 @@ export class PlaybackMachine {
     return this.getState();
   }
 
+  removeAt(index: number): PlaybackSnapshot {
+    const edited = removeQueueItem(this.snapshot.queue, this.snapshot.index, index);
+    if (!edited) return this.getState();
+    return this.applyQueueEdit(edited.queue, edited.index, edited.trackChanged);
+  }
+
+  moveTrack(from: number, to: number): PlaybackSnapshot {
+    const edited = moveQueueItem(this.snapshot.queue, this.snapshot.index, from, to);
+    if (!edited) return this.getState();
+    return this.applyQueueEdit(edited.queue, edited.index, edited.trackChanged);
+  }
+
+  clearQueue(): PlaybackSnapshot {
+    return this.setQueue([]);
+  }
+
   /** Append tracks that are not already queued. The current index stays put. */
   appendTracks(tracks: readonly Track[]): PlaybackSnapshot {
     const seen = new Set(this.snapshot.queue.map((track) => track.id));
@@ -289,6 +306,21 @@ export class PlaybackMachine {
     this.snapshot = { ...this.snapshot, positionMs: track.durationMs, status: "paused" };
     this.events.emit("pause", { snapshot: this.getState() });
     return true;
+  }
+
+  private applyQueueEdit(queue: Track[], index: number, trackChanged: boolean): PlaybackSnapshot {
+    if (queue.length === 0) return this.setQueue([]);
+    this.snapshot = {
+      ...this.snapshot,
+      queue,
+      index,
+      positionMs: trackChanged ? 0 : this.snapshot.positionMs,
+      error: null,
+    };
+    const snapshot = this.getState();
+    this.events.emit("queue", { snapshot });
+    if (trackChanged) this.events.emit("track-change", { index, snapshot: this.getState() });
+    return this.getState();
   }
 
   private currentTrack(): Track | null {

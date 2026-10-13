@@ -13,20 +13,23 @@ describe("settings", () => {
       stageLevel: 1,
       theme: "tide",
       motion: 1,
+      quality: "standard",
     });
-    assert.deepEqual(settingsFromUnknown({ volume: -1, stageLevel: 2, chromeVisible: false, theme: "dusk", motion: 2 }), {
+    assert.deepEqual(settingsFromUnknown({ volume: -1, stageLevel: 2, chromeVisible: false, theme: "dusk", motion: 2, quality: "hires" }), {
       volume: 0,
       chromeVisible: false,
       stageLevel: 1,
       theme: "dusk",
       motion: 1,
+      quality: "hires",
     });
-    assert.deepEqual(settingsFromUnknown({ volume: "0.2", motion: 0 }), {
+    assert.deepEqual(settingsFromUnknown({ volume: "0.2", motion: 0, quality: "surround" }), {
       volume: 0.8,
       chromeVisible: true,
       stageLevel: 1,
       theme: "tide",
       motion: 0,
+      quality: "standard",
     });
     assert.equal("cookie" in settingsFromUnknown({ volume: 0.5, cookie: "MUSIC_U=secret" }), false);
   });
@@ -39,7 +42,7 @@ describe("settings", () => {
     assert.equal(store.read().volume, 0.35);
     store.write({ volume: 0.2 });
     const saved = JSON.parse(fs.readFileSync(file, "utf8")) as Record<string, unknown>;
-    assert.deepEqual(saved, { volume: 0.2, chromeVisible: true, stageLevel: 1, theme: "tide", motion: 1 });
+    assert.deepEqual(saved, { volume: 0.2, chromeVisible: true, stageLevel: 1, theme: "tide", motion: 1, quality: "standard" });
     store.write({ theme: "dusk", motion: 0 });
     const themed = JSON.parse(fs.readFileSync(file, "utf8")) as Record<string, unknown>;
     assert.equal(themed.theme, "dusk");

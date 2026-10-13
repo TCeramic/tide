@@ -1,5 +1,7 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, globalShortcut, ipcMain } from "electron";
 import path from "node:path";
+import { isAudioLevel } from "../core/audio-level";
+import { MEDIA_SHORTCUTS, shortcutAction } from "../core/media-keys";
 import { PlaybackMachine } from "../core/playback/machine";
 import { DEFAULT_API_PORT, DEFAULT_BUS_PORT, Ipc, type Appearance, type HealthStatus } from "../shared/contract";
 import { checkHealth, serverBundlePath, startApiProcess, type ApiProcess } from "./api-host";
@@ -126,7 +128,29 @@ app.whenReady().then(async () => {
   machine.setVolume(settings.read().volume);
   const playback = attachPlayback(() => mainWindow, machine, () => apiPort, (volume) => {
     settings.write({ volume });
-  }, listenLog);
+  }, listenLog, () => settings.read().quality);
+  ipcMain.handle(Ipc.qualityGet, () => settings.read().quality);
+  ipcMain.handle(Ipc.qualitySet, (_event, level: unknown) => {
+    if (!isAudioLevel(level)) return settings.read().quality;
+    return settings.write({ quality: level }).quality;
+  });
+  for (const accelerator of MEDIA_SHORTCUTS) {
+    const action = shortcutAction(accelerator);
+    if (!action) continue;
+    try {
+      globalShortcut.register(accelerator, () => {
+        if (action === "toggle") {
+          if (machine.getState().status === "playing") playback.control.pause();
+          else void playback.control.play();
+          return;
+        }
+        if (action === "next") void playback.control.next();
+        else void playback.control.previous();
+      });
+    } catch {
+      // This OS may not expose the media key. The in-window bar still works.
+    }
+  }
   detachPlayback = playback.detach;
   detachSession = attachSession(() => apiPort);
   for (const type of ["play", "pause", "seek", "volume", "queue", "track-change"] as const) {
@@ -218,6 +242,9 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  globalShortcut.unregisterAll();
+  ipcMain.removeHandler(Ipc.qualityGet);
+  ipcMain.removeHandler(Ipc.qualitySet);
   stopApi();
   const bus = commandServer;
   commandServer = null;

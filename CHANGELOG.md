@@ -1,5 +1,17 @@
 # 更新记录 / Changelog
 
+## 0.8.1
+
+- 播放队列可以查看、移除、拖动或上下移动、清空。
+- 系统媒体键（播放/暂停、上一首、下一首）和窗口里的 Media Session 走同一套播放命令。Windows 上由系统媒体控件读取。
+- 歌词可以在原文、翻译、罗马音之间切换，并按 0.5 秒调整偏移。翻译和罗马音来自 `lyric` 的 `tlyric` 与 `romalrc`。
+- 私人 FM 使用 `personal_fm`。不喜欢使用 `fm_trash`，然后从队列拿掉当前这首。
+- 音质选择走 `song_url_v1` 的 level（标准、极高、无损、Hi-Res）。选中的档位没有地址时会降到更低档，并写明原因。
+- 读取登录状态时调用 `login_refresh`。Cookie 过期会显示「登录已过期，请重新扫码或粘贴 Cookie。」，不会假装仍然登录。
+- 健康检查版本为 `0.8.1`。
+
+Queue editing, media keys, lyric variants, personal FM, audio quality, and a visible expired-login prompt.
+
 ## 0.8.0
 
 - 点歌单名称只载入曲目，显示已载数量，不自动播放。点能播的一行才从那一首开始。`playlist_track_all` 按 offset 翻页，到空页或大约 2000 首。

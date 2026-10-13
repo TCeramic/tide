@@ -1,7 +1,7 @@
+import { isAudioLevel, resolveSongLevel, type AudioLevel } from "../core/audio-level";
 import { hasMusicU, normalizeCookie, type CookieStore } from "./cookie";
-import type { NeteaseClient, SongMedia } from "./netease";
+import type { CatalogPage, LyricBundle, NeteaseClient, SongMedia } from "./netease";
 import type { ApiFailure, QrCheck, QrTicket, SearchHit, SearchKind, SessionSnapshot, SessionUser } from "../shared/contract";
-import type { CatalogPage } from "./netease";
 
 const QR_MESSAGE: Record<number, string> = {
   800: "二维码已过期，请刷新",
@@ -11,6 +11,7 @@ const QR_MESSAGE: Record<number, string> = {
 };
 
 const INVALID_LOGIN = "登录已失效，请重新登录";
+const EXPIRED_LOGIN = "登录已过期，请重新扫码或粘贴 Cookie。";
 
 export class SessionError extends Error {
   constructor(
@@ -137,14 +138,35 @@ export class SessionService {
     return this.catalog(id, "这张专辑暂时没有拉到", (cookie) => this.netease.albumTracks(id, cookie));
   }
 
-  async lyric(id: string): Promise<string> {
+  async lyric(id: string): Promise<LyricBundle> {
+    const empty: LyricBundle = { lyric: "", translation: "", romaji: "" };
     if (!/^\d{1,20}$/.test(id)) throw new SessionError(400, "bad_id", "曲目编号无效");
     try {
       return await this.netease.lyric(id, this.optionalCookie());
     } catch (error) {
-      if (error instanceof Error && error.message === "signed_out") return "";
-      if (error instanceof Error && error.message === "lyric_failed") return "";
+      if (error instanceof Error && error.message === "signed_out") return empty;
+      if (error instanceof Error && error.message === "lyric_failed") return empty;
       throw new SessionError(502, "upstream", "歌词暂时没有拉到");
+    }
+  }
+
+  async personalFm(): Promise<SearchHit[]> {
+    const cookie = this.requireCookie();
+    try {
+      return await this.netease.personalFm(cookie);
+    } catch (error) {
+      throw catalogFailure(error, "私人 FM 暂时没有拉到");
+    }
+  }
+
+  async fmTrash(id: string): Promise<string> {
+    if (!/^\d{1,20}$/.test(id)) throw new SessionError(400, "bad_id", "曲目编号无效");
+    const cookie = this.requireCookie();
+    try {
+      await this.netease.fmTrash(id, cookie);
+      return "已标记不喜欢";
+    } catch (error) {
+      throw catalogFailure(error, "不喜欢没有成功，请确认已经登录");
     }
   }
 
@@ -216,12 +238,13 @@ export class SessionService {
     }
   }
 
-  async mediaUrl(id: string): Promise<SongMedia> {
+  async mediaUrl(id: string, level: unknown): Promise<SongMedia & { level: AudioLevel; requested: AudioLevel }> {
     if (!/^\d{1,20}$/.test(id)) {
       throw new SessionError(400, "bad_id", "曲目编号无效");
     }
+    const requested = isAudioLevel(level) ? level : "standard";
     try {
-      return await this.netease.songUrl(id, this.optionalCookie());
+      return await resolveSongLevel(requested, (step) => this.netease.songUrl(id, this.optionalCookie(), step));
     } catch {
       throw new SessionError(502, "upstream", "播放地址暂时申请不到");
     }
@@ -233,9 +256,20 @@ export class SessionService {
     if (!hasMusicU(cookie)) {
       return snapshot("invalid", "保存的 Cookie 里没有 MUSIC_U，请重新登录", null, []);
     }
-    const user = await this.requireUser(cookie);
+    let active = cookie;
+    try {
+      const refreshed = await this.netease.refreshLogin(cookie);
+      if (refreshed.expired) return snapshot("invalid", EXPIRED_LOGIN, null, []);
+      if (refreshed.cookie && hasMusicU(refreshed.cookie)) {
+        this.store.write(refreshed.cookie);
+        active = refreshed.cookie;
+      }
+    } catch {
+      // A failed refresh must not hide a later login-status failure.
+    }
+    const user = await this.requireUser(active);
     if (!user) return snapshot("invalid", INVALID_LOGIN, null, []);
-    return this.sessionFor(cookie, user);
+    return this.sessionFor(active, user);
   }
 
   private async sessionFor(cookie: string, user: SessionUser): Promise<SessionSnapshot> {

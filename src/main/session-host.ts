@@ -29,6 +29,13 @@ export function attachSession(getPort: () => number | null): () => void {
   });
   ipcMain.handle(Ipc.daily, () => loopbackJson(getPort(), "GET", "/recommend/daily"));
   ipcMain.handle(Ipc.radar, () => loopbackJson(getPort(), "GET", "/recommend/radar"));
+  ipcMain.handle(Ipc.personalFm, () => loopbackJson(getPort(), "GET", "/personal/fm"));
+  ipcMain.handle(Ipc.fmTrash, (_event, id: unknown) => {
+    if (typeof id !== "string" || !/^\d{1,20}$/.test(id)) {
+      return { ok: false, error: "bad_id", message: "曲目编号无效" } satisfies ApiFailure;
+    }
+    return loopbackJson(getPort(), "POST", "/fm/trash", { id });
+  });
   ipcMain.handle(Ipc.search, (_event, keywords: unknown, type: unknown) => {
     if (typeof keywords !== "string") return emptyQuery();
     const query = keywords.trim().slice(0, 80);
@@ -67,6 +74,8 @@ export function attachSession(getPort: () => number | null): () => void {
     ipcMain.removeHandler(Ipc.playlistTracks);
     ipcMain.removeHandler(Ipc.daily);
     ipcMain.removeHandler(Ipc.radar);
+    ipcMain.removeHandler(Ipc.personalFm);
+    ipcMain.removeHandler(Ipc.fmTrash);
   };
 }
 

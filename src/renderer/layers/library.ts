@@ -1,4 +1,5 @@
-import type { ApiFailure, PlaylistSummary, SearchHit, SearchResult, SessionSnapshot } from "../../shared/contract";
+import { AUDIO_LEVELS, AUDIO_LEVEL_LABEL, type AudioLevel } from "../../core/audio-level";
+import type { ApiFailure, PlaybackSnapshot, PlaylistSummary, SearchHit, SearchResult, SessionSnapshot } from "../../shared/contract";
 import { fillTrackList } from "../track-row";
 
 /** Search, login, and playlist list inside #chrome. */
@@ -6,6 +7,7 @@ export function mountLibrary(root: HTMLElement): {
   setApiReady: (ready: boolean) => void;
   setBusPort: (port: number | undefined) => void;
   setPlayback: (status: string) => void;
+  setQueue: (snapshot: PlaybackSnapshot) => void;
   notify: (message: string) => void;
   destroy: () => void;
 } {
@@ -63,10 +65,36 @@ export function mountLibrary(root: HTMLElement): {
   recommendHeading.hidden = true;
   const dailyButton = button("每日推荐");
   const radarButton = button("私人雷达");
+  const fmButton = button("私人 FM");
   const recommend = document.createElement("div");
   recommend.className = "library-actions";
   recommend.hidden = true;
-  recommend.append(dailyButton, radarButton);
+  recommend.append(dailyButton, radarButton, fmButton);
+
+  const queueDetails = document.createElement("details");
+  queueDetails.className = "queue-panel";
+  const queueSummary = document.createElement("summary");
+  queueSummary.textContent = "播放队列";
+  const queueTools = document.createElement("div");
+  queueTools.className = "library-actions";
+  const clearQueue = button("清空");
+  const dislike = button("不喜欢");
+  queueTools.append(clearQueue, dislike);
+  const qualityLabel = document.createElement("label");
+  qualityLabel.className = "quality";
+  qualityLabel.append("音质");
+  const quality = document.createElement("select");
+  quality.setAttribute("aria-label", "音质");
+  for (const level of AUDIO_LEVELS) {
+    const option = document.createElement("option");
+    option.value = level;
+    option.textContent = AUDIO_LEVEL_LABEL[level];
+    quality.append(option);
+  }
+  qualityLabel.append(quality);
+  const queueList = document.createElement("ul");
+  queueList.className = "queue-list";
+  queueDetails.append(queueSummary, queueTools, qualityLabel, queueList);
 
   const heading = document.createElement("h2");
   heading.textContent = "登录网易云";
@@ -132,6 +160,7 @@ export function mountLibrary(root: HTMLElement): {
     hits,
     tideHeading,
     tideActions,
+    queueDetails,
     recommendHeading,
     recommend,
     bus,
@@ -197,6 +226,7 @@ export function mountLibrary(root: HTMLElement): {
     recommend.hidden = !signedIn;
     dailyButton.disabled = !apiReady;
     radarButton.disabled = !apiReady;
+    fmButton.disabled = !apiReady;
     form.hidden = signedIn;
     logout.hidden = session.state === "signed_out";
     logout.textContent = session.state === "invalid" ? "清除登录" : "退出登录";
@@ -335,12 +365,14 @@ export function mountLibrary(root: HTMLElement): {
     opening = true;
     dailyButton.disabled = true;
     radarButton.disabled = true;
+    fmButton.disabled = true;
     showSearchNote(`正在读取${label}…`, false);
     const result = await load();
     opening = false;
     if (disposed) return;
     dailyButton.disabled = !apiReady;
     radarButton.disabled = !apiReady;
+    fmButton.disabled = !apiReady;
     if (!result.ok) {
       hits.replaceChildren();
       showSearchNote(result.message, true);
@@ -361,6 +393,89 @@ export function mountLibrary(root: HTMLElement): {
   });
   radarButton.addEventListener("click", () => {
     void openHits(() => window.tide.radar(), "私人雷达");
+  });
+  fmButton.addEventListener("click", () => {
+    void openHits(() => window.tide.personalFm(), "私人 FM");
+  });
+
+  let dragging = -1;
+  const renderQueue = (snapshot: PlaybackSnapshot) => {
+    queueSummary.textContent = snapshot.queue.length === 0 ? "播放队列" : `播放队列 · ${snapshot.queue.length}`;
+    queueList.replaceChildren();
+    snapshot.queue.forEach((track, index) => {
+      const item = document.createElement("li");
+      item.className = index === snapshot.index ? "queue-row current" : "queue-row";
+      item.draggable = true;
+      item.addEventListener("dragstart", () => {
+        dragging = index;
+      });
+      item.addEventListener("dragover", (event) => {
+        event.preventDefault();
+      });
+      item.addEventListener("drop", () => {
+        const from = dragging;
+        dragging = -1;
+        if (from < 0 || from === index) return;
+        void window.tide.queueMove(from, index);
+      });
+      const name = document.createElement("button");
+      name.type = "button";
+      name.className = "queue-title";
+      name.textContent = `${track.title} · ${track.artist}`;
+      name.addEventListener("click", () => {
+        void window.tide.changeTrack(index);
+      });
+      const up = button("上移");
+      up.disabled = index === 0;
+      up.addEventListener("click", () => {
+        void window.tide.queueMove(index, index - 1);
+      });
+      const down = button("下移");
+      down.disabled = index === snapshot.queue.length - 1;
+      down.addEventListener("click", () => {
+        void window.tide.queueMove(index, index + 1);
+      });
+      const remove = button("移除");
+      remove.addEventListener("click", () => {
+        void window.tide.queueRemove(index);
+      });
+      item.append(name, up, down, remove);
+      queueList.append(item);
+    });
+  };
+  clearQueue.addEventListener("click", () => {
+    void window.tide.queueClear();
+  });
+  dislike.addEventListener("click", () => {
+    void (async () => {
+      const snap = await window.tide.getPlayback();
+      const track = snap.index >= 0 ? snap.queue[snap.index] : undefined;
+      if (!track) {
+        showSearchNote("没有正在播放的曲目", true);
+        return;
+      }
+      const result = await window.tide.fmTrash(track.id);
+      if (!result.ok) {
+        showSearchNote(result.message, true);
+        return;
+      }
+      showSearchNote(result.message, false);
+      const next = await window.tide.queueRemove(snap.index);
+      if (next.queue.length > 0) return;
+      const more = await window.tide.personalFm();
+      if (!more.ok) {
+        showSearchNote(more.message, true);
+        return;
+      }
+      const index = more.hits.findIndex((hit) => hit.playable);
+      if (index >= 0) void window.tide.playHits(more.hits, index);
+    })();
+  });
+  quality.addEventListener("change", () => {
+    void window.tide.setQuality(quality.value as AudioLevel);
+  });
+  void window.tide.getQuality().then((level) => {
+    if ((AUDIO_LEVELS as readonly string[]).includes(level)) quality.value = level;
   });
 
   tideButton.addEventListener("click", () => {
@@ -487,6 +602,9 @@ export function mountLibrary(root: HTMLElement): {
     setPlayback(status) {
       busStatus.textContent = `状态：${status}`;
     },
+    setQueue(snapshot) {
+      renderQueue(snapshot);
+    },
     notify(message) {
       showSearchNote(message, true);
     },
@@ -499,6 +617,7 @@ export function mountLibrary(root: HTMLElement): {
       searchInput.disabled = !ready;
       dailyButton.disabled = !ready;
       radarButton.disabled = !ready;
+      fmButton.disabled = !ready;
       if (!ready) {
         sawReady = false;
         stopPoll();

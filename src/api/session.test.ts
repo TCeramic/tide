@@ -11,9 +11,10 @@ import { SessionError, SessionService } from "./session";
 
 const validCookie = "MUSIC_U=tide-test; __csrf=1";
 
-function fakeNetease(): NeteaseClient & { checks: number } {
+function fakeNetease(): NeteaseClient & { checks: number; expired: boolean } {
   return {
     checks: 0,
+    expired: false,
     async qrKey() {
       return "unikey-12345678";
     },
@@ -89,7 +90,16 @@ function fakeNetease(): NeteaseClient & { checks: number } {
       return [{ id, title: "专辑曲", artist: "歌手", durationMs: 1000, playable: true }];
     },
     async lyric() {
-      return "[00:01.00]一句";
+      return { lyric: "[00:01.00]一句", translation: "[00:01.00]a line", romaji: "" };
+    },
+    async personalFm() {
+      return [{ id: "4", title: "FM", artist: "潮汐", durationMs: 1000, playable: true }];
+    },
+    async fmTrash() {
+      return undefined;
+    },
+    async refreshLogin() {
+      return { cookie: null, expired: this.expired };
     },
     async likeSong() {
       return undefined;
@@ -127,6 +137,8 @@ interface Payload {
   hits?: { id?: string; title?: string; playable?: boolean }[];
   url?: string | null;
   signedOut?: boolean;
+  level?: string;
+  requested?: string;
 }
 
 async function call(port: number, method: string, pathname: string, body?: unknown): Promise<{ status: number; json: Payload }> {
@@ -240,6 +252,8 @@ describe("session routes", { concurrency: 1 }, () => {
     assert.equal(ok.status, 200);
     assert.equal(ok.json.url, "http://music.126.net/a.mp3");
     assert.equal(ok.json.signedOut, false);
+    assert.equal(ok.json.level, "standard");
+    assert.equal(ok.json.requested, "standard");
     assert.equal(JSON.stringify(ok.json).includes("MUSIC_U"), false);
     const missing = await call(port, "GET", "/song/url?id=2");
     assert.equal(missing.json.url, null);
@@ -277,6 +291,18 @@ describe("session routes", { concurrency: 1 }, () => {
     assert.equal(daily.json.hits?.[0]?.title, "日推");
     const radar = await call(port, "GET", "/recommend/radar");
     assert.equal(radar.json.hits?.[0]?.title, "雷达");
+    const fm = await call(port, "GET", "/personal/fm");
+    assert.equal(fm.json.hits?.[0]?.title, "FM");
+  });
+
+  it("shows an expired cookie instead of staying logged in", async () => {
+    fs.writeFileSync(cookieFile, validCookie, { mode: 0o600 });
+    netease.expired = true;
+    const { json } = await call(port, "GET", "/session");
+    netease.expired = false;
+    assert.equal(json.state, "invalid");
+    assert.match(json.message ?? "", /登录已过期/);
+    assert.equal(fs.existsSync(cookieFile), true);
   });
 });
 

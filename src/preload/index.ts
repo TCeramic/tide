@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
+import type { AudioLevel } from "../core/audio-level";
 import { Ipc, type ApiFailure, type Appearance, type HealthStatus, type LyricPayload, type MediaCue, type PlaybackBusEvent, type PlaybackSnapshot, type QrCheck, type QrTicket, type QueueRequest, type SearchHit, type SearchResult, type SessionSnapshot, type TideBridge, type TideToday, type Track } from "../shared/contract";
 
 function listen<T>(channel: string, listener: (payload: T) => void): () => void {
@@ -33,6 +34,13 @@ const tide: TideBridge = {
   artistSongs: (id) => ipcRenderer.invoke(Ipc.artistSongs, id) as Promise<SearchResult | ApiFailure>,
   albumTracks: (id) => ipcRenderer.invoke(Ipc.albumTracks, id) as Promise<SearchResult | ApiFailure>,
   lyric: (id) => ipcRenderer.invoke(Ipc.lyric, id) as Promise<LyricPayload | ApiFailure>,
+  queueRemove: (index) => ipcRenderer.invoke(Ipc.queueRemove, index) as Promise<PlaybackSnapshot>,
+  queueMove: (from, to) => ipcRenderer.invoke(Ipc.queueMove, from, to) as Promise<PlaybackSnapshot>,
+  queueClear: () => ipcRenderer.invoke(Ipc.queueClear) as Promise<PlaybackSnapshot>,
+  personalFm: () => ipcRenderer.invoke(Ipc.personalFm) as Promise<SearchResult | ApiFailure>,
+  fmTrash: (id) => ipcRenderer.invoke(Ipc.fmTrash, id) as Promise<ApiFailure | { ok: true; message: string }>,
+  getQuality: () => ipcRenderer.invoke(Ipc.qualityGet) as Promise<AudioLevel>,
+  setQuality: (level) => ipcRenderer.invoke(Ipc.qualitySet, level) as Promise<AudioLevel>,
   likeSong: (id, like) => ipcRenderer.invoke(Ipc.likeSong, id, like) as Promise<ApiFailure | { ok: true; message: string }>,
   collectSong: (playlistId, trackId) => ipcRenderer.invoke(Ipc.collectSong, playlistId, trackId) as Promise<ApiFailure | { ok: true; message: string }>,
   playNext: (hit: SearchHit) => ipcRenderer.invoke(Ipc.playNext, hit) as Promise<PlaybackSnapshot>,

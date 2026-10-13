@@ -5,6 +5,7 @@ import { createRafClock } from "./clock";
 import { mountChrome } from "./layers/chrome";
 import { mountLibrary } from "./layers/library";
 import { mountLyrics } from "./layers/lyrics";
+import { installMediaSession, syncMediaSession } from "./media-session";
 import { mountPlayer } from "./player";
 import { mountStage } from "./layers/stage";
 
@@ -38,7 +39,11 @@ function showPlayback(snapshot: PlaybackSnapshot): void {
   lyricsLayer.setTrack(track);
   lyricsLayer.setPosition(snapshot.positionMs);
   library.setPlayback(PLAYBACK_LABEL[snapshot.status]);
+  library.setQueue(snapshot);
+  syncMediaSession(snapshot);
 }
+
+installMediaSession();
 
 const stopStage = mountStage(stage);
 const lyricsLayer = mountLyrics(lyrics);

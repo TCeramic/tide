@@ -1,8 +1,8 @@
 # 潮汐 Tide
 
-潮汐是一个 **Windows 优先** 的个人桌面音乐播放器（Electron）。当前是 **0.8.0**。点歌单名称会载入曲目，不会自动开播；今日潮汐 · 探索用听过的歌去找相似歌曲；播放队列可以列表循环、单曲循环、随机，并在探索打开时用相似歌曲续上。搜索分成单曲、歌手、专辑、歌词。每首歌有播放、下一首、喜欢、收藏和分享。歌词层显示全文，并标出当前句。底栏是图标。指令总线可以在窗口里找到。写设置仍要明确允许。
+潮汐是一个 **Windows 优先** 的个人桌面音乐播放器（Electron）。当前是 **0.8.1**。点歌单名称会载入曲目，不会自动开播；今日潮汐 · 探索用听过的歌去找相似歌曲；播放队列可以列表循环、单曲循环、随机，并在探索打开时用相似歌曲续上。搜索分成单曲、歌手、专辑、歌词。每首歌有播放、下一首、喜欢、收藏和分享。歌词层显示全文，并标出当前句。底栏是图标。指令总线可以在窗口里找到。写设置仍要明确允许。
 
-Tide is a **Windows-first** personal desktop music player. This revision is **0.8.0**. Opening a playlist loads tracks and does not start playback. 今日潮汐 · 探索 finds similar songs from what you have heard. The queue can repeat, shuffle, and keep going from similar songs. Search has song, artist, album, and lyric tabs. Each song row can play, queue next, like, collect, and share. The lyric layer shows the full text and the current line. The bottom bar uses icons. The command bus is reachable from the window. Settings writes still need an explicit allow.
+Tide is a **Windows-first** personal desktop music player. This revision is **0.8.1**. Opening a playlist loads tracks and does not start playback. 今日潮汐 · 探索 finds similar songs from what you have heard. The queue can repeat, shuffle, and keep going from similar songs. Search has song, artist, album, and lyric tabs. Each song row can play, queue next, like, collect, and share. The lyric layer shows the full text and the current line. The bottom bar uses icons. The command bus is reachable from the window. Settings writes still need an explicit allow.
 
 ## 风险声明 / Risk
 
@@ -34,7 +34,7 @@ curl http://127.0.0.1:39271/health
 ```
 
 ```json
-{ "ok": true, "service": "tide", "version": "0.8.0" }
+{ "ok": true, "service": "tide", "version": "0.8.1" }
 ```
 
 `npm test` 跑状态机、搜索结果整理、今日潮汐排序、收听日志、指令总线、Cookie 判断和登录 / 搜索路由。`npm run typecheck` 只做类型检查。

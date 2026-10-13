@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { describe, it } from "node:test";
-import { createNeteaseClient, readCatalog, readCollect, readDailySongs, readLyricText, readPlaylistTracks, readPlaylists, readQrCheck, readQrImage, readQrKey, readRadarId, readSearch, readSimilar, readSongUrl, readUser } from "./netease";
+import { createNeteaseClient, readCatalog, readCollect, readDailySongs, readLoginRefresh, readLyricBundle, readLyricText, readPersonalFm, readPlaylistTracks, readPlaylists, readQrCheck, readQrImage, readQrKey, readRadarId, readSearch, readSimilar, readSongUrl, readUser } from "./netease";
 
 describe("netease adapters", () => {
   it("reads a logged-in account and ignores anonymous sessions", () => {
@@ -74,6 +74,10 @@ describe("netease adapters", () => {
     assert.equal(typeof ncm.user_playlist, "function");
     assert.equal(typeof ncm.cloudsearch, "function");
     assert.equal(typeof ncm.song_url, "function");
+    assert.equal(typeof ncm.song_url_v1, "function");
+    assert.equal(typeof ncm.personal_fm, "function");
+    assert.equal(typeof ncm.fm_trash, "function");
+    assert.equal(typeof ncm.login_refresh, "function");
     assert.equal(typeof ncm.playlist_track_all, "function");
     assert.equal(typeof ncm.recommend_songs, "function");
     assert.equal(typeof ncm.recommend_resource, "function");
@@ -204,6 +208,23 @@ describe("netease adapters", () => {
     assert.equal(artists.artists[0]?.name, "周杰伦");
     assert.equal(artists.hits.length, 0);
     assert.equal(readLyricText({ body: { code: 200, lrc: { lyric: "[00:01.00]一句" } } }), "[00:01.00]一句");
+    assert.deepEqual(readLyricBundle({
+      body: {
+        code: 200,
+        lrc: { lyric: "[00:01.00]一句" },
+        tlyric: { lyric: "[00:01.00]a line" },
+        romalrc: { lyric: "[00:01.00]yi ju" },
+      },
+    }), {
+      lyric: "[00:01.00]一句",
+      translation: "[00:01.00]a line",
+      romaji: "[00:01.00]yi ju",
+    });
+    assert.equal(readPersonalFm({
+      body: { code: 200, data: [{ id: 4, name: "FM", duration: 1000, artists: [{ name: "甲" }] }] },
+    })[0]?.title, "FM");
+    assert.deepEqual(readLoginRefresh({ body: { code: 301 } }), { cookie: null, expired: true });
+    assert.equal(readLoginRefresh({ body: { code: 200, cookie: "MUSIC_U=1" } }).expired, false);
   });
 
   it("passes unlike as the string false so NeteaseCloudMusicApi does not treat it as a like", async () => {

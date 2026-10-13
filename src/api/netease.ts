@@ -1,5 +1,6 @@
 import path from "node:path";
 import { createRequire } from "node:module";
+import type { AudioLevel } from "../core/audio-level";
 import { loadPlaylistPages } from "../core/playlist-pages";
 import type { AlbumSummary, ArtistSummary, PlaylistSummary, SearchHit, SessionUser } from "../shared/contract";
 
@@ -38,6 +39,10 @@ interface NcmModule {
   user_playlist(query: { uid: string; limit?: number; cookie?: string }): Promise<NcmResult>;
   cloudsearch(query: { keywords: string; type?: number; limit?: number; cookie?: string }): Promise<unknown>;
   song_url(query: { id: string; br?: number; cookie?: string }): Promise<unknown>;
+  song_url_v1(query: { id: string; level: string; cookie?: string }): Promise<unknown>;
+  personal_fm(query: { cookie?: string }): Promise<unknown>;
+  fm_trash(query: { id: string; cookie?: string }): Promise<unknown>;
+  login_refresh(query: { cookie?: string }): Promise<NcmResult>;
   playlist_track_all(query: { id: string; limit?: number; cookie?: string }): Promise<unknown>;
   recommend_songs(query: { cookie?: string }): Promise<unknown>;
   recommend_resource(query: { cookie?: string }): Promise<unknown>;
@@ -64,6 +69,17 @@ export interface SongMedia {
   signedOut: boolean;
 }
 
+export interface LyricBundle {
+  lyric: string;
+  translation: string;
+  romaji: string;
+}
+
+export interface LoginRefresh {
+  cookie: string | null;
+  expired: boolean;
+}
+
 /** Calls into the pinned NeteaseCloudMusicApi package. No HTTP surface of its own. */
 export interface NeteaseClient {
   qrKey(): Promise<string>;
@@ -72,7 +88,7 @@ export interface NeteaseClient {
   loginStatus(cookie: string): Promise<SessionUser | null>;
   playlists(cookie: string, uid: string): Promise<PlaylistSummary[]>;
   search(keywords: string, cookie: string | null): Promise<SearchHit[]>;
-  songUrl(id: string, cookie: string | null): Promise<SongMedia>;
+  songUrl(id: string, cookie: string | null, level: AudioLevel): Promise<SongMedia>;
   playlistTracks(id: string, cookie: string): Promise<SearchHit[]>;
   dailySongs(cookie: string): Promise<SearchHit[]>;
   radarId(cookie: string): Promise<string>;
@@ -81,7 +97,10 @@ export interface NeteaseClient {
   searchKind(keywords: string, type: number, cookie: string | null): Promise<CatalogPage>;
   artistSongs(id: string, cookie: string | null): Promise<SearchHit[]>;
   albumTracks(id: string, cookie: string | null): Promise<SearchHit[]>;
-  lyric(id: string, cookie: string | null): Promise<string>;
+  lyric(id: string, cookie: string | null): Promise<LyricBundle>;
+  personalFm(cookie: string): Promise<SearchHit[]>;
+  fmTrash(id: string, cookie: string): Promise<void>;
+  refreshLogin(cookie: string): Promise<LoginRefresh>;
   likeSong(id: string, like: boolean, cookie: string): Promise<void>;
   collectSong(playlistId: string, trackId: string, cookie: string): Promise<void>;
 }
@@ -112,8 +131,8 @@ export function createNeteaseClient(module: NcmModule = loadNeteaseModule()): Ne
     async search(keywords, cookie) {
       return readSearch(await module.cloudsearch(withCookie({ keywords, type: 1, limit: 20 }, cookie)));
     },
-    async songUrl(id, cookie) {
-      return readSongUrl(await module.song_url(withCookie({ id, br: 128000 }, cookie)));
+    async songUrl(id, cookie, level) {
+      return readSongUrl(await module.song_url_v1(withCookie({ id, level }, cookie)));
     },
     async playlistTracks(id, cookie) {
       try {
@@ -150,10 +169,27 @@ export function createNeteaseClient(module: NcmModule = loadNeteaseModule()): Ne
     },
     async lyric(id, cookie) {
       try {
-        return readLyricText(await module.lyric(withCookie({ id }, cookie)));
+        return readLyricBundle(await module.lyric(withCookie({ id }, cookie)));
       } catch (error) {
         rethrowSignedOut(error);
       }
+    },
+    async personalFm(cookie) {
+      try {
+        return readPersonalFm(await module.personal_fm(withCookie({}, cookie)));
+      } catch (error) {
+        rethrowSignedOut(error);
+      }
+    },
+    async fmTrash(id, cookie) {
+      try {
+        readMutation(await module.fm_trash(withCookie({ id }, cookie)), "fm_trash_failed");
+      } catch (error) {
+        rethrowSignedOut(error);
+      }
+    },
+    async refreshLogin(cookie) {
+      return readLoginRefresh(await module.login_refresh(withCookie({}, cookie)));
     },
     async likeSong(id, like, cookie) {
       try {
@@ -279,9 +315,38 @@ export function readAlbum(result: unknown): SearchHit[] {
 }
 
 export function readLyricText(result: unknown): string {
+  return readLyricBundle(result).lyric;
+}
+
+export function readLyricBundle(result: unknown): LyricBundle {
   const body = requireOk(result, "lyric_failed");
-  const lrc = asRecord(body.lrc);
-  return typeof lrc?.lyric === "string" ? lrc.lyric : "";
+  const text = (key: string) => {
+    const row = asRecord(body[key]);
+    return typeof row?.lyric === "string" ? row.lyric : "";
+  };
+  return { lyric: text("lrc"), translation: text("tlyric"), romaji: text("romalrc") };
+}
+
+/** `personal_fm` songs. Privilege is often missing, so a row stays playable. */
+export function readPersonalFm(result: unknown): SearchHit[] {
+  const body = requireOk(result, "fm_failed");
+  const data = body.data;
+  const songs = Array.isArray(data) ? data : asRecord(data)?.data;
+  return collectHits(songs, null, 10, true);
+}
+
+export function readLoginRefresh(result: unknown): LoginRefresh {
+  const record = asRecord(result);
+  const body = asRecord(record?.body);
+  const code = asNumber(body?.code);
+  if (code === 301 || code === 400 || asNumber(record?.status) === 301) {
+    return { cookie: null, expired: true };
+  }
+  if (code != null && code !== 200) return { cookie: null, expired: true };
+  const fromBody = typeof body?.cookie === "string" ? body.cookie : "";
+  const fromList = Array.isArray(record?.cookie) ? (record.cookie as unknown[]).filter((item) => typeof item === "string").join(";") : "";
+  const cookie = (fromBody || fromList).trim();
+  return { cookie: cookie.length > 0 ? cookie : null, expired: false };
 }
 
 export function readCatalog(result: unknown, type: number): CatalogPage {
@@ -379,7 +444,7 @@ function toHit(
   const id = song.id == null ? "" : String(song.id);
   const name = typeof song.name === "string" ? song.name.trim() : "";
   if (!/^\d{1,20}$/.test(id) || name.length === 0) return null;
-  const duration = asNumber(song.dt);
+  const duration = asNumber(song.dt) ?? asNumber(song.duration);
   return {
     id,
     title: name.slice(0, 200),

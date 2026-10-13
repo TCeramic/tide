@@ -1,8 +1,9 @@
+import type { AudioLevel } from "../core/audio-level";
 import type { PlaybackEvents, PlaybackSnapshot, Track } from "../core/playback/types";
 
 export type { PlaybackErrorCode, PlaybackEvents, PlaybackSnapshot, PlaybackStatus, Track } from "../core/playback/types";
 
-export const TIDE_VERSION = "0.8.0";
+export const TIDE_VERSION = "0.8.1";
 export const DEFAULT_API_PORT = 39271;
 export const DEFAULT_BUS_PORT = 39272;
 export const API_READY_PREFIX = "TIDE_API_READY ";
@@ -35,6 +36,13 @@ export const Ipc = {
   previous: "tide:cmd:previous",
   mode: "tide:cmd:mode",
   notice: "tide:notice",
+  queueRemove: "tide:cmd:queue-remove",
+  queueMove: "tide:cmd:queue-move",
+  queueClear: "tide:cmd:queue-clear",
+  personalFm: "tide:fm",
+  fmTrash: "tide:fm:trash",
+  qualityGet: "tide:quality:get",
+  qualitySet: "tide:quality:set",
   playlistTracks: "tide:playlist:tracks",
   daily: "tide:recommend:daily",
   radar: "tide:recommend:radar",
@@ -103,6 +111,8 @@ export interface LyricPayload {
   ok: true;
   trackId: string;
   lines: LyricLine[];
+  translation: LyricLine[];
+  romaji: LyricLine[];
 }
 
 /** First-party daily list. Built from the local listen log, not NetEase recommend APIs. */
@@ -200,6 +210,13 @@ export interface TideBridge {
   artistSongs(id: string): Promise<SearchResult | ApiFailure>;
   albumTracks(id: string): Promise<SearchResult | ApiFailure>;
   lyric(id: string): Promise<LyricPayload | ApiFailure>;
+  queueRemove(index: number): Promise<PlaybackSnapshot>;
+  queueMove(from: number, to: number): Promise<PlaybackSnapshot>;
+  queueClear(): Promise<PlaybackSnapshot>;
+  personalFm(): Promise<SearchResult | ApiFailure>;
+  fmTrash(id: string): Promise<ApiFailure | { ok: true; message: string }>;
+  getQuality(): Promise<AudioLevel>;
+  setQuality(level: AudioLevel): Promise<AudioLevel>;
   likeSong(id: string, like: boolean): Promise<ApiFailure | { ok: true; message: string }>;
   collectSong(playlistId: string, trackId: string): Promise<ApiFailure | { ok: true; message: string }>;
   playNext(hit: SearchHit): Promise<PlaybackSnapshot>;
