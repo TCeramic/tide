@@ -2,8 +2,9 @@ import type { PlaybackEvents, PlaybackSnapshot, Track } from "../core/playback/t
 
 export type { PlaybackErrorCode, PlaybackEvents, PlaybackSnapshot, PlaybackStatus, Track } from "../core/playback/types";
 
-export const TIDE_VERSION = "0.5.0";
+export const TIDE_VERSION = "0.6.0";
 export const DEFAULT_API_PORT = 39271;
+export const DEFAULT_BUS_PORT = 39272;
 export const API_READY_PREFIX = "TIDE_API_READY ";
 
 export const Ipc = {
@@ -33,7 +34,14 @@ export const Ipc = {
   fail: "tide:cmd:fail",
   media: "tide:media",
   tideToday: "tide:today",
+  appearance: "tide:appearance",
 } as const;
+
+/** Local UI knobs. No wallpaper and no particle system. */
+export interface Appearance {
+  chromeVisible: boolean;
+  stageLevel: number;
+}
 
 export interface SearchHit {
   id: string;
@@ -147,4 +155,5 @@ export interface TideBridge {
   reportProgress(positionMs: number): void;
   ended(): Promise<PlaybackSnapshot>;
   failPlayback(code: "no_url" | "signed_out"): Promise<PlaybackSnapshot>;
+  onAppearance(listener: (appearance: Appearance) => void): () => void;
 }

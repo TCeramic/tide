@@ -1,6 +1,6 @@
 import { EventBus } from "../core/events";
 import type { PlaybackEvents } from "../core/playback/types";
-import type { PlaybackBusEvent, TideBridge } from "../shared/contract";
+import type { Appearance, PlaybackBusEvent, TideBridge } from "../shared/contract";
 import { createRafClock } from "./clock";
 import { mountChrome } from "./layers/chrome";
 import { mountLibrary } from "./layers/library";
@@ -22,6 +22,8 @@ if (!stage || !lyrics || !chrome) {
   throw new Error("Tide renderer is missing a layer root");
 }
 
+const chromeRoot = chrome;
+
 const stopStage = mountStage(stage);
 const lyricsLayer = mountLyrics(lyrics);
 const chromeLayer = mountChrome(chrome);
@@ -35,16 +37,33 @@ bus.on("track-change", (payload) => {
 });
 
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-const stopClock = reduceMotion
-  ? () => undefined
-  : createRafClock((frame) => {
-      const phase = (frame.elapsedMs % 12000) / 12000;
-      document.documentElement.style.setProperty("--tide-phase", phase.toFixed(4));
-    });
+let stopClock = (): void => undefined;
+let motionOn = false;
 
-if (reduceMotion) {
-  document.documentElement.style.setProperty("--tide-phase", "0.5");
+function setStageMotion(level: number): void {
+  document.documentElement.style.setProperty("--tide-stage", String(Math.min(1, Math.max(0, level))));
+  const wantMotion = level > 0 && !reduceMotion;
+  if (wantMotion === motionOn) return;
+  motionOn = wantMotion;
+  stopClock();
+  if (!wantMotion) {
+    document.documentElement.style.setProperty("--tide-phase", "0.5");
+    stopClock = () => undefined;
+    return;
+  }
+  stopClock = createRafClock((frame) => {
+    const phase = (frame.elapsedMs % 12000) / 12000;
+    document.documentElement.style.setProperty("--tide-phase", phase.toFixed(4));
+  });
 }
+
+function applyAppearance(appearance: Appearance): void {
+  chromeRoot.hidden = !appearance.chromeVisible;
+  setStageMotion(appearance.stageLevel);
+}
+
+applyAppearance({ chromeVisible: true, stageLevel: 1 });
+window.tide.onAppearance(applyAppearance);
 
 window.tide.onEvent((event: PlaybackBusEvent) => {
   switch (event.type) {

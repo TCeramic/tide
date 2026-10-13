@@ -43,6 +43,7 @@ body {
 }
 
 #stage {
+  opacity: var(--tide-stage, 1);
   background:
     radial-gradient(
       90% 70% at calc(18% + var(--tide-phase) * 64%) 115%,

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
-import { Ipc, type ApiFailure, type HealthStatus, type MediaCue, type PlaybackBusEvent, type PlaybackSnapshot, type QrCheck, type QrTicket, type QueueRequest, type SearchResult, type SessionSnapshot, type TideBridge, type TideToday, type Track } from "../shared/contract";
+import { Ipc, type ApiFailure, type Appearance, type HealthStatus, type MediaCue, type PlaybackBusEvent, type PlaybackSnapshot, type QrCheck, type QrTicket, type QueueRequest, type SearchResult, type SessionSnapshot, type TideBridge, type TideToday, type Track } from "../shared/contract";
 
 function listen<T>(channel: string, listener: (payload: T) => void): () => void {
   const wrapped = (_event: IpcRendererEvent, payload: T) => listener(payload);
@@ -41,6 +41,7 @@ const tide: TideBridge = {
   },
   ended: () => ipcRenderer.invoke(Ipc.ended) as Promise<PlaybackSnapshot>,
   failPlayback: (code) => ipcRenderer.invoke(Ipc.fail, code) as Promise<PlaybackSnapshot>,
+  onAppearance: (listener) => listen<Appearance>(Ipc.appearance, listener),
 };
 
 contextBridge.exposeInMainWorld("tide", tide);

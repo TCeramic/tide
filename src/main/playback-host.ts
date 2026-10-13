@@ -16,6 +16,19 @@ import {
   type Track,
 } from "../shared/contract";
 
+export interface PlaybackControl {
+  get(): PlaybackSnapshot;
+  play(): Promise<PlaybackSnapshot>;
+  pause(): PlaybackSnapshot;
+  seek(positionMs: number): PlaybackSnapshot;
+  setVolume(volume: number, persist: boolean): PlaybackSnapshot;
+  queue(request: unknown): PlaybackSnapshot | null;
+  track(index: number): Promise<PlaybackSnapshot>;
+  playHits(hits: unknown, index: number): Promise<PlaybackSnapshot | null>;
+  next(): Promise<PlaybackSnapshot>;
+  previous(): Promise<PlaybackSnapshot>;
+}
+
 const MAX_QUEUE = 500;
 const MAX_HITS = 100;
 const MAX_TEXT = 300;
@@ -27,7 +40,7 @@ export function attachPlayback(
   getPort: () => number | null,
   persistVolume?: (volume: number) => void,
   listenLog?: ListenLog,
-): () => void {
+): { detach: () => void; control: PlaybackControl } {
   let generation = 0;
   let currentMedia: { trackId: string; url: string } | null = null;
   let progressAt = 0;
@@ -106,61 +119,81 @@ export function attachPlayback(
     return loaded;
   }
 
-  ipcMain.handle(Ipc.playbackGet, () => machine.getState());
-  ipcMain.handle(Ipc.play, () => {
-    const state = machine.getState();
-    if (state.status === "playing" || state.status === "loading") return state;
-    const track = state.index >= 0 ? state.queue[state.index] : undefined;
-    if (state.status === "paused" && track && currentMedia?.trackId === track.id) {
-      return machine.resume();
-    }
-    generation += 1;
-    return loadCurrent(generation);
-  });
-  ipcMain.handle(Ipc.pause, () => machine.pause());
-  ipcMain.handle(Ipc.seek, (_event, positionMs: unknown) => {
-    if (typeof positionMs !== "number") return machine.getState();
-    return machine.seek(positionMs);
-  });
-  ipcMain.handle(Ipc.volume, (_event, volume: unknown) => {
-    if (typeof volume !== "number") return machine.getState();
-    const snapshot = machine.setVolume(volume);
-    if (Number.isFinite(volume)) persistVolume?.(snapshot.volume);
-    return snapshot;
-  });
-  ipcMain.handle(Ipc.queue, (_event, request: unknown) => {
-    const parsed = parseQueueRequest(request);
-    if (!parsed) return machine.getState();
-    currentMedia = null;
-    return machine.setQueue(parsed.queue, parsed.index ?? 0);
-  });
-  ipcMain.handle(Ipc.track, (_event, index: unknown) => {
-    if (typeof index !== "number") return machine.getState();
+  const goTo = (index: number): Promise<PlaybackSnapshot> => {
     const before = machine.getState();
     const forward = Number.isInteger(index) && index > before.index && index < before.queue.length;
     if (forward) noteSkip(before);
     const live = before.status === "playing" || before.status === "loading";
     const next = machine.changeTrack(index);
-    if (next.status === "error") return publish(next);
+    if (next.status === "error") return Promise.resolve(publish(next));
     currentMedia = null;
     const track = next.index >= 0 ? next.queue[next.index] : undefined;
     if (!live) {
       if (track) sendMedia(track.id, null);
-      return next;
+      return Promise.resolve(next);
     }
     generation += 1;
     return loadCurrent(generation);
-  });
-  ipcMain.handle(Ipc.playHits, (_event, hits: unknown, index: unknown) => {
-    const parsed = parseHits(hits);
-    if (!parsed || typeof index !== "number") return machine.getState();
-    const queued = queueFromHits(parsed, index);
-    if (!queued) return machine.getState();
-    noteSkip(machine.getState());
-    currentMedia = null;
-    machine.setQueue(queued.tracks, queued.index);
-    generation += 1;
-    return loadCurrent(generation);
+  };
+
+  const control: PlaybackControl = {
+    get: () => machine.getState(),
+    play: () => {
+      const state = machine.getState();
+      if (state.status === "playing" || state.status === "loading") return Promise.resolve(state);
+      const track = state.index >= 0 ? state.queue[state.index] : undefined;
+      if (state.status === "paused" && track && currentMedia?.trackId === track.id) {
+        return Promise.resolve(machine.resume());
+      }
+      generation += 1;
+      return loadCurrent(generation);
+    },
+    pause: () => machine.pause(),
+    seek: (positionMs) => machine.seek(positionMs),
+    setVolume: (volume, persist) => {
+      if (!Number.isFinite(volume)) return machine.getState();
+      const snapshot = machine.setVolume(volume);
+      if (persist) persistVolume?.(snapshot.volume);
+      return snapshot;
+    },
+    queue: (request) => {
+      const parsed = parseQueueRequest(request);
+      if (!parsed) return null;
+      currentMedia = null;
+      return machine.setQueue(parsed.queue, parsed.index ?? 0);
+    },
+    track: (index) => goTo(index),
+    playHits: (hits, index) => {
+      const parsed = parseHits(hits);
+      if (!parsed || typeof index !== "number") return Promise.resolve(null);
+      const queued = queueFromHits(parsed, index);
+      if (!queued) return Promise.resolve(null);
+      noteSkip(machine.getState());
+      currentMedia = null;
+      machine.setQueue(queued.tracks, queued.index);
+      generation += 1;
+      return loadCurrent(generation);
+    },
+    next: () => goTo(machine.getState().index + 1),
+    previous: () => goTo(machine.getState().index - 1),
+  };
+
+  ipcMain.handle(Ipc.playbackGet, () => control.get());
+  ipcMain.handle(Ipc.play, () => control.play());
+  ipcMain.handle(Ipc.pause, () => control.pause());
+  ipcMain.handle(Ipc.seek, (_event, positionMs: unknown) => (
+    typeof positionMs === "number" ? control.seek(positionMs) : control.get()
+  ));
+  ipcMain.handle(Ipc.volume, (_event, volume: unknown) => (
+    typeof volume === "number" ? control.setVolume(volume, true) : control.get()
+  ));
+  ipcMain.handle(Ipc.queue, (_event, request: unknown) => control.queue(request) ?? control.get());
+  ipcMain.handle(Ipc.track, (_event, index: unknown) => (
+    typeof index === "number" ? control.track(index) : control.get()
+  ));
+  ipcMain.handle(Ipc.playHits, async (_event, hits: unknown, index: unknown) => {
+    if (typeof index !== "number") return control.get();
+    return (await control.playHits(hits, index)) ?? control.get();
   });
   ipcMain.handle(Ipc.ended, () => {
     const state = machine.getState();
@@ -205,21 +238,24 @@ export function attachPlayback(
     }
   });
 
-  return () => {
-    generation += 1;
-    for (const unsubscribe of unsubscribers) unsubscribe();
-    ipcMain.removeListener(Ipc.progress, onProgress);
-    ipcMain.removeHandler(Ipc.playbackGet);
-    ipcMain.removeHandler(Ipc.play);
-    ipcMain.removeHandler(Ipc.pause);
-    ipcMain.removeHandler(Ipc.seek);
-    ipcMain.removeHandler(Ipc.volume);
-    ipcMain.removeHandler(Ipc.queue);
-    ipcMain.removeHandler(Ipc.track);
-    ipcMain.removeHandler(Ipc.playHits);
-    ipcMain.removeHandler(Ipc.ended);
-    ipcMain.removeHandler(Ipc.fail);
-    ipcMain.removeHandler(Ipc.tideToday);
+  return {
+    control,
+    detach: () => {
+      generation += 1;
+      for (const unsubscribe of unsubscribers) unsubscribe();
+      ipcMain.removeListener(Ipc.progress, onProgress);
+      ipcMain.removeHandler(Ipc.playbackGet);
+      ipcMain.removeHandler(Ipc.play);
+      ipcMain.removeHandler(Ipc.pause);
+      ipcMain.removeHandler(Ipc.seek);
+      ipcMain.removeHandler(Ipc.volume);
+      ipcMain.removeHandler(Ipc.queue);
+      ipcMain.removeHandler(Ipc.track);
+      ipcMain.removeHandler(Ipc.playHits);
+      ipcMain.removeHandler(Ipc.ended);
+      ipcMain.removeHandler(Ipc.fail);
+      ipcMain.removeHandler(Ipc.tideToday);
+    },
   };
 }
 

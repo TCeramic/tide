@@ -16,6 +16,9 @@ const entryPoints = [
   "src/main/settings.test.ts",
   "src/core/tide-today.test.ts",
   "src/main/listen-log.test.ts",
+  "src/core/command-bus.test.ts",
+  "src/main/bus-files.test.ts",
+  "src/main/command-server.test.ts",
 ];
 
 await mkdir(outdir, { recursive: true });
