@@ -1,0 +1,16 @@
+node_modules/
+dist/
+dist-test/
+out/
+release/
+*.log
+.env
+.env.*
+!.env.example
+.cookie
+*.cookie
+cookies/
+userData/
+*.pem
+.DS_Store
+Thumbs.db
