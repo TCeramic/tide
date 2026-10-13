@@ -1,4 +1,4 @@
-import type { ApiFailure, SearchHit, SessionSnapshot } from "../../shared/contract";
+import type { ApiFailure, SearchHit, SearchResult, SessionSnapshot } from "../../shared/contract";
 
 /** Search, login, and playlist list inside #chrome. */
 export function mountLibrary(root: HTMLElement): {
@@ -32,6 +32,16 @@ export function mountLibrary(root: HTMLElement): {
 
   const hits = document.createElement("ul");
   hits.className = "hits";
+
+  const recommendHeading = document.createElement("h2");
+  recommendHeading.textContent = "推荐";
+  recommendHeading.hidden = true;
+  const dailyButton = button("每日推荐");
+  const radarButton = button("私人雷达");
+  const recommend = document.createElement("div");
+  recommend.className = "library-actions";
+  recommend.hidden = true;
+  recommend.append(dailyButton, radarButton);
 
   const heading = document.createElement("h2");
   heading.textContent = "登录网易云";
@@ -74,12 +84,13 @@ export function mountLibrary(root: HTMLElement): {
   form.className = "library-form";
   form.append(qrButton, qr, qrNote, cookieInput, save);
 
-  panel.append(searchHeading, searchForm, searchNote, hits, heading, note, actions, list, form);
+  panel.append(searchHeading, searchForm, searchNote, hits, recommendHeading, recommend, heading, note, actions, list, form);
   root.append(panel);
 
   let pollTimer = 0;
   let apiReady = false;
   let searching = false;
+  let opening = false;
   let sawReady = false;
   let disposed = false;
 
@@ -101,15 +112,26 @@ export function mountLibrary(root: HTMLElement): {
     list.replaceChildren();
     for (const playlist of session.playlists) {
       const item = document.createElement("li");
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "playlist-row";
       const name = document.createElement("span");
       name.textContent = playlist.name;
       const count = document.createElement("span");
       count.className = "count";
       count.textContent = String(playlist.trackCount);
-      item.append(name, count);
+      row.append(name, count);
+      row.addEventListener("click", () => {
+        void openHits(() => window.tide.playlistTracks(playlist.id), playlist.name);
+      });
+      item.append(row);
       list.append(item);
     }
     const signedIn = session.state === "logged_in";
+    recommendHeading.hidden = !signedIn;
+    recommend.hidden = !signedIn;
+    dailyButton.disabled = !apiReady;
+    radarButton.disabled = !apiReady;
     form.hidden = signedIn;
     logout.hidden = session.state === "signed_out";
     logout.textContent = session.state === "invalid" ? "清除登录" : "退出登录";
@@ -229,6 +251,39 @@ export function mountLibrary(root: HTMLElement): {
     });
   };
 
+  const openHits = async (load: () => Promise<SearchResult | ApiFailure>, label: string) => {
+    if (opening || !apiReady || disposed) return;
+    opening = true;
+    dailyButton.disabled = true;
+    radarButton.disabled = true;
+    showSearchNote(`正在读取${label}…`, false);
+    const result = await load();
+    opening = false;
+    if (disposed) return;
+    dailyButton.disabled = !apiReady;
+    radarButton.disabled = !apiReady;
+    if (!result.ok) {
+      hits.replaceChildren();
+      showSearchNote(result.message, true);
+      return;
+    }
+    showSearchNote(label, false);
+    renderHits(result.hits);
+    const index = result.hits.findIndex((hit) => hit.playable);
+    if (index < 0) {
+      showSearchNote(result.hits.length === 0 ? `${label}是空的` : `${label}里没有可播放的曲目`, true);
+      return;
+    }
+    void window.tide.playHits(result.hits, index);
+  };
+
+  dailyButton.addEventListener("click", () => {
+    void openHits(() => window.tide.dailyRecommend(), "每日推荐");
+  });
+  radarButton.addEventListener("click", () => {
+    void openHits(() => window.tide.radar(), "私人雷达");
+  });
+
   const showSearchNote = (message: string, warn: boolean) => {
     searchNote.textContent = message;
     searchNote.classList.toggle("warn", warn);
@@ -267,6 +322,8 @@ export function mountLibrary(root: HTMLElement): {
       save.disabled = !ready;
       searchButton.disabled = !ready;
       searchInput.disabled = !ready;
+      dailyButton.disabled = !ready;
+      radarButton.disabled = !ready;
       if (!ready) {
         sawReady = false;
         stopPoll();

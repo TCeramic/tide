@@ -175,10 +175,30 @@ body {
   font-size: 13px;
 }
 
-.playlist li span:first-child {
+.playlist-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+}
+
+.playlist-row span:first-child {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.playlist-row:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .playlist .count {

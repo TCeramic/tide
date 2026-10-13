@@ -21,6 +21,14 @@ export function attachSession(getPort: () => number | null): () => void {
     }
     return proxy(getPort(), "GET", `/session/qr/check?key=${encodeURIComponent(key)}`);
   });
+  ipcMain.handle(Ipc.playlistTracks, (_event, id: unknown) => {
+    if (typeof id !== "string" || !/^\d{1,20}$/.test(id)) {
+      return { ok: false, error: "bad_id", message: "歌单编号无效" } satisfies ApiFailure;
+    }
+    return loopbackJson(getPort(), "GET", `/playlist/tracks?id=${encodeURIComponent(id)}`);
+  });
+  ipcMain.handle(Ipc.daily, () => loopbackJson(getPort(), "GET", "/recommend/daily"));
+  ipcMain.handle(Ipc.radar, () => loopbackJson(getPort(), "GET", "/recommend/radar"));
   ipcMain.handle(Ipc.search, (_event, keywords: unknown) => {
     if (typeof keywords !== "string") return emptyQuery();
     const query = keywords.trim().slice(0, 80);
@@ -35,6 +43,9 @@ export function attachSession(getPort: () => number | null): () => void {
     ipcMain.removeHandler(Ipc.sessionCookie);
     ipcMain.removeHandler(Ipc.sessionQrCheck);
     ipcMain.removeHandler(Ipc.search);
+    ipcMain.removeHandler(Ipc.playlistTracks);
+    ipcMain.removeHandler(Ipc.daily);
+    ipcMain.removeHandler(Ipc.radar);
   };
 }
 

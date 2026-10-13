@@ -36,6 +36,9 @@ interface NcmModule {
   user_playlist(query: { uid: string; limit?: number; cookie?: string }): Promise<NcmResult>;
   cloudsearch(query: { keywords: string; type?: number; limit?: number; cookie?: string }): Promise<unknown>;
   song_url(query: { id: string; br?: number; cookie?: string }): Promise<unknown>;
+  playlist_track_all(query: { id: string; limit?: number; cookie?: string }): Promise<unknown>;
+  recommend_songs(query: { cookie?: string }): Promise<unknown>;
+  recommend_resource(query: { cookie?: string }): Promise<unknown>;
 }
 
 export interface QrImage {
@@ -62,6 +65,9 @@ export interface NeteaseClient {
   playlists(cookie: string, uid: string): Promise<PlaylistSummary[]>;
   search(keywords: string, cookie: string | null): Promise<SearchHit[]>;
   songUrl(id: string, cookie: string | null): Promise<SongMedia>;
+  playlistTracks(id: string, cookie: string): Promise<SearchHit[]>;
+  dailySongs(cookie: string): Promise<SearchHit[]>;
+  radarId(cookie: string): Promise<string>;
 }
 
 export function createNeteaseClient(module: NcmModule = loadNeteaseModule()): NeteaseClient {
@@ -86,6 +92,27 @@ export function createNeteaseClient(module: NcmModule = loadNeteaseModule()): Ne
     },
     async songUrl(id, cookie) {
       return readSongUrl(await module.song_url(withCookie({ id, br: 128000 }, cookie)));
+    },
+    async playlistTracks(id, cookie) {
+      try {
+        return readPlaylistTracks(await module.playlist_track_all(withCookie({ id, limit: CATALOG_LIMIT }, cookie)));
+      } catch (error) {
+        rethrowSignedOut(error);
+      }
+    },
+    async dailySongs(cookie) {
+      try {
+        return readDailySongs(await module.recommend_songs(withCookie({}, cookie)));
+      } catch (error) {
+        rethrowSignedOut(error);
+      }
+    },
+    async radarId(cookie) {
+      try {
+        return readRadarId(await module.recommend_resource(withCookie({}, cookie)));
+      } catch (error) {
+        rethrowSignedOut(error);
+      }
     },
   };
 }
@@ -132,36 +159,40 @@ export function readQrImage(result: NcmResult): QrImage {
 }
 
 const MAX_HITS = 20;
+const CATALOG_LIMIT = 100;
 const MAX_DURATION_MS = 24 * 60 * 60 * 1000;
 
 export function readSearch(result: unknown): SearchHit[] {
-  const body = asRecord(asRecord(result)?.body);
+  const body = bodyOf(result);
   const code = asNumber(body?.code);
   if (code === 301) throw new Error("signed_out");
   if (code !== 200) throw new Error("search_failed");
-  const songs = asRecord(body?.result)?.songs;
-  if (!Array.isArray(songs)) return [];
-  const hits: SearchHit[] = [];
-  for (const item of songs) {
-    const song = asRecord(item);
-    if (!song) continue;
-    const id = song.id == null ? "" : String(song.id);
-    const name = typeof song.name === "string" ? song.name.trim() : "";
-    if (!/^\d{1,20}$/.test(id) || name.length === 0) continue;
-    const privilege = asRecord(song.privilege);
-    const st = asNumber(privilege?.st);
-    const pl = asNumber(privilege?.pl);
-    const duration = asNumber(song.dt);
-    hits.push({
-      id,
-      title: name.slice(0, 200),
-      artist: readArtists(song.ar),
-      durationMs: duration == null ? 0 : Math.min(MAX_DURATION_MS, Math.max(0, Math.trunc(duration))),
-      playable: st != null && st >= 0 && pl != null && pl > 0,
-    });
-    if (hits.length >= MAX_HITS) break;
+  return collectHits(asRecord(body?.result)?.songs, null, MAX_HITS);
+}
+
+export function readPlaylistTracks(result: unknown): SearchHit[] {
+  const body = requireOk(result, "playlist_failed");
+  return collectHits(body.songs, body.privileges, CATALOG_LIMIT);
+}
+
+export function readDailySongs(result: unknown): SearchHit[] {
+  const body = requireOk(result, "daily_failed");
+  const data = asRecord(body.data);
+  return collectHits(data?.dailySongs, data?.privileges, CATALOG_LIMIT);
+}
+
+/** Playlist id for 私人雷达 inside the official daily-playlist list. */
+export function readRadarId(result: unknown): string {
+  const body = requireOk(result, "radar_failed");
+  const list = body.recommend;
+  if (!Array.isArray(list)) throw new Error("radar_missing");
+  for (const item of list) {
+    const row = asRecord(item);
+    const name = typeof row?.name === "string" ? row.name : "";
+    const id = row?.id == null ? "" : String(row.id);
+    if (name.includes("私人雷达") && /^\d{1,20}$/.test(id)) return id;
   }
-  return hits;
+  throw new Error("radar_missing");
 }
 
 export function readSongUrl(result: unknown): SongMedia {
@@ -183,6 +214,82 @@ export function readQrCheck(result: NcmResult): QrPoll {
   const fromList = Array.isArray(result.cookie) ? result.cookie.join(";") : "";
   const cookie = fromBody || fromList;
   return { code, cookie: cookie.length > 0 ? cookie : null };
+}
+
+function requireOk(result: unknown, failed: string): Record<string, unknown> {
+  const body = bodyOf(result);
+  const code = asNumber(body?.code);
+  if (code === 301) throw new Error("signed_out");
+  if (code !== 200 || !body) throw new Error(failed);
+  return body;
+}
+
+function bodyOf(result: unknown): Record<string, unknown> | null {
+  return asRecord(asRecord(result)?.body);
+}
+
+function collectHits(songs: unknown, privileges: unknown, limit: number): SearchHit[] {
+  if (!Array.isArray(songs)) return [];
+  const hits: SearchHit[] = [];
+  for (let index = 0; index < songs.length; index += 1) {
+    const song = asRecord(songs[index]);
+    if (!song) continue;
+    const hit = toHit(song, privilegeFor(song, privileges, index));
+    if (!hit) continue;
+    hits.push(hit);
+    if (hits.length >= limit) break;
+  }
+  return hits;
+}
+
+function toHit(song: Record<string, unknown>, privilege: Record<string, unknown> | null): SearchHit | null {
+  const id = song.id == null ? "" : String(song.id);
+  const name = typeof song.name === "string" ? song.name.trim() : "";
+  if (!/^\d{1,20}$/.test(id) || name.length === 0) return null;
+  const duration = asNumber(song.dt);
+  return {
+    id,
+    title: name.slice(0, 200),
+    artist: readArtists(song.ar),
+    durationMs: duration == null ? 0 : Math.min(MAX_DURATION_MS, Math.max(0, Math.trunc(duration))),
+    playable: playableOf(song, privilege),
+  };
+}
+
+function playableOf(song: Record<string, unknown>, privilege: Record<string, unknown> | null): boolean {
+  const source = privilege ?? asRecord(song.privilege);
+  if (source && (asNumber(source.st) != null || asNumber(source.pl) != null)) {
+    const st = asNumber(source.st);
+    const pl = asNumber(source.pl);
+    return st != null && st >= 0 && pl != null && pl > 0;
+  }
+  const st = asNumber(song.st);
+  return st != null && st >= 0;
+}
+
+function privilegeFor(
+  song: Record<string, unknown>,
+  privileges: unknown,
+  index: number,
+): Record<string, unknown> | null {
+  const embedded = asRecord(song.privilege);
+  if (embedded && (asNumber(embedded.st) != null || asNumber(embedded.pl) != null)) return embedded;
+  if (!Array.isArray(privileges)) return null;
+  const id = song.id == null ? "" : String(song.id);
+  for (const item of privileges) {
+    const row = asRecord(item);
+    if (row && String(row.id) === id) return row;
+  }
+  return asRecord(privileges[index]);
+}
+
+function rethrowSignedOut(error: unknown): never {
+  const record = asRecord(error);
+  const body = asRecord(record?.body);
+  if (asNumber(record?.status) === 301 || asNumber(body?.code) === 301) {
+    throw new Error("signed_out");
+  }
+  throw error;
 }
 
 function readArtists(value: unknown): string {

@@ -111,6 +111,37 @@ export class SessionService {
     }
   }
 
+  async playlistTracks(id: string): Promise<SearchHit[]> {
+    if (!/^\d{1,20}$/.test(id)) {
+      throw new SessionError(400, "bad_id", "歌单编号无效");
+    }
+    const cookie = this.requireCookie();
+    try {
+      return await this.netease.playlistTracks(id, cookie);
+    } catch (error) {
+      throw catalogFailure(error, "歌单暂时没有拉到");
+    }
+  }
+
+  async dailySongs(): Promise<SearchHit[]> {
+    const cookie = this.requireCookie();
+    try {
+      return await this.netease.dailySongs(cookie);
+    } catch (error) {
+      throw catalogFailure(error, "每日推荐暂时没有拉到");
+    }
+  }
+
+  async radarSongs(): Promise<SearchHit[]> {
+    const cookie = this.requireCookie();
+    try {
+      const id = await this.netease.radarId(cookie);
+      return await this.netease.playlistTracks(id, cookie);
+    } catch (error) {
+      throw catalogFailure(error, "私人雷达暂时没有拉到");
+    }
+  }
+
   async mediaUrl(id: string): Promise<SongMedia> {
     if (!/^\d{1,20}$/.test(id)) {
       throw new SessionError(400, "bad_id", "曲目编号无效");
@@ -143,6 +174,12 @@ export class SessionService {
     }
   }
 
+  private requireCookie(): string {
+    const cookie = this.optionalCookie();
+    if (cookie == null) throw new SessionError(401, "signed_out", "请先登录");
+    return cookie;
+  }
+
   private optionalCookie(): string | null {
     const cookie = this.store.read();
     if (cookie == null || !hasMusicU(cookie)) return null;
@@ -156,6 +193,17 @@ export class SessionService {
       throw new SessionError(502, "upstream", "登录状态暂时无法确认，请稍后再试");
     }
   }
+}
+
+function catalogFailure(error: unknown, unavailable: string): SessionError {
+  if (error instanceof SessionError) return error;
+  if (error instanceof Error && error.message === "signed_out") {
+    return new SessionError(401, "signed_out", "请先登录");
+  }
+  if (error instanceof Error && error.message === "radar_missing") {
+    return new SessionError(404, "radar_missing", "这个账号暂时没有私人雷达");
+  }
+  return new SessionError(502, "upstream", unavailable);
 }
 
 export function asFailure(error: SessionError): ApiFailure {

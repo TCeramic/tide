@@ -46,6 +46,24 @@ function fakeNetease(): NeteaseClient & { checks: number } {
       if (id === "1") return { url: "http://music.126.net/a.mp3", signedOut: false };
       return { url: null, signedOut: false };
     },
+    async playlistTracks(id) {
+      if (id === "42") {
+        return [{ id: "8", title: "雷达", artist: "潮汐", durationMs: 1000, playable: true }];
+      }
+      if (id === "9") {
+        return [
+          { id: "1", title: "青花瓷", artist: "周杰伦", durationMs: 1000, playable: true },
+          { id: "2", title: "灰色", artist: "未知", durationMs: 1000, playable: false },
+        ];
+      }
+      throw new Error("playlist_failed");
+    },
+    async dailySongs() {
+      return [{ id: "3", title: "日推", artist: "潮汐", durationMs: 1000, playable: true }];
+    },
+    async radarId() {
+      return "42";
+    },
   };
 }
 
@@ -73,7 +91,7 @@ interface Payload {
   user?: { nickname?: string } | null;
   playlists?: { name?: string }[];
   session?: { state?: string } | null;
-  hits?: { id?: string; playable?: boolean }[];
+  hits?: { id?: string; title?: string; playable?: boolean }[];
   url?: string | null;
   signedOut?: boolean;
 }
@@ -199,5 +217,32 @@ describe("session routes", { concurrency: 1 }, () => {
     const bad = await call(port, "GET", "/song/url?id=abc");
     assert.equal(bad.status, 400);
     assert.equal(bad.json.error, "bad_id");
+  });
+
+  it("requires login for playlists and recommendations", async () => {
+    await call(port, "POST", "/session/logout");
+    const playlist = await call(port, "GET", "/playlist/tracks?id=9");
+    assert.equal(playlist.status, 401);
+    assert.equal(playlist.json.error, "signed_out");
+    const daily = await call(port, "GET", "/recommend/daily");
+    assert.equal(daily.status, 401);
+    const radar = await call(port, "GET", "/recommend/radar");
+    assert.equal(radar.status, 401);
+    const badId = await call(port, "GET", "/playlist/tracks?id=abc");
+    assert.equal(badId.status, 400);
+    assert.equal(badId.json.error, "bad_id");
+  });
+
+  it("lists playlist, daily, and radar tracks without the cookie", async () => {
+    await call(port, "POST", "/session/cookie", { cookie: validCookie });
+    const playlist = await call(port, "GET", "/playlist/tracks?id=9");
+    assert.equal(playlist.status, 200);
+    assert.equal(playlist.json.hits?.[0]?.playable, true);
+    assert.equal(playlist.json.hits?.[1]?.playable, false);
+    assert.equal(JSON.stringify(playlist.json).includes("MUSIC_U"), false);
+    const daily = await call(port, "GET", "/recommend/daily");
+    assert.equal(daily.json.hits?.[0]?.title, "日推");
+    const radar = await call(port, "GET", "/recommend/radar");
+    assert.equal(radar.json.hits?.[0]?.title, "雷达");
   });
 });

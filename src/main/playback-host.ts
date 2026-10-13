@@ -13,7 +13,7 @@ import {
 } from "../shared/contract";
 
 const MAX_QUEUE = 500;
-const MAX_HITS = 50;
+const MAX_HITS = 100;
 const MAX_TEXT = 300;
 const PROGRESS_MS = 200;
 
@@ -21,6 +21,7 @@ export function attachPlayback(
   getWindow: () => BrowserWindow | null,
   machine: PlaybackMachine,
   getPort: () => number | null,
+  persistVolume?: (volume: number) => void,
 ): () => void {
   let generation = 0;
   let currentMedia: { trackId: string; url: string } | null = null;
@@ -101,7 +102,9 @@ export function attachPlayback(
   });
   ipcMain.handle(Ipc.volume, (_event, volume: unknown) => {
     if (typeof volume !== "number") return machine.getState();
-    return machine.setVolume(volume);
+    const snapshot = machine.setVolume(volume);
+    if (Number.isFinite(volume)) persistVolume?.(snapshot.volume);
+    return snapshot;
   });
   ipcMain.handle(Ipc.queue, (_event, request: unknown) => {
     const parsed = parseQueueRequest(request);

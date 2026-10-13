@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { describe, it } from "node:test";
-import { readPlaylists, readQrCheck, readQrImage, readQrKey, readSearch, readSongUrl, readUser } from "./netease";
+import { readDailySongs, readPlaylistTracks, readPlaylists, readQrCheck, readQrImage, readQrKey, readRadarId, readSearch, readSongUrl, readUser } from "./netease";
 
 describe("netease adapters", () => {
   it("reads a logged-in account and ignores anonymous sessions", () => {
@@ -70,6 +70,9 @@ describe("netease adapters", () => {
     assert.equal(typeof ncm.user_playlist, "function");
     assert.equal(typeof ncm.cloudsearch, "function");
     assert.equal(typeof ncm.song_url, "function");
+    assert.equal(typeof ncm.playlist_track_all, "function");
+    assert.equal(typeof ncm.recommend_songs, "function");
+    assert.equal(typeof ncm.recommend_resource, "function");
   });
 
   it("grays tracks that have no playable privilege", () => {
@@ -109,5 +112,67 @@ describe("netease adapters", () => {
       url: null,
       signedOut: false,
     });
+  });
+
+  it("reads playlist tracks from the privilege list and grays blocked ones", () => {
+    assert.deepEqual(
+      readPlaylistTracks({
+        body: {
+          code: 200,
+          songs: [
+            { id: 1, name: "青花瓷", dt: 1000, ar: [{ name: "周杰伦" }] },
+            { id: 2, name: "灰色", dt: 1000, ar: [{ name: "未知" }] },
+          ],
+          privileges: [
+            { id: 1, st: 0, pl: 128000 },
+            { id: 2, st: -100, pl: 0 },
+          ],
+        },
+      }),
+      [
+        { id: "1", title: "青花瓷", artist: "周杰伦", durationMs: 1000, playable: true },
+        { id: "2", title: "灰色", artist: "未知", durationMs: 1000, playable: false },
+      ],
+    );
+  });
+
+  it("reads daily songs and keeps a row selectable when privilege is absent", () => {
+    assert.deepEqual(
+      readDailySongs({
+        body: {
+          code: 200,
+          data: {
+            dailySongs: [
+              { id: 3, name: "有特权", dt: 1000, ar: [{ name: "甲" }], privilege: { st: 0, pl: 128000 } },
+              { id: 4, name: "会员", dt: 1000, st: 0 },
+              { id: 5, name: "下架", dt: 1000, st: -200 },
+            ],
+          },
+        },
+      }),
+      [
+        { id: "3", title: "有特权", artist: "甲", durationMs: 1000, playable: true },
+        { id: "4", title: "会员", artist: "未知", durationMs: 1000, playable: true },
+        { id: "5", title: "下架", artist: "未知", durationMs: 1000, playable: false },
+      ],
+    );
+    assert.throws(() => readDailySongs({ body: { code: 301 } }), /signed_out/);
+  });
+
+  it("finds 私人雷达 and reports when that playlist is missing", () => {
+    assert.equal(
+      readRadarId({
+        body: {
+          code: 200,
+          recommend: [
+            { id: 7, name: "每日歌曲推荐" },
+            { id: 42, name: "私人雷达" },
+          ],
+        },
+      }),
+      "42",
+    );
+    assert.throws(() => readRadarId({ body: { code: 200, recommend: [{ id: 7, name: "其他" }] } }), /radar_missing/);
+    assert.throws(() => readRadarId({ body: { code: 301 } }), /signed_out/);
   });
 });

@@ -5,8 +5,10 @@ import { DEFAULT_API_PORT, Ipc, type HealthStatus } from "../shared/contract";
 import { checkHealth, serverBundlePath, startApiProcess, type ApiProcess } from "./api-host";
 import { attachPlayback } from "./playback-host";
 import { attachSession } from "./session-host";
+import { SettingsStore } from "./settings";
 
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
+if (process.env.TIDE_USER_DATA) app.setPath("userData", process.env.TIDE_USER_DATA);
 
 let mainWindow: BrowserWindow | null = null;
 let apiProcess: ApiProcess | null = null;
@@ -89,7 +91,11 @@ app.whenReady().then(async () => {
       : checkHealth(apiPort),
   );
 
-  detachPlayback = attachPlayback(() => mainWindow, machine, () => apiPort);
+  const settings = new SettingsStore(path.join(app.getPath("userData"), "settings.json"));
+  machine.setVolume(settings.read().volume);
+  detachPlayback = attachPlayback(() => mainWindow, machine, () => apiPort, (volume) => {
+    settings.write(volume);
+  });
   detachSession = attachSession(() => apiPort);
 
   mainWindow = createWindow();

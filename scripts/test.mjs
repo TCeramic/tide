@@ -13,6 +13,7 @@ const entryPoints = [
   "src/api/netease.test.ts",
   "src/api/server.test.ts",
   "src/api/session.test.ts",
+  "src/main/settings.test.ts",
 ];
 
 await mkdir(outdir, { recursive: true });

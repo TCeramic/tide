@@ -27,6 +27,9 @@ export function createTideApiServer(options: TideApiOptions = {}): http.Server {
     playlists: (cookie, uid) => client().playlists(cookie, uid),
     search: (keywords, cookie) => client().search(keywords, cookie),
     songUrl: (id, cookie) => client().songUrl(id, cookie),
+    playlistTracks: (id, cookie) => client().playlistTracks(id, cookie),
+    dailySongs: (cookie) => client().dailySongs(cookie),
+    radarId: (cookie) => client().radarId(cookie),
   });
 
   function client(): NeteaseClient {
@@ -92,6 +95,21 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse, sessio
   if (req.method === "GET" && pathname === "/song/url") {
     const media = await session.mediaUrl(url.searchParams.get("id") ?? "");
     writeJson(res, 200, { ok: true, url: media.url, signedOut: media.signedOut });
+    return;
+  }
+  if (req.method === "GET" && pathname === "/playlist/tracks") {
+    const hits = await session.playlistTracks(url.searchParams.get("id") ?? "");
+    writeJson(res, 200, { ok: true, hits });
+    return;
+  }
+  if (req.method === "GET" && pathname === "/recommend/daily") {
+    const hits = await session.dailySongs();
+    writeJson(res, 200, { ok: true, hits });
+    return;
+  }
+  if (req.method === "GET" && pathname === "/recommend/radar") {
+    const hits = await session.radarSongs();
+    writeJson(res, 200, { ok: true, hits });
     return;
   }
   if (pathname === "/session" || pathname.startsWith("/session/")) {
