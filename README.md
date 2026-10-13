@@ -1,8 +1,8 @@
 # 潮汐 Tide
 
-潮汐是一个 **Windows 优先** 的个人桌面音乐播放器（Electron）。当前是 **M2**：窗口与播放状态机还在，并已接上网易云登录和歌单列表。还没有真正出声（那是 M3）。
+潮汐是一个 **Windows 优先** 的个人桌面音乐播放器（Electron）。当前是 **M3**：可以搜索网易云歌曲，点一首有地址的曲目后在窗口里播放。播放、暂停、进度、音量和上一首 / 下一首都走这个播放器。没有地址的结果是灰色的，点不了。
 
-Tide is a **Windows-first** personal desktop music player. This revision is **M2**: the window and playback state machine are in place, and NetEase login plus playlist listing work. Audio playback is M3.
+Tide is a **Windows-first** personal desktop music player. This revision is **M3**: search NetEase, then play a track that has a URL in the window. Play, pause, seek, volume, and previous / next drive that player. Results with no URL are gray and cannot be selected.
 
 ## 风险声明 / Risk
 
@@ -34,10 +34,10 @@ curl http://127.0.0.1:39271/health
 ```
 
 ```json
-{ "ok": true, "service": "tide", "version": "0.2.0" }
+{ "ok": true, "service": "tide", "version": "0.3.0" }
 ```
 
-`npm test` 跑状态机、Cookie 判断和登录路由。`npm run typecheck` 只做类型检查。
+`npm test` 跑状态机、搜索结果整理、Cookie 判断和登录 / 搜索路由。`npm run typecheck` 只做类型检查。
 
 ## 登录 / Login
 
@@ -46,33 +46,46 @@ curl http://127.0.0.1:39271/health
 1. **扫码。** 点「显示二维码」，用网易云 App 扫码并在手机上确认。二维码过期就再点一次。
 2. **粘贴 Cookie。** 从已登录的网页版复制请求头里的 Cookie，贴进输入框，点「保存 Cookie」。内容里必须有 `MUSIC_U`，否则会被拒绝。
 
-登录成功后，面板列出账号昵称和歌单（名称与曲数）。这一步只读列表，不会播放。
+登录成功后，面板列出账号昵称和歌单（名称与曲数）。搜索不依赖登录；部分曲目仍会因为版权、地区或会员限制拿不到地址。
 
 Cookie 写在 Electron `userData` 目录的 `netease.cookie`（Windows 上一般是 `%APPDATA%/tide/netease.cookie`）。Unix 上文件权限是 `0600`。`.gitignore` 已忽略 `*.cookie` 和 `userData/`。
 
 点「退出登录」会删掉这个文件。如果保存的 Cookie 已失效，面板会写明「登录已失效，请重新登录」，可以扫码、粘贴新 Cookie，或点「清除登录」。
 
-The left panel accepts a NetEase QR login or a pasted cookie that contains `MUSIC_U`. After login it lists your playlists. The cookie is stored only in Electron userData as `netease.cookie`. Logout deletes it. An invalid cookie asks you to log in again.
+The left panel accepts a NetEase QR login or a pasted cookie that contains `MUSIC_U`. After login it lists your playlists. The cookie is stored only in Electron userData as `netease.cookie`. Logout deletes it. An invalid cookie asks you to log in again. Search works without a cookie; some tracks still have no URL because of region, copyright, or membership limits.
 
 完成一次真实扫码需要能打开网易云 App 的手机，开发机上不一定能代点确认。
 
 ## 目录 / Layout
 
 ```
-src/main/                 窗口；API 子进程；退出时清理；登录 IPC
+src/main/                 窗口；API 子进程；退出时清理；登录与播放 IPC
 src/preload/              contextBridge（window.tide）
 src/core/events.ts        事件总线
 src/core/playback/        idle / loading / playing / paused / error
-src/renderer/             #stage 动效层、#lyrics 歌词层、#chrome 控件与歌单
+src/renderer/             #stage 动效层、#lyrics 歌词层、#chrome 控件、搜索与歌单
+src/renderer/player.ts    窗口里的 audio 元素
 src/renderer/clock.ts     requestAnimationFrame 时钟
-src/api/server.ts         127.0.0.1 上的 /health 与 /session
-src/api/netease.ts        调用 NeteaseCloudMusicApi 的登录和歌单函数
+src/api/server.ts         127.0.0.1 上的 /health、/session、/search、/song/url
+src/api/netease.ts        只调用 NeteaseCloudMusicApi 的登录、歌单、搜索和歌曲地址
 ```
 
-播放事件：`play`、`pause`、`seek`、`volume`、`queue`、`track-change`。这些还不驱动真实音频。
+## 搜索和播放 / Search and playback
+
+左侧搜歌名。能播的行可以点，点下去会把本次结果里能播的歌排成队列，并从这一首开始。灰色行写着「没有可播放的地址」，按钮是禁用的。
+
+底部可以暂停、继续、拖动进度、改音量，也可以上一首 / 下一首。播完自动下一首；最后一首停在结尾。
+
+地址由本地 API 向网易云申请，只接受 `http` / `https`。申请失败时播放器停住，并写明「没有可播放的地址」或「请先登录」。Cookie 只留在主进程的 userData 里，不会进播放器快照，也不会交给页面保存。
+
+Search from the left panel. Choosing a playable row queues the playable hits from that search and starts there. A gray row says it has no URL and its button is disabled.
+
+The bar pauses, resumes, seeks, and changes volume, and it can move to the previous or next track. The queue advances when a track ends, and the last track stops at the end.
+
+The loopback API asks NetEase for a URL and accepts only `http` / `https`. If that fails, playback stops with “no URL” or “sign in first”. The cookie stays in the main-process userData file. It is not part of the playback snapshot and the page does not store it.
 
 ## 下一步 / Next
 
-继续在 `feat/m1-kernel` 上提交即可。M3 再做搜索和播放。不要接 Spotify、QQ，也不要加壁纸或粒子系统。
+继续在 `feat/m1-kernel` 上提交即可。推荐、日推、歌词跟唱和安装包都不在这一版里。不要接 Spotify、QQ，也不要加壁纸或粒子系统。
 
-Keep committing on `feat/m1-kernel`. M3 is search and playback. Spotify, QQ, wallpaper, and particle systems stay out.
+Keep committing on `feat/m1-kernel`. Recommendations, the daily playlist, synced lyrics, and an installer are not in this revision. Spotify, QQ, wallpaper, and particle systems stay out.
