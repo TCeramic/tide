@@ -21,6 +21,12 @@ export function attachSession(getPort: () => number | null): () => void {
     }
     return proxy(getPort(), "GET", `/session/qr/check?key=${encodeURIComponent(key)}`);
   });
+  ipcMain.handle(Ipc.search, (_event, keywords: unknown) => {
+    if (typeof keywords !== "string") return emptyQuery();
+    const query = keywords.trim().slice(0, 80);
+    if (query.length === 0) return emptyQuery();
+    return loopbackJson(getPort(), "GET", `/search?keywords=${encodeURIComponent(query)}`);
+  });
 
   return () => {
     ipcMain.removeHandler(Ipc.sessionGet);
@@ -28,11 +34,20 @@ export function attachSession(getPort: () => number | null): () => void {
     ipcMain.removeHandler(Ipc.sessionQrStart);
     ipcMain.removeHandler(Ipc.sessionCookie);
     ipcMain.removeHandler(Ipc.sessionQrCheck);
+    ipcMain.removeHandler(Ipc.search);
   };
+}
+
+export function loopbackJson(port: number | null, method: string, pathname: string, body?: unknown): Promise<unknown> {
+  return proxy(port, method, pathname, body);
 }
 
 function missingMusicU(): ApiFailure {
   return { ok: false, error: "missing_music_u", message: "Cookie 里需要有 MUSIC_U" };
+}
+
+function emptyQuery(): ApiFailure {
+  return { ok: false, error: "empty_query", message: "请输入要搜索的歌名" };
 }
 
 function proxy(port: number | null, method: string, pathname: string, body?: unknown): Promise<unknown> {

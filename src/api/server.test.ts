@@ -35,9 +35,10 @@ describe("tide api", () => {
   it("answers /health on loopback", async () => {
     const response = await fetch(`http://127.0.0.1:${port}/health`);
     assert.equal(response.status, 200);
-    const body = (await response.json()) as { ok: boolean; service: string };
+    const body = (await response.json()) as { ok: boolean; service: string; version: string };
     assert.equal(body.ok, true);
     assert.equal(body.service, "tide");
+    assert.equal(body.version, "0.3.0");
   });
 
   it("returns 404 for other paths", async () => {

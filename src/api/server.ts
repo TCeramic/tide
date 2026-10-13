@@ -13,7 +13,7 @@ export interface TideApiOptions {
 
 /**
  * Loopback API for 潮汐 Tide.
- * NeteaseCloudMusicApi is called from the session routes. The process stays
+ * NeteaseCloudMusicApi is called from these routes only. The process stays
  * on 127.0.0.1 and does not publish that package's full route list.
  */
 export function createTideApiServer(options: TideApiOptions = {}): http.Server {
@@ -25,6 +25,8 @@ export function createTideApiServer(options: TideApiOptions = {}): http.Server {
     qrCheck: (key) => client().qrCheck(key),
     loginStatus: (cookie) => client().loginStatus(cookie),
     playlists: (cookie, uid) => client().playlists(cookie, uid),
+    search: (keywords, cookie) => client().search(keywords, cookie),
+    songUrl: (id, cookie) => client().songUrl(id, cookie),
   });
 
   function client(): NeteaseClient {
@@ -80,6 +82,16 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse, sessio
   }
   if (req.method === "GET" && pathname === "/session/qr/check") {
     writeJson(res, 200, await session.checkQr(url.searchParams.get("key") ?? ""));
+    return;
+  }
+  if (req.method === "GET" && pathname === "/search") {
+    const hits = await session.search(url.searchParams.get("keywords") ?? "");
+    writeJson(res, 200, { ok: true, hits });
+    return;
+  }
+  if (req.method === "GET" && pathname === "/song/url") {
+    const media = await session.mediaUrl(url.searchParams.get("id") ?? "");
+    writeJson(res, 200, { ok: true, url: media.url, signedOut: media.signedOut });
     return;
   }
   if (pathname === "/session" || pathname.startsWith("/session/")) {

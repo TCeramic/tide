@@ -1,6 +1,6 @@
 export type PlaybackStatus = "idle" | "loading" | "playing" | "paused" | "error";
 
-export type PlaybackErrorCode = "empty_queue" | "track_missing";
+export type PlaybackErrorCode = "empty_queue" | "track_missing" | "no_url" | "signed_out";
 
 export interface Track {
   id: string;

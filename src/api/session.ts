@@ -1,6 +1,6 @@
 import { hasMusicU, normalizeCookie, type CookieStore } from "./cookie";
-import type { NeteaseClient } from "./netease";
-import type { ApiFailure, QrCheck, QrTicket, SessionSnapshot, SessionUser } from "../shared/contract";
+import type { NeteaseClient, SongMedia } from "./netease";
+import type { ApiFailure, QrCheck, QrTicket, SearchHit, SessionSnapshot, SessionUser } from "../shared/contract";
 
 const QR_MESSAGE: Record<number, string> = {
   800: "二维码已过期，请刷新",
@@ -96,6 +96,32 @@ export class SessionService {
     return { ok: true, code: 803, message, session };
   }
 
+  async search(keywords: string): Promise<SearchHit[]> {
+    const query = keywords.trim().slice(0, 80);
+    if (query.length === 0) {
+      throw new SessionError(400, "empty_query", "请输入要搜索的歌名");
+    }
+    try {
+      return await this.netease.search(query, this.optionalCookie());
+    } catch (error) {
+      if (error instanceof Error && error.message === "signed_out") {
+        throw new SessionError(401, "signed_out", "请先登录");
+      }
+      throw new SessionError(502, "upstream", "搜索暂时不可用，请稍后再试");
+    }
+  }
+
+  async mediaUrl(id: string): Promise<SongMedia> {
+    if (!/^\d{1,20}$/.test(id)) {
+      throw new SessionError(400, "bad_id", "曲目编号无效");
+    }
+    try {
+      return await this.netease.songUrl(id, this.optionalCookie());
+    } catch {
+      throw new SessionError(502, "upstream", "播放地址暂时申请不到");
+    }
+  }
+
   private async sessionFromStore(): Promise<SessionSnapshot> {
     const cookie = this.store.read();
     if (cookie == null) return snapshot("signed_out", "登录后可以查看你的歌单。", null, []);
@@ -115,6 +141,12 @@ export class SessionService {
     } catch {
       return snapshot("logged_in", "歌单暂时没有拉到，请点刷新", user, []);
     }
+  }
+
+  private optionalCookie(): string | null {
+    const cookie = this.store.read();
+    if (cookie == null || !hasMusicU(cookie)) return null;
+    return cookie;
   }
 
   private async requireUser(cookie: string): Promise<SessionUser | null> {

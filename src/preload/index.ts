@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
-import { Ipc, type ApiFailure, type HealthStatus, type PlaybackBusEvent, type PlaybackSnapshot, type QrCheck, type QrTicket, type QueueRequest, type SessionSnapshot, type TideBridge, type Track } from "../shared/contract";
+import { Ipc, type ApiFailure, type HealthStatus, type MediaCue, type PlaybackBusEvent, type PlaybackSnapshot, type QrCheck, type QrTicket, type QueueRequest, type SearchResult, type SessionSnapshot, type TideBridge, type Track } from "../shared/contract";
 
 function listen<T>(channel: string, listener: (payload: T) => void): () => void {
   const wrapped = (_event: IpcRendererEvent, payload: T) => listener(payload);
@@ -29,6 +29,14 @@ const tide: TideBridge = {
   logout: () => ipcRenderer.invoke(Ipc.sessionLogout) as Promise<SessionSnapshot | ApiFailure>,
   startQr: () => ipcRenderer.invoke(Ipc.sessionQrStart) as Promise<QrTicket | ApiFailure>,
   checkQr: (key) => ipcRenderer.invoke(Ipc.sessionQrCheck, key) as Promise<QrCheck | ApiFailure>,
+  search: (keywords) => ipcRenderer.invoke(Ipc.search, keywords) as Promise<SearchResult | ApiFailure>,
+  playHits: (hits, index) => ipcRenderer.invoke(Ipc.playHits, hits, index) as Promise<PlaybackSnapshot>,
+  onMedia: (listener) => listen<MediaCue>(Ipc.media, listener),
+  reportProgress: (positionMs) => {
+    ipcRenderer.send(Ipc.progress, positionMs);
+  },
+  ended: () => ipcRenderer.invoke(Ipc.ended) as Promise<PlaybackSnapshot>,
+  failPlayback: (code) => ipcRenderer.invoke(Ipc.fail, code) as Promise<PlaybackSnapshot>,
 };
 
 contextBridge.exposeInMainWorld("tide", tide);

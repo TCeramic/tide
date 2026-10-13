@@ -13,6 +13,8 @@ const STATUS_LABEL: Record<PlaybackSnapshot["status"], string> = {
 const ERROR_LABEL: Record<NonNullable<PlaybackSnapshot["error"]>, string> = {
   empty_queue: "队列为空",
   track_missing: "曲目不存在",
+  no_url: "没有可播放的地址",
+  signed_out: "请先登录",
 };
 
 export function mountChrome(root: HTMLElement): {

@@ -17,10 +17,8 @@ function cloneTrack(track: Track): Track {
 }
 
 /**
- * Playback kernel. No audio device and no network: callers drive transitions.
- * `play` passes through `loading` and completes immediately until a real
- * source is attached. Use `beginLoad` / `completeLoad` / `fail` when a URL
- * must resolve first.
+ * Playback kernel. The audio element owns the clock; `syncPosition` records it.
+ * `beginLoad` / `completeLoad` bracket a URL lookup. `resume` continues a paused track.
  */
 export class PlaybackMachine {
   readonly events = new EventBus<PlaybackEvents>();
@@ -43,6 +41,7 @@ export class PlaybackMachine {
 
   play(): PlaybackSnapshot {
     if (this.snapshot.status === "playing") return this.getState();
+    if (this.snapshot.status === "paused" && this.currentTrack()) return this.resume();
     if (this.snapshot.status !== "loading") this.beginLoad();
     if (this.snapshot.status === "error") {
       const snapshot = this.getState();
@@ -50,6 +49,22 @@ export class PlaybackMachine {
       return snapshot;
     }
     return this.completeLoad();
+  }
+
+  resume(): PlaybackSnapshot {
+    if (this.snapshot.status !== "paused" || !this.currentTrack()) return this.getState();
+    this.snapshot = { ...this.snapshot, status: "playing", error: null };
+    const snapshot = this.getState();
+    this.events.emit("play", { snapshot });
+    return snapshot;
+  }
+
+  /** Record the audio element's position without emitting `seek`. */
+  syncPosition(positionMs: number): PlaybackSnapshot {
+    const track = this.currentTrack();
+    if (!track || this.snapshot.status !== "playing" || !Number.isFinite(positionMs)) return this.getState();
+    this.snapshot = { ...this.snapshot, positionMs: clamp(positionMs, 0, track.durationMs) };
+    return this.getState();
   }
 
   beginLoad(): PlaybackSnapshot {

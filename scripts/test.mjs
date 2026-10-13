@@ -8,6 +8,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outdir = path.join(root, "dist-test");
 const entryPoints = [
   "src/core/playback/machine.test.ts",
+  "src/core/playback/hits.test.ts",
   "src/api/cookie.test.ts",
   "src/api/netease.test.ts",
   "src/api/server.test.ts",

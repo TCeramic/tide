@@ -34,6 +34,18 @@ function fakeNetease(): NeteaseClient & { checks: number } {
     async playlists() {
       return [{ id: "9", name: "我喜欢的音乐", trackCount: 3 }];
     },
+    async search(keywords) {
+      if (keywords === "locked") throw new Error("signed_out");
+      return [
+        { id: "1", title: "青花瓷", artist: "周杰伦", durationMs: 229000, playable: true },
+        { id: "2", title: "无地址", artist: "未知", durationMs: 1000, playable: false },
+      ];
+    },
+    async songUrl(id) {
+      if (id === "301") return { url: null, signedOut: true };
+      if (id === "1") return { url: "http://music.126.net/a.mp3", signedOut: false };
+      return { url: null, signedOut: false };
+    },
   };
 }
 
@@ -61,6 +73,9 @@ interface Payload {
   user?: { nickname?: string } | null;
   playlists?: { name?: string }[];
   session?: { state?: string } | null;
+  hits?: { id?: string; playable?: boolean }[];
+  url?: string | null;
+  signedOut?: boolean;
 }
 
 async function call(port: number, method: string, pathname: string, body?: unknown): Promise<{ status: number; json: Payload }> {
@@ -145,5 +160,44 @@ describe("session routes", { concurrency: 1 }, () => {
     assert.equal(json.state, "invalid");
     assert.match(json.message ?? "", /重新登录/);
     assert.equal(fs.existsSync(cookieFile), true);
+  });
+
+  it("searches without returning the cookie", async () => {
+    const { status, json } = await call(port, "GET", `/search?keywords=${encodeURIComponent("青花瓷")}`);
+    assert.equal(status, 200);
+    assert.equal(json.ok, true);
+    assert.equal(json.hits?.[0]?.id, "1");
+    assert.equal(json.hits?.[0]?.playable, true);
+    assert.equal(json.hits?.[1]?.playable, false);
+    assert.equal(JSON.stringify(json).includes("MUSIC_U"), false);
+  });
+
+  it("rejects an empty search", async () => {
+    const { status, json } = await call(port, "GET", "/search?keywords=%20");
+    assert.equal(status, 400);
+    assert.equal(json.error, "empty_query");
+  });
+
+  it("asks for login when search is rejected", async () => {
+    const { status, json } = await call(port, "GET", "/search?keywords=locked");
+    assert.equal(status, 401);
+    assert.equal(json.error, "signed_out");
+  });
+
+  it("returns a song url or a clear refusal", async () => {
+    const ok = await call(port, "GET", "/song/url?id=1");
+    assert.equal(ok.status, 200);
+    assert.equal(ok.json.url, "http://music.126.net/a.mp3");
+    assert.equal(ok.json.signedOut, false);
+    assert.equal(JSON.stringify(ok.json).includes("MUSIC_U"), false);
+    const missing = await call(port, "GET", "/song/url?id=2");
+    assert.equal(missing.json.url, null);
+    assert.equal(missing.json.signedOut, false);
+    const signedOut = await call(port, "GET", "/song/url?id=301");
+    assert.equal(signedOut.json.signedOut, true);
+    assert.equal(signedOut.json.url, null);
+    const bad = await call(port, "GET", "/song/url?id=abc");
+    assert.equal(bad.status, 400);
+    assert.equal(bad.json.error, "bad_id");
   });
 });

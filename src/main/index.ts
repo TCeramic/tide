@@ -1,16 +1,12 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import path from "node:path";
 import { PlaybackMachine } from "../core/playback/machine";
-import { DEFAULT_API_PORT, Ipc, type HealthStatus, type Track } from "../shared/contract";
+import { DEFAULT_API_PORT, Ipc, type HealthStatus } from "../shared/contract";
 import { checkHealth, serverBundlePath, startApiProcess, type ApiProcess } from "./api-host";
 import { attachPlayback } from "./playback-host";
 import { attachSession } from "./session-host";
 
-/** Placeholder rows so the transport has something to drive. Not a catalog. */
-const PLACEHOLDER_QUEUE: Track[] = [
-  { id: "placeholder-tide-1", title: "潮声（占位）", artist: "潮汐", durationMs: 90_000 },
-  { id: "placeholder-tide-2", title: "退潮（占位）", artist: "潮汐", durationMs: 90_000 },
-];
+app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
 
 let mainWindow: BrowserWindow | null = null;
 let apiProcess: ApiProcess | null = null;
@@ -93,9 +89,8 @@ app.whenReady().then(async () => {
       : checkHealth(apiPort),
   );
 
-  detachPlayback = attachPlayback(() => mainWindow, machine);
+  detachPlayback = attachPlayback(() => mainWindow, machine, () => apiPort);
   detachSession = attachSession(() => apiPort);
-  machine.setQueue(PLACEHOLDER_QUEUE, 0);
 
   mainWindow = createWindow();
 

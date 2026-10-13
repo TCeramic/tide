@@ -1,6 +1,6 @@
-import type { ApiFailure, SessionSnapshot } from "../../shared/contract";
+import type { ApiFailure, SearchHit, SessionSnapshot } from "../../shared/contract";
 
-/** Login and playlist list inside #chrome. Playback stays a later milestone. */
+/** Search, login, and playlist list inside #chrome. */
 export function mountLibrary(root: HTMLElement): {
   setApiReady: (ready: boolean) => void;
   destroy: () => void;
@@ -8,6 +8,30 @@ export function mountLibrary(root: HTMLElement): {
   const panel = document.createElement("aside");
   panel.className = "library";
   panel.setAttribute("aria-label", "网易云歌单");
+
+  const searchHeading = document.createElement("h2");
+  searchHeading.textContent = "搜索";
+
+  const searchForm = document.createElement("form");
+  searchForm.className = "search";
+  const searchInput = document.createElement("input");
+  searchInput.type = "search";
+  searchInput.className = "search-input";
+  searchInput.placeholder = "歌名";
+  searchInput.maxLength = 80;
+  searchInput.setAttribute("aria-label", "搜索");
+  const searchButton = button("搜索");
+  searchButton.type = "submit";
+  searchButton.disabled = true;
+  searchInput.disabled = true;
+  searchForm.append(searchInput, searchButton);
+
+  const searchNote = document.createElement("p");
+  searchNote.className = "library-note";
+  searchNote.hidden = true;
+
+  const hits = document.createElement("ul");
+  hits.className = "hits";
 
   const heading = document.createElement("h2");
   heading.textContent = "登录网易云";
@@ -50,11 +74,12 @@ export function mountLibrary(root: HTMLElement): {
   form.className = "library-form";
   form.append(qrButton, qr, qrNote, cookieInput, save);
 
-  panel.append(heading, note, actions, list, form);
+  panel.append(searchHeading, searchForm, searchNote, hits, heading, note, actions, list, form);
   root.append(panel);
 
   let pollTimer = 0;
   let apiReady = false;
+  let searching = false;
   let sawReady = false;
   let disposed = false;
 
@@ -178,12 +203,70 @@ export function mountLibrary(root: HTMLElement): {
     void refreshSession();
   });
 
+  const renderHits = (rows: SearchHit[]) => {
+    hits.replaceChildren();
+    rows.forEach((hit, index) => {
+      const item = document.createElement("li");
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = hit.playable ? "hit" : "hit unavailable";
+      row.disabled = !hit.playable;
+      if (!hit.playable) row.title = "没有可播放的地址";
+      const title = document.createElement("span");
+      title.className = "hit-title";
+      title.textContent = hit.title;
+      const meta = document.createElement("span");
+      meta.className = "hit-meta";
+      meta.textContent = hit.playable ? hit.artist : `${hit.artist} · 没有可播放的地址`;
+      row.append(title, meta);
+      if (hit.playable) {
+        row.addEventListener("click", () => {
+          void window.tide.playHits(rows, index);
+        });
+      }
+      item.append(row);
+      hits.append(item);
+    });
+  };
+
+  const showSearchNote = (message: string, warn: boolean) => {
+    searchNote.textContent = message;
+    searchNote.classList.toggle("warn", warn);
+    searchNote.hidden = message.length === 0;
+  };
+
+  searchForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (searching || !apiReady) return;
+    const keywords = searchInput.value.trim();
+    if (keywords.length === 0) {
+      showSearchNote("请输入要搜索的歌名", true);
+      return;
+    }
+    searching = true;
+    searchButton.disabled = true;
+    void window.tide.search(keywords).then((result) => {
+      searching = false;
+      if (disposed) return;
+      searchButton.disabled = !apiReady;
+      if (!result.ok) {
+        hits.replaceChildren();
+        showSearchNote(result.message, true);
+        return;
+      }
+      showSearchNote(result.hits.length === 0 ? "没有找到歌曲" : "", false);
+      renderHits(result.hits);
+    });
+  });
+
   return {
     setApiReady(ready) {
       apiReady = ready;
       refresh.disabled = !ready;
       qrButton.disabled = !ready;
       save.disabled = !ready;
+      searchButton.disabled = !ready;
+      searchInput.disabled = !ready;
       if (!ready) {
         sawReady = false;
         stopPoll();

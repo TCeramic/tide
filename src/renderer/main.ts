@@ -5,6 +5,7 @@ import { createRafClock } from "./clock";
 import { mountChrome } from "./layers/chrome";
 import { mountLibrary } from "./layers/library";
 import { mountLyrics } from "./layers/lyrics";
+import { mountPlayer } from "./player";
 import { mountStage } from "./layers/stage";
 
 declare global {
@@ -25,6 +26,7 @@ const stopStage = mountStage(stage);
 const lyricsLayer = mountLyrics(lyrics);
 const chromeLayer = mountChrome(chrome);
 const library = mountLibrary(chrome);
+const stopPlayer = mountPlayer();
 
 const bus = new EventBus<PlaybackEvents>();
 bus.on("track-change", (payload) => {
@@ -97,4 +99,5 @@ window.addEventListener("beforeunload", () => {
   lyricsLayer.destroy();
   chromeLayer.destroy();
   library.destroy();
+  stopPlayer();
 });

@@ -2,7 +2,7 @@ import type { PlaybackEvents, PlaybackSnapshot, Track } from "../core/playback/t
 
 export type { PlaybackErrorCode, PlaybackEvents, PlaybackSnapshot, PlaybackStatus, Track } from "../core/playback/types";
 
-export const TIDE_VERSION = "0.2.0";
+export const TIDE_VERSION = "0.3.0";
 export const DEFAULT_API_PORT = 39271;
 export const API_READY_PREFIX = "TIDE_API_READY ";
 
@@ -23,7 +23,31 @@ export const Ipc = {
   sessionLogout: "tide:session:logout",
   sessionQrStart: "tide:session:qr:start",
   sessionQrCheck: "tide:session:qr:check",
+  search: "tide:search",
+  playHits: "tide:cmd:play-hits",
+  progress: "tide:cmd:progress",
+  ended: "tide:cmd:ended",
+  fail: "tide:cmd:fail",
+  media: "tide:media",
 } as const;
+
+export interface SearchHit {
+  id: string;
+  title: string;
+  artist: string;
+  durationMs: number;
+  playable: boolean;
+}
+
+export interface SearchResult {
+  ok: true;
+  hits: SearchHit[];
+}
+
+export interface MediaCue {
+  trackId: string;
+  url: string | null;
+}
 
 export type SessionState = "signed_out" | "logged_in" | "invalid";
 
@@ -100,4 +124,10 @@ export interface TideBridge {
   logout(): Promise<SessionSnapshot | ApiFailure>;
   startQr(): Promise<QrTicket | ApiFailure>;
   checkQr(key: string): Promise<QrCheck | ApiFailure>;
+  search(keywords: string): Promise<SearchResult | ApiFailure>;
+  playHits(hits: SearchHit[], index: number): Promise<PlaybackSnapshot>;
+  onMedia(listener: (cue: MediaCue) => void): () => void;
+  reportProgress(positionMs: number): void;
+  ended(): Promise<PlaybackSnapshot>;
+  failPlayback(code: "no_url" | "signed_out"): Promise<PlaybackSnapshot>;
 }

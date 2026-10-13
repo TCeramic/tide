@@ -129,6 +129,17 @@ describe("PlaybackMachine", () => {
     assert.equal(machine.tick(100), false);
   });
 
+  it("syncPosition follows a playing track and ignores other states", () => {
+    const machine = new PlaybackMachine();
+    machine.setQueue([track("a", 5000)]);
+    assert.equal(machine.syncPosition(1000).positionMs, 0);
+    machine.play();
+    assert.equal(machine.syncPosition(1500).positionMs, 1500);
+    assert.equal(machine.syncPosition(9000).positionMs, 5000);
+    machine.pause();
+    assert.equal(machine.syncPosition(10).positionMs, 5000);
+  });
+
   it("does not leak queue mutations back into the machine", () => {
     const machine = new PlaybackMachine();
     const source = [track("a")];
