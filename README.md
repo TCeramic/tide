@@ -1,8 +1,8 @@
 # 潮汐 Tide
 
-潮汐是一个 **Windows 优先** 的个人桌面音乐播放器（Electron）。当前是 **M4**：搜索、歌单、每日推荐和私人雷达都能列进播放队列。能播的曲目会连续播放；没有地址的是灰色的，点不了。音量写在本机设置里，重启后还在。
+潮汐是一个 **Windows 优先** 的个人桌面音乐播放器（Electron）。当前是 **M5**：在官方每日推荐和私人雷达之外，用本机收听记录排一张「今日潮汐」。搜索、歌单和官方推荐仍走原来的队列。能播的行可以点开播放；没有地址的是灰色的，点不了。音量写在本机设置里，重启后还在。
 
-Tide is a **Windows-first** personal desktop music player. This revision is **M4**: search, your playlists, daily recommendations, and 私人雷达 can fill the queue. Playable tracks continue through that queue. Rows with no URL are gray and cannot be selected. Volume is stored locally and comes back after a restart.
+Tide is a **Windows-first** personal desktop music player. This revision is **M5**: **今日潮汐** is a first-party daily list built from listening on this machine, kept apart from NetEase 每日推荐 and 私人雷达. Search, playlists, and those official lists still use the same queue. Playable rows can be played. Rows with no URL are gray and cannot be selected. Volume is stored locally and comes back after a restart.
 
 ## 风险声明 / Risk
 
@@ -34,10 +34,10 @@ curl http://127.0.0.1:39271/health
 ```
 
 ```json
-{ "ok": true, "service": "tide", "version": "0.4.0" }
+{ "ok": true, "service": "tide", "version": "0.5.0" }
 ```
 
-`npm test` 跑状态机、搜索结果整理、Cookie 判断和登录 / 搜索路由。`npm run typecheck` 只做类型检查。
+`npm test` 跑状态机、搜索结果整理、今日潮汐排序、收听日志、Cookie 判断和登录 / 搜索路由。`npm run typecheck` 只做类型检查。
 
 ## 登录 / Login
 
@@ -46,13 +46,13 @@ curl http://127.0.0.1:39271/health
 1. **扫码。** 点「显示二维码」，用网易云 App 扫码并在手机上确认。二维码过期就再点一次。
 2. **粘贴 Cookie。** 从已登录的网页版复制请求头里的 Cookie，贴进输入框，点「保存 Cookie」。内容里必须有 `MUSIC_U`，否则会被拒绝。
 
-登录成功后，面板列出账号昵称和歌单（名称与曲数）。点一个歌单会把里面的曲目放进队列，并从第一首能播的开始连续播放。搜索不依赖登录。每日推荐和私人雷达需要登录；账号拿不到时会写明原因。部分曲目仍会因为版权、地区或会员限制没有地址。
+登录成功后，面板列出账号昵称和歌单（名称与曲数）。点一个歌单会把里面的曲目放进队列，并从第一首能播的开始连续播放。搜索不依赖登录。「今日潮汐」也不依赖登录：没有收听记录时会说明原因；登录后如果记录还少，会用名为「我喜欢的音乐」的歌单来补。每日推荐和私人雷达需要登录；账号拿不到时会写明原因。部分曲目仍会因为版权、地区或会员限制没有地址。
 
 Cookie 写在 Electron `userData` 目录的 `netease.cookie`（Windows 上一般是 `%APPDATA%/tide/netease.cookie`）。Unix 上文件权限是 `0600`。`.gitignore` 已忽略 `*.cookie` 和 `userData/`。
 
 点「退出登录」会删掉这个文件。如果保存的 Cookie 已失效，面板会写明「登录已失效，请重新登录」，可以扫码、粘贴新 Cookie，或点「清除登录」。
 
-The left panel accepts a NetEase QR login or a pasted cookie that contains `MUSIC_U`. After login it lists your playlists. Opening one queues its tracks and plays from the first playable row. The cookie is stored only in Electron userData as `netease.cookie`. Logout deletes it. An invalid cookie asks you to log in again. Search works without a cookie. Daily recommendations and 私人雷达 need a login, and the panel says so when the account cannot load them. Some tracks still have no URL because of region, copyright, or membership limits.
+The left panel accepts a NetEase QR login or a pasted cookie that contains `MUSIC_U`. After login it lists your playlists. Opening one queues its tracks and plays from the first playable row. The cookie is stored only in Electron userData as `netease.cookie`. Logout deletes it. An invalid cookie asks you to log in again. Search works without a cookie. **今日潮汐** does too: an empty listen log explains itself, and a thin log can be filled from the playlist named **我喜欢的音乐** after login. Daily recommendations and 私人雷达 need a login, and the panel says so when the account cannot load them. Some tracks still have no URL because of region, copyright, or membership limits.
 
 完成一次真实扫码需要能打开网易云 App 的手机，开发机上不一定能代点确认。
 
@@ -63,12 +63,14 @@ src/main/                 窗口；API 子进程；退出时清理；登录与�
 src/preload/              contextBridge（window.tide）
 src/core/events.ts        事件总线
 src/core/playback/        idle / loading / playing / paused / error
+src/core/tide-today.ts    用本地播放和跳过记录排今日潮汐
 src/renderer/             #stage 动效层、#lyrics 歌词层、#chrome 控件、搜索与歌单
 src/renderer/player.ts    窗口里的 audio 元素
 src/renderer/clock.ts     requestAnimationFrame 时钟
 src/api/server.ts         127.0.0.1 上的 /health、/session、/search、/playlist/tracks、/recommend/*
 src/api/netease.ts        只调用 NeteaseCloudMusicApi 的登录、歌单、搜索、日推、雷达和歌曲地址
 src/main/settings.ts      userData/settings.json，目前只存音量
+src/main/listen-log.ts    userData/listen-log.json，不含 Cookie
 ```
 
 ## 搜索和播放 / Search and playback
@@ -86,6 +88,20 @@ src/main/settings.ts      userData/settings.json，目前只存音量
 登录后点左侧歌单名称，或点「每日推荐」「私人雷达」。列表和搜索结果用同一套播放。私人雷达来自官方每日推荐歌单里名称包含「私人雷达」的那一张，再用歌单曲目接口取出歌曲。账号没有这张歌单时，面板写「这个账号暂时没有私人雷达」。未登录时这三个入口会提示先登录。
 
 After login, choose a playlist name or **每日推荐** / **私人雷达**. Those lists use the same player as search. 私人雷达 is the official daily playlist whose name contains that title; its tracks come from the playlist-track API. If the account has no such playlist, the panel says so. Signed-out requests ask you to log in first.
+
+## 今日潮汐 / Tide today
+
+「今日潮汐」在搜索下面，和「推荐」里的每日推荐、私人雷达分开。点「查看今日潮汐」只列出曲目，不会自动开播；再点能播的一行，才会进队列并播放。灰色行仍然禁用。
+
+这张列表不调用网易云的推荐接口。它按本机 `userData/listen-log.json` 里的播放和跳过次数来排：播放加分，不到 30 秒就切到后面的曲子算跳过。播完自然进入下一首不算跳过。文件里只有曲目编号、标题、歌手、时长、时间和播放或跳过，没有 Cookie。
+
+不同曲子的播放不足 5 首时，会用已登录账号里名为「我喜欢的音乐」的歌单来补。没登录、或找不到这张歌单时，面板会说明原因，列表可以为空。记录够了之后就不再混入这张歌单。界面里没有收藏按钮，所以日志只记播放和跳过。
+
+**今日潮汐** sits under search, apart from **每日推荐** and **私人雷达**. **查看今日潮汐** lists tracks and does not start playback; choosing a playable row queues and plays it. Gray rows stay disabled.
+
+That list does not call NetEase recommendation APIs. It ranks `userData/listen-log.json`: a play counts up, and moving on within 30 seconds counts as a skip. Reaching the end of a track does not. The file stores track id, title, artist, duration, time, and play or skip. It does not store a cookie.
+
+When fewer than five different tracks have been played, the logged-in playlist named **我喜欢的音乐** fills the rest. If you are signed out or that playlist is missing, the panel says so and the list can be empty. A thicker log no longer mixes that playlist in. There is no like button, so the log records plays and skips only.
 
 Search from the left panel. Choosing a playable row queues the playable hits from that search and starts there. A gray row says it has no URL and its button is disabled.
 
