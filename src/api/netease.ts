@@ -43,7 +43,7 @@ interface NcmModule {
   recommend_resource(query: { cookie?: string }): Promise<unknown>;
   simi_song(query: { id: string; limit?: number; cookie?: string }): Promise<unknown>;
   lyric(query: { id: string; cookie?: string }): Promise<unknown>;
-  like(query: { id: string; like: boolean; cookie?: string }): Promise<unknown>;
+  like(query: { id: string; like: "true" | "false"; cookie?: string }): Promise<unknown>;
   playlist_tracks(query: { op: "add" | "del"; pid: string; tracks: string; cookie?: string }): Promise<unknown>;
   artist_songs(query: { id: string; limit?: number; cookie?: string }): Promise<unknown>;
   album(query: { id: string; cookie?: string }): Promise<unknown>;
@@ -157,18 +157,20 @@ export function createNeteaseClient(module: NcmModule = loadNeteaseModule()): Ne
     },
     async likeSong(id, like, cookie) {
       try {
-        readMutation(await module.like(withCookie({ id, like }, cookie)), "like_failed");
+        // NeteaseCloudMusicApi 4.32.0 treats anything other than the string "false" as a like.
+        const flag = like ? "true" : "false";
+        readMutation(await module.like(withCookie({ id, like: flag }, cookie)), "like_failed");
       } catch (error) {
         rethrowSignedOut(error);
       }
     },
     async collectSong(playlistId, trackId, cookie) {
       try {
-        readMutation(await module.playlist_tracks(withCookie({
+        readCollect(await module.playlist_tracks(withCookie({
           op: "add",
           pid: playlistId,
           tracks: trackId,
-        }, cookie)), "collect_failed");
+        }, cookie)));
       } catch (error) {
         rethrowSignedOut(error);
       }
@@ -299,6 +301,13 @@ export function readMutation(result: unknown, failed: string): void {
   if (code === 301) throw new Error("signed_out");
   if (code != null && code !== 200) throw new Error(failed);
   if (code == null && asNumber(asRecord(result)?.status) !== 200) throw new Error(failed);
+}
+
+/** `playlist_tracks` returns body code 502 when the song is already in the playlist. */
+export function readCollect(result: unknown): void {
+  const body = bodyOf(result) ?? asRecord(asRecord(asRecord(result)?.body)?.body);
+  if (asNumber(body?.code) === 502) throw new Error("already_in_playlist");
+  readMutation(result, "collect_failed");
 }
 
 /** Playlist id for 私人雷达 inside the official daily-playlist list. */

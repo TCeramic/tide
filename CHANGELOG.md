@@ -11,7 +11,8 @@
 - 搜索四个页签：单曲、歌手、专辑、歌词（类型 1 / 100 / 10 / 1006）。点歌手或专辑打开另一张列表，可以返回。歌词页签的结果是可播歌曲。
 - 歌曲行菜单：播放、下一首播放、喜欢、收藏到…、分享链接。播放和喜欢有行内图标。未登录或失败会写明原因。喜欢用 `like`，收藏用 `playlist_tracks`。
 - 窗口里可以展开「指令总线」。底栏「本地 API · 端口」默认隐藏。
-- 健康检查版本为 `0.8.0`。NeteaseCloudMusicApi 仍是 `4.32.0`。
+- 取消喜欢传给 `like` 的是字符串 `"false"`。`playlist_tracks` 返回 502（已经在歌单里）时提示「已在歌单中」。
+- 健康检查版本为 `0.8.0`。NeteaseCloudMusicApi 仍是 `4.32.0`。要求 Node.js `>=22`。
 
 Playlists load without autoplay. 今日潮汐 · 探索 and queue continuation use `simi_song`. Search, lyrics, track menus, icon transport, and a discoverable command bus land in this revision. Health is `0.8.0`.
 

@@ -4,8 +4,10 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { after, before, describe, it } from "node:test";
+import { CookieStore } from "./cookie";
 import type { NeteaseClient } from "./netease";
 import { createTideApiServer } from "./server";
+import { SessionError, SessionService } from "./session";
 
 const validCookie = "MUSIC_U=tide-test; __csrf=1";
 
@@ -275,5 +277,26 @@ describe("session routes", { concurrency: 1 }, () => {
     assert.equal(daily.json.hits?.[0]?.title, "日推");
     const radar = await call(port, "GET", "/recommend/radar");
     assert.equal(radar.json.hits?.[0]?.title, "雷达");
+  });
+});
+
+describe("duplicate collect", () => {
+  it("turns playlist code 502 into 已在歌单中", async () => {
+    const store = new CookieStore(null);
+    store.write(validCookie);
+    const session = new SessionService(store, {
+      async collectSong() {
+        throw new Error("already_in_playlist");
+      },
+    } as unknown as NeteaseClient);
+    await assert.rejects(
+      () => session.collectSong("9", "1"),
+      (error: unknown) => {
+        assert.ok(error instanceof SessionError);
+        assert.equal(error.message, "已在歌单中");
+        assert.equal(error.status, 409);
+        return true;
+      },
+    );
   });
 });

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { describe, it } from "node:test";
-import { readCatalog, readDailySongs, readLyricText, readPlaylistTracks, readPlaylists, readQrCheck, readQrImage, readQrKey, readRadarId, readSearch, readSimilar, readSongUrl, readUser } from "./netease";
+import { createNeteaseClient, readCatalog, readCollect, readDailySongs, readLyricText, readPlaylistTracks, readPlaylists, readQrCheck, readQrImage, readQrKey, readRadarId, readSearch, readSimilar, readSongUrl, readUser } from "./netease";
 
 describe("netease adapters", () => {
   it("reads a logged-in account and ignores anonymous sessions", () => {
@@ -204,5 +204,23 @@ describe("netease adapters", () => {
     assert.equal(artists.artists[0]?.name, "周杰伦");
     assert.equal(artists.hits.length, 0);
     assert.equal(readLyricText({ body: { code: 200, lrc: { lyric: "[00:01.00]一句" } } }), "[00:01.00]一句");
+  });
+
+  it("passes unlike as the string false so NeteaseCloudMusicApi does not treat it as a like", async () => {
+    const received: unknown[] = [];
+    const client = createNeteaseClient({
+      async like(query: { like: string }) {
+        received.push(query.like);
+        return { status: 200, body: { code: 200 } };
+      },
+    } as never);
+    await client.likeSong("1", false, "MUSIC_U=1");
+    await client.likeSong("1", true, "MUSIC_U=1");
+    assert.deepEqual(received, ["false", "true"]);
+  });
+
+  it("maps a duplicate collect (code 502) before a generic failure", () => {
+    assert.throws(() => readCollect({ body: { code: 502 } }), { message: "already_in_playlist" });
+    assert.throws(() => readCollect({ body: { code: 400 } }), { message: "collect_failed" });
   });
 });

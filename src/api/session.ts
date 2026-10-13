@@ -289,6 +289,9 @@ function catalogFailure(error: unknown, unavailable: string): SessionError {
   if (error instanceof Error && error.message === "radar_missing") {
     return new SessionError(404, "radar_missing", "这个账号暂时没有私人雷达");
   }
+  if (error instanceof Error && error.message === "already_in_playlist") {
+    return new SessionError(409, "already_in_playlist", "已在歌单中");
+  }
   return new SessionError(502, "upstream", unavailable);
 }
 
