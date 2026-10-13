@@ -1,8 +1,8 @@
 # 潮汐 Tide
 
-潮汐是一个 **Windows 优先** 的个人桌面音乐播放器（Electron）。当前是 **M5**：在官方每日推荐和私人雷达之外，用本机收听记录排一张「今日潮汐」。搜索、歌单和官方推荐仍走原来的队列。能播的行可以点开播放；没有地址的是灰色的，点不了。音量写在本机设置里，重启后还在。
+潮汐是一个 **Windows 优先** 的个人桌面音乐播放器（Electron）。当前是 **M6**：本机指令总线可以控制播放、读取歌库，并在明确允许时改本机设置。今日潮汐、搜索、歌单和官方推荐仍走原来的队列。能播的行可以点开播放；没有地址的是灰色的，点不了。
 
-Tide is a **Windows-first** personal desktop music player. This revision is **M5**: **今日潮汐** is a first-party daily list built from listening on this machine, kept apart from NetEase 每日推荐 and 私人雷达. Search, playlists, and those official lists still use the same queue. Playable rows can be played. Rows with no URL are gray and cannot be selected. Volume is stored locally and comes back after a restart.
+Tide is a **Windows-first** personal desktop music player. This revision is **M6**: a loopback command bus can drive playback and read the library, and it can change local settings only when that write is explicitly allowed. 今日潮汐, search, playlists, and the official lists still use the same queue. Playable rows can be played. Rows with no URL are gray and cannot be selected.
 
 ## 风险声明 / Risk
 
@@ -27,17 +27,17 @@ npm install
 npm start
 ```
 
-`npm start` 会编译并打开窗口。主进程在 `127.0.0.1:39271` 拉起 API 子进程（可用环境变量 `TIDE_API_PORT` 改端口）。关掉窗口后子进程会退出。
+`npm start` 会编译并打开窗口。主进程在 `127.0.0.1:39271` 拉起 API 子进程（可用环境变量 `TIDE_API_PORT` 改端口），并在 `127.0.0.1:39272` 打开指令总线（`TIDE_BUS_PORT`）。关掉窗口后子进程会退出。
 
 ```bash
 curl http://127.0.0.1:39271/health
 ```
 
 ```json
-{ "ok": true, "service": "tide", "version": "0.5.0" }
+{ "ok": true, "service": "tide", "version": "0.6.0" }
 ```
 
-`npm test` 跑状态机、搜索结果整理、今日潮汐排序、收听日志、Cookie 判断和登录 / 搜索路由。`npm run typecheck` 只做类型检查。
+`npm test` 跑状态机、搜索结果整理、今日潮汐排序、收听日志、指令总线、Cookie 判断和登录 / 搜索路由。`npm run typecheck` 只做类型检查。
 
 ## 登录 / Login
 
@@ -69,8 +69,10 @@ src/renderer/player.ts    窗口里的 audio 元素
 src/renderer/clock.ts     requestAnimationFrame 时钟
 src/api/server.ts         127.0.0.1 上的 /health、/session、/search、/playlist/tracks、/recommend/*
 src/api/netease.ts        只调用 NeteaseCloudMusicApi 的登录、歌单、搜索、日推、雷达和歌曲地址
-src/main/settings.ts      userData/settings.json，目前只存音量
+src/main/settings.ts      userData/settings.json，音量、控件显隐、舞台强度
 src/main/listen-log.ts    userData/listen-log.json，不含 Cookie
+src/shared/commands.ts    指令名称、危险操作和响应清洗
+src/main/command-server.ts 127.0.0.1 上的指令 HTTP / WebSocket
 ```
 
 ## 搜索和播放 / Search and playback
@@ -79,7 +81,7 @@ src/main/listen-log.ts    userData/listen-log.json，不含 Cookie
 
 底部可以暂停、继续、拖动进度、改音量，也可以上一首 / 下一首。播完自动下一首；最后一首停在结尾。
 
-地址由本地 API 向网易云申请，只接受 `http` / `https`。申请失败时播放器停住，并写明「没有可播放的地址」或「请先登录」。Cookie 只留在主进程的 userData 里，不会进播放器快照，也不会交给页面保存。音量写在同目录的 `settings.json`，文件里没有 Cookie。
+地址由本地 API 向网易云申请，只接受 `http` / `https`。申请失败时播放器停住，并写明「没有可播放的地址」或「请先登录」。Cookie 只留在主进程的 userData 里，不会进播放器快照，也不会交给页面保存。同目录的 `settings.json` 存音量、控件显隐和舞台强度，不存 Cookie。
 
 一次最多把歌单或推荐里的前 100 首放进队列。灰色曲目留在列表里，但不会进入队列。播完自动下一首，上一首 / 下一首也只在这个队列里移动。
 
@@ -107,7 +109,31 @@ Search from the left panel. Choosing a playable row queues the playable hits fro
 
 The bar pauses, resumes, seeks, and changes volume, and it can move to the previous or next track. The queue advances when a track ends, and the last track stops at the end.
 
-The loopback API asks NetEase for a URL and accepts only `http` / `https`. If that fails, playback stops with “no URL” or “sign in first”. The cookie stays in the main-process userData file. It is not part of the playback snapshot and the page does not store it. Volume is the only field in `settings.json` beside that cookie file.
+The loopback API asks NetEase for a URL and accepts only `http` / `https`. If that fails, playback stops with “no URL” or “sign in first”. The cookie stays in the main-process userData file. It is not part of the playback snapshot and the page does not store it. `settings.json` stores volume, whether the controls are visible, and the stage strength. It does not store the cookie.
+
+## 指令总线 / Command bus
+
+外部脚本只连本机。网易云接口仍由原来的 API 子进程处理，指令总线不挂出 NeteaseCloudMusicApi 的全部路由。
+
+- `GET http://127.0.0.1:39272/health` 不需要令牌，返回 `tide-bus` 和版本。
+- `POST /command` 需要请求头 `Authorization: Bearer <令牌>`。令牌在 `userData/bus-token`，64 位十六进制，权限 `0600`。这不是 Cookie。
+- WebSocket `ws://127.0.0.1:39272/events?token=<令牌>` 推送播放和会话状态。响应和推送里不会出现 Cookie。
+
+播放指令有 `playback.get`、`play`、`pause`、`seek`、`volume`、`next`、`prev`、`queue`、`playHits`。`playback.volume` 只改当前音量，不写盘。只读指令有 `library.search`、`playlistTracks`、`daily`、`radar`、`tideToday`、`session`，以及 `settings.read`、`appearance.read`。
+
+`settings.write`、`appearance.write`（界面显隐和舞台强度）、`session.logout`、`session.clearCookie` 默认拒绝，错误码 `denied`。单次请求带 `"allow": true`，或把指令名写进 `userData/bus-allow.json` 的 `allow` 数组，才会执行。这个文件不保存 Cookie。`playlist.organize` 同样默认拒绝；即使允许，也返回 `unsupported`，因为当前没有改网易云歌单的接口。
+
+`appearance.write` 只动已有界面：`chromeVisible` 隐藏或显示控件层，`stageLevel` 从 0 到 1 调整现有潮汐背景的强度。不会加壁纸或粒子。
+
+A script talks only to loopback. NetEase calls stay in the existing API process. The bus does not publish NeteaseCloudMusicApi’s route table.
+
+`GET http://127.0.0.1:39272/health` needs no token. `POST /command` needs `Authorization: Bearer` the token in `userData/bus-token`. That file is not a cookie. `ws://127.0.0.1:39272/events?token=` pushes playback and session state. Cookie fields are removed from responses and events.
+
+Playback commands cover get, play, pause, seek, volume, next, previous, queue, and playHits. `playback.volume` changes the live volume and does not write settings. Library reads cover search, playlist tracks, daily, radar, 今日潮汐, and session, plus settings and appearance reads.
+
+`settings.write`, `appearance.write`, `session.logout`, and `session.clearCookie` return `denied` unless the request sets `"allow": true` or `userData/bus-allow.json` lists the command. That file stores no cookie. `playlist.organize` is denied the same way. If it is allowed, the result is `unsupported`, because this app cannot edit a NetEase playlist.
+
+`appearance.write` only toggles the existing chrome layer and the strength of the existing tide wash (`stageLevel` from 0 to 1). It does not add wallpaper or particles.
 
 ## 下一步 / Next
 
