@@ -218,6 +218,40 @@ export function sweepProgress(words: readonly LyricWord[], widths: readonly numb
   return Math.min(1, Math.max(0, progress));
 }
 
+/**
+ * One progress value for the player and the desktop overlay.
+ * Word timings use measured or per-glyph widths. A line with no words
+ * reports wordLevel false so the overlay does not fake a character sweep.
+ */
+export function immersiveProgress(
+  yrc: readonly YrcLine[],
+  lines: readonly LyricLine[],
+  positionMs: number,
+  widthsByLine?: readonly (readonly number[])[],
+): { text: string; progress: number; wordLevel: boolean } {
+  if (yrc.length > 0) {
+    const index = currentLyricIndex(yrc.map((row) => ({ timeMs: row.timeMs, text: row.text })), positionMs);
+    const row = index >= 0 ? yrc[index] : undefined;
+    if (!row) return { text: "", progress: 0, wordLevel: false };
+    const measured = widthsByLine?.[index];
+    const widths = row.words.map((word, wordIndex) => {
+      const given = measured?.[wordIndex];
+      if (typeof given === "number" && Number.isFinite(given) && given > 0) return given;
+      return Math.max(1, Array.from(word.text).length);
+    });
+    const wordLevel = row.words.length > 0;
+    return {
+      text: row.text,
+      progress: wordLevel ? sweepProgress(row.words, widths, positionMs) : 1,
+      wordLevel,
+    };
+  }
+  const index = currentLyricIndex(lines, positionMs);
+  const row = index >= 0 ? lines[index] : undefined;
+  if (!row) return { text: "", progress: 0, wordLevel: false };
+  return { text: row.text, progress: 1, wordLevel: false };
+}
+
 /** Gentle line fill when a row has no word times. Smoothstep across the line. */
 export function lineEase(positionMs: number, startMs: number, endMs: number): number {
   if (!Number.isFinite(positionMs) || !Number.isFinite(startMs)) return 0;

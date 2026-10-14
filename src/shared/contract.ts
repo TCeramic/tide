@@ -6,7 +6,7 @@ export type { DeskLyricsSettings } from "../core/desk-lyrics";
 
 export type { PlaybackErrorCode, PlaybackEvents, PlaybackSnapshot, PlaybackStatus, Track } from "../core/playback/types";
 
-export const TIDE_VERSION = "0.9.0";
+export const TIDE_VERSION = "0.9.1";
 export const DEFAULT_API_PORT = 39271;
 export const DEFAULT_BUS_PORT = 39272;
 export const API_READY_PREFIX = "TIDE_API_READY ";
@@ -71,6 +71,8 @@ export const Ipc = {
   localAdd: "tide:local:add",
   backdropPick: "tide:backdrop:pick",
   backdropUrl: "tide:backdrop:url",
+  fontPick: "tide:font:pick",
+  fontFace: "tide:font:face",
 } as const;
 
 /** Existing wash themes. `tide` is the default teal night; `dusk` is the warm night. */
@@ -105,6 +107,13 @@ export function isPerformanceTier(value: unknown): value is PerformanceTier {
   return typeof value === "string" && (PERFORMANCE_TIERS as readonly string[]).includes(value);
 }
 
+export const FONT_PRESETS = ["system", "song", "serif", "mono", "custom"] as const;
+export type FontPresetId = (typeof FONT_PRESETS)[number];
+
+export function isFontPresetId(value: unknown): value is FontPresetId {
+  return typeof value === "string" && (FONT_PRESETS as readonly string[]).includes(value);
+}
+
 export const STAGE_BACKGROUNDS = ["solid", "cover", "image"] as const;
 export type StageBackground = (typeof STAGE_BACKGROUNDS)[number];
 
@@ -128,6 +137,10 @@ export interface Appearance {
   performance: PerformanceTier;
   /** Solid color, a cover-colored wash, or one local image. */
   background: StageBackground;
+  /** Preset stack, or `custom` when fontFamily / an imported file is active. */
+  fontPreset: FontPresetId;
+  /** Manual family name. Empty uses the preset stack. */
+  fontFamily: string;
 }
 
 export interface LyricWord {
@@ -151,6 +164,8 @@ export interface SearchHit {
   playable: boolean;
   /** Present after a liked-id read. Omitted when the account's like list is unknown. */
   liked?: boolean;
+  /** Album art URL. Omitted when the payload has none. */
+  cover?: string;
 }
 
 export interface ArtistSummary {
@@ -191,14 +206,23 @@ export interface LyricPayload {
 
 export interface DeskCue {
   title: string;
-  previous: string;
-  current: string;
+  /** Current line. The overlay does not parse YRC. */
+  text: string;
   translation: string;
-  next: string;
-  empty: boolean;
+  /** 0–1 fill across the line. Word-level only when wordLevel is true. */
+  progress: number;
+  wordLevel: boolean;
+  highlightFollow: boolean;
+  playing: boolean;
   fontSize: number;
   color: string;
   opacity: number;
+  glow: number;
+  motion: boolean;
+  pair: boolean;
+  wave: boolean;
+  farGlow: boolean;
+  empty: boolean;
 }
 
 /** First-party daily list. Built from the local listen log, not NetEase recommend APIs. */
@@ -218,6 +242,8 @@ export type SessionState = "signed_out" | "logged_in" | "invalid";
 export interface SessionUser {
   id: string;
   nickname: string;
+  /** Account portrait. Omitted when the profile has no http(s) avatar. */
+  avatar?: string;
 }
 
 export interface PlaylistSummary {
@@ -314,7 +340,9 @@ export interface TideBridge {
   getDeskLyrics(): Promise<DeskLyricsSettings>;
   setDeskLyrics(patch: Partial<DeskLyricsSettings>): Promise<DeskLyricsSettings>;
   onDeskState(listener: (settings: DeskLyricsSettings) => void): () => void;
-  pushDeskLines(payload: { trackId: string; title: string; original: LyricLine[]; translation: LyricLine[]; offsetMs: number }): void;
+  pushDeskLines(payload: { trackId: string; title: string; original: LyricLine[]; translation: LyricLine[]; yrc?: YrcLine[]; offsetMs: number }): void;
+  pickFont(): Promise<{ family: string; dataUrl: string } | null>;
+  fontFace(): Promise<{ family: string; dataUrl: string } | null>;
   onDeskCue(listener: (cue: DeskCue) => void): () => void;
   collectSong(playlistId: string, trackId: string): Promise<ApiFailure | { ok: true; message: string }>;
   playNext(hit: SearchHit): Promise<PlaybackSnapshot>;

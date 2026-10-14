@@ -9,6 +9,8 @@ export interface Track {
   title: string;
   artist: string;
   durationMs: number;
+  /** Album art. Omitted when the row has no picture. */
+  cover?: string;
 }
 
 export interface PlaybackSnapshot {

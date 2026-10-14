@@ -1,4 +1,4 @@
-import type { Appearance, PerformanceTier, ShellId, StageBackground, VisualPresetId } from "../../shared/contract";
+import type { Appearance, FontPresetId, PerformanceTier, ShellId, StageBackground, VisualPresetId } from "../../shared/contract";
 
 const PRESETS: { id: VisualPresetId; title: string; detail: string }[] = [
   { id: "tide", title: "潮汐默认", detail: "液体玻璃 · 歌词为主" },
@@ -23,6 +23,14 @@ const BACKGROUNDS: { id: StageBackground; label: string }[] = [
 const SHELLS: { id: ShellId; label: string }[] = [
   { id: "lens", label: "透镜" },
   { id: "lattice", label: "点阵" },
+];
+
+const FONTS: { id: FontPresetId; label: string }[] = [
+  { id: "system", label: "系统" },
+  { id: "song", label: "宋体" },
+  { id: "serif", label: "衬线" },
+  { id: "mono", label: "等宽" },
+  { id: "custom", label: "自定义" },
 ];
 
 /** Two steps: pick a scene, then the small set of details. */
@@ -64,6 +72,23 @@ export function mountPresetForm(): {
   const tierRow = choiceRow("性能", TIERS, (id) => void window.tide.setAppearance({ performance: id }), buttons, "performance");
   const backgroundRow = choiceRow("背景", BACKGROUNDS, (id) => void window.tide.setAppearance({ background: id }), buttons, "background");
   const shellRow = choiceRow("外壳", SHELLS, (id) => void window.tide.setAppearance({ shell: id }), buttons, "shell");
+  const fontRow = choiceRow("字体", FONTS, (id) => void window.tide.setAppearance({ fontPreset: id }), buttons, "font");
+  const family = document.createElement("input");
+  family.type = "text";
+  family.className = "key-input";
+  family.maxLength = 80;
+  family.placeholder = "字体族名，例如 Source Han Sans SC";
+  family.setAttribute("aria-label", "字体族名");
+  family.addEventListener("change", () => {
+    void window.tide.setAppearance({ fontPreset: "custom", fontFamily: family.value.trim() });
+  });
+  const importFont = document.createElement("button");
+  importFont.type = "button";
+  importFont.className = "text-button";
+  importFont.textContent = "导入字体文件";
+  importFont.addEventListener("click", () => {
+    void window.tide.pickFont();
+  });
   const imageButton = document.createElement("button");
   imageButton.type = "button";
   imageButton.className = "text-button";
@@ -78,7 +103,7 @@ export function mountPresetForm(): {
   const later = document.createElement("p");
   later.className = "library-note";
   later.textContent = "封面粒子、黑胶细调和简易频谱还在后面。这一版只切换场景配方。";
-  root.append(kicker, hint, grid, detailHeading, tierRow, backgroundRow, shellRow, imageButton, later);
+  root.append(kicker, hint, grid, detailHeading, tierRow, backgroundRow, shellRow, fontRow, family, importFont, imageButton, later);
 
   return {
     element: root,
@@ -91,7 +116,12 @@ export function mountPresetForm(): {
             ? appearance.performance === id
             : group === "background"
               ? appearance.background === id
-              : appearance.shell === id;
+              : group === "font"
+                ? appearance.fontPreset === id
+                : appearance.shell === id;
+        if (group === "font" && appearance.fontFamily && document.activeElement !== family) {
+          family.value = appearance.fontFamily;
+        }
         button.setAttribute("aria-pressed", on ? "true" : "false");
       }
     },

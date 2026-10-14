@@ -14,6 +14,24 @@ export function shouldExtendQueue(queueLength: number, index: number): boolean {
   return queueLength - index - 1 <= EXPLORE_REMAINING;
 }
 
+/**
+ * Sequential inspiration waits until the current playlist's last track.
+ * Shuffle inspiration can extend as soon as the queue runs short.
+ * List repeat and single repeat do not append.
+ */
+export function shouldInspireNow(
+  queueLength: number,
+  index: number,
+  repeat: "off" | "all" | "one",
+  shuffle: boolean,
+  explore: boolean,
+): boolean {
+  if (!explore || queueLength <= 0 || index < 0 || index >= queueLength) return false;
+  if (shuffle) return shouldExtendQueue(queueLength, index);
+  if (repeat !== "off") return false;
+  return index === queueLength - 1;
+}
+
 /** Current track, then up to three tracks just played. */
 export function exploreSeedIds(ids: readonly string[], index: number): string[] {
   const seeds: string[] = [];

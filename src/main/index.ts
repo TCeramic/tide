@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, globalShortcut, ipcMain } from "electron";
+import { titleBarChrome } from "../core/titlebar";
 import fs from "node:fs";
 import path from "node:path";
 import { LocalLibrary } from "../api/local-library";
@@ -60,17 +61,29 @@ function bindHardwareWindow(win: BrowserWindow): void {
   });
 }
 
+function applyTitleBar(win: BrowserWindow, shell: "lens" | "lattice"): void {
+  const chrome = titleBarChrome(shell);
+  try {
+    win.setTitleBarOverlay({ color: chrome.color, symbolColor: chrome.symbolColor, height: chrome.height });
+  } catch {
+    // Overlay is a Windows/Linux caption. Other hosts keep the native frame.
+  }
+}
+
 function createWindow(): BrowserWindow {
+  const shell = settingsStore?.read().shell ?? "lens";
   const win = new BrowserWindow({
     width: 1100,
     height: 720,
     minWidth: 800,
     minHeight: 560,
     show: false,
-    backgroundColor: "#071018",
+    backgroundColor: shell === "lattice" ? "#07080b" : "#102833",
     title: "潮汐 Tide",
     icon: windowIcon(),
     autoHideMenuBar: true,
+    titleBarStyle: "hidden",
+    titleBarOverlay: titleBarChrome(shell),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -80,6 +93,7 @@ function createWindow(): BrowserWindow {
     },
   });
 
+  applyTitleBar(win, shell);
   win.once("ready-to-show", () => win.show());
   win.on("close", () => {
     closeDesk();
@@ -132,6 +146,8 @@ function appearanceOf(value: Appearance): Appearance {
     preset: value.preset,
     performance: value.performance,
     background: value.background,
+    fontPreset: value.fontPreset,
+    fontFamily: value.fontFamily,
   };
 }
 
@@ -139,7 +155,11 @@ function pushAppearance(): void {
   if (!settingsStore) return;
   const appearance = appearanceOf(settingsStore.read());
   const win = mainWindow;
-  if (win && !win.isDestroyed()) win.webContents.send(Ipc.appearance, appearance);
+  if (win && !win.isDestroyed()) {
+    win.webContents.send(Ipc.appearance, appearance);
+    applyTitleBar(win, appearance.shell);
+    win.setBackgroundColor(appearance.shell === "lattice" ? "#07080b" : "#102833");
+  }
   commandServer?.publish({ type: "appearance", appearance });
 }
 
@@ -205,6 +225,41 @@ app.whenReady().then(async () => {
     }
   };
   ipcMain.handle(Ipc.backdropUrl, () => readBackdrop());
+  const fontDir = path.join(app.getPath("userData"), "fonts");
+  const readFontFace = (): { family: string; dataUrl: string } | null => {
+    const current = settings.read();
+    if (!current.fontFile) return null;
+    try {
+      const file = path.join(fontDir, current.fontFile);
+      const bytes = fs.readFileSync(file);
+      if (bytes.length === 0 || bytes.length > 8_000_000) return null;
+      const ext = path.extname(file).toLowerCase();
+      const mime = ext === ".otf" ? "font/otf" : ext === ".woff2" ? "font/woff2" : ext === ".woff" ? "font/woff" : "font/ttf";
+      const family = current.fontFamily.length > 0 ? current.fontFamily : "Tide Custom";
+      return { family, dataUrl: `data:${mime};base64,${bytes.toString("base64")}` };
+    } catch {
+      return null;
+    }
+  };
+  ipcMain.handle(Ipc.fontFace, () => readFontFace());
+  ipcMain.handle(Ipc.fontPick, async () => {
+    const picked = await dialog.showOpenDialog({
+      title: "导入字体",
+      properties: ["openFile"],
+      filters: [{ name: "字体", extensions: ["ttf", "otf", "woff", "woff2"] }],
+    });
+    const file = picked.filePaths[0];
+    if (picked.canceled || !file) return null;
+    const ext = path.extname(file).toLowerCase();
+    if (![".ttf", ".otf", ".woff", ".woff2"].includes(ext)) return null;
+    fs.mkdirSync(fontDir, { recursive: true });
+    const stored = `custom${ext}`;
+    fs.copyFileSync(file, path.join(fontDir, stored));
+    const family = "Tide Custom";
+    settings.write({ fontFile: stored, fontPreset: "custom", fontFamily: family });
+    pushAppearance();
+    return readFontFace();
+  });
   ipcMain.handle(Ipc.backdropPick, async () => {
     const picked = await dialog.showOpenDialog({
       title: "选择背景图片",

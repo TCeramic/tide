@@ -1,8 +1,8 @@
 # 潮汐 Tide
 
-潮汐是一个 **Windows 优先** 的个人桌面音乐播放器（Electron）。当前是 **0.9.0**。窗口外壳是透镜风格的玻璃：侧栏和底栏透出液体舞台，播放状态用光表示，按钮松手回弹。点阵是可选的播放环境层，默认关闭，不是外壳。图标来自 Lucide。点歌单名称会载入曲目，不会自动开播；今日潮汐 · 探索用听过的歌去找相似歌曲；播放队列可以列表循环、单曲循环、随机，并在探索打开时用相似歌曲续上。搜索分成单曲、歌手、专辑、歌词。每首歌有播放、下一首、喜欢、收藏和分享。歌词层默认把原文和翻译叠在一起。设置里有热键、桌面歌词和点阵开关。指令总线可以在窗口里找到。写设置仍要明确允许。
+潮汐是一个 **Windows 优先** 的个人桌面音乐播放器（Electron）。当前是 **0.9.1**。窗口外壳是透镜风格的玻璃：侧栏和底栏透出液体舞台，播放状态用光表示，按钮松手回弹。点阵是可选的播放环境层，默认关闭，不是外壳。图标来自 Lucide。点歌单名称会载入曲目，不会自动开播；今日潮汐 · 探索用听过的歌去找相似歌曲；播放队列可以列表循环、单曲循环、顺序或随机，并在探索打开时用相似歌曲续上。搜索分成单曲、歌手、专辑、歌词。每首歌有封面、播放、下一首、喜欢、收藏和分享。点一行只选中，双击或「开始播放」才开播。歌词层默认把原文和翻译叠在一起，逐字扫过停在字内。桌面歌词是单行沉浸，译文和字后波形可选。设置里有热键、字体、性能档、桌面歌词和点阵开关。指令总线可以在窗口里找到。写设置仍要明确允许。
 
-Tide is a **Windows-first** personal desktop music player. This revision is **0.9.0**. The shell is Lens glass over a liquid stage, light marks playback state, and controls spring back. Lattice is an optional playback layer, off by default, and is not the shell. Icons are Lucide. Opening a playlist loads tracks and does not start playback. 今日潮汐 · 探索 finds similar songs from what you have heard. The queue can repeat, shuffle, and keep going from similar songs. Search has song, artist, album, and lyric tabs. Each song row can play, queue next, like, collect, and share. Lyrics default to original plus translation. Settings hold hotkeys, desktop lyrics, and the lattice switch. The command bus is reachable from the window. Settings writes still need an explicit allow.
+Tide is a **Windows-first** personal desktop music player. This revision is **0.9.1**. The shell is Lens glass over a liquid stage, light marks playback state, and controls spring back. Lattice is an optional playback layer, off by default, and is not the shell. Icons are Lucide. Opening a playlist loads tracks and does not start playback. 今日潮汐 · 探索 finds similar songs from what you have heard. The queue can repeat, play straight through, shuffle, and keep going from similar songs. Search has song, artist, album, and lyric tabs. Each song row shows cover art and can play, queue next, like, collect, and share. A single click selects; double-click or 开始播放 starts playback. Lyrics default to original plus translation, with an in-glyph sweep. Desktop lyrics are one immersive line; a translation and a rear wave are optional. Settings hold hotkeys, fonts, a performance tier, desktop lyrics, and the lattice switch. The command bus is reachable from the window. Settings writes still need an explicit allow.
 
 ## 风险声明 / Risk
 
@@ -34,7 +34,7 @@ curl http://127.0.0.1:39271/health
 ```
 
 ```json
-{ "ok": true, "service": "tide", "version": "0.9.0" }
+{ "ok": true, "service": "tide", "version": "0.9.1" }
 ```
 
 `npm test` 跑状态机、搜索结果整理、今日潮汐排序、收听日志、指令总线、Cookie 判断和登录 / 搜索路由。`npm run typecheck` 只做类型检查。
@@ -188,7 +188,9 @@ The zip is a portable folder, not an installer. Unzip it and run `Tide.exe`. The
 
 玻璃与弹簧的想法来自 [Lens](https://github.com/ruiqichenbiec/design-systems)（Copyright (c) 2026 DayDreamInAReverie，MIT，仓库已不再维护）。潮汐只改编了这个想法，没有复制该仓库。图标是 [Lucide](https://lucide.dev)（ISC），和 lucide-react 同一套字形；壳层不是 React，所以用 vanilla `lucide`。
 
-`appearance.write` 可以改主题、动效、控件显隐、舞台强度、点阵开关、外壳（`lens` / `lattice`）、视觉预设、性能档和背景。点阵默认关。写盘仍要 `allow`。
+`appearance.write` 可以改主题、动效、控件显隐、舞台强度、点阵开关、外壳（`lens` / `lattice`）、视觉预设、性能档、字体和背景。点阵默认关。写盘仍要 `allow`。性能档会改 WebGL、点阵数量、模糊和桌面歌词的远光。0.9.1 的主页只留常用卡片，证明树用 Lattice 的 ProofTree，桌面歌词由主进程给出进度、覆盖层只画。
+
+`appearance.write` persists theme, motion, chrome, stage level, lattice, shell (`lens` or `lattice`), preset, performance, font, and background. A performance tier changes WebGL, lattice density, blur, and the desktop-lyric far glow. 0.9.1 keeps the home to the common cards, mounts the Lattice ProofTree, and lets the player compute lyric progress while the overlay only paints.
 
 0.9.0 redraws the three layers as Lens glass. Liquid is the stage wash. Light marks the playing state. WebGL2 refraction is optional and falls back to CSS. Lattice toggles from Settings, stays off until asked, and is not the shell. `appearance.write` persists `lattice`, `shell` (`lens` or `lattice`), `preset`, `performance`, and `background`. Overture is not used. The glass and spring ideas are adapted from Lens (Copyright (c) 2026 DayDreamInAReverie, MIT); this repo does not copy that project. Icons are Lucide.
 

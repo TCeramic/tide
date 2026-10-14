@@ -1,4 +1,4 @@
-import { currentLyricIndex, lineEase, lyricPosition, nextLyricOffset, pairLyrics, sweepProgress, type LyricLine } from "../../core/lyrics";
+import { currentLyricIndex, lineEase, lyricPosition, nextLyricOffset, pairLyrics, sweepProgress, wordFill, type LyricLine } from "../../core/lyrics";
 import type { YrcLine } from "../../shared/contract";
 import type { DeskLyricsSettings } from "../../core/desk-lyrics";
 import type { Track } from "../../core/playback/types";
@@ -33,7 +33,13 @@ export function mountLyrics(root: HTMLElement): {
   const translation = viewButton("翻译");
   const romaji = viewButton("罗马音");
   const deskToggle = viewButton("桌面歌词");
-  tools.append(both, original, translation, romaji, deskToggle);
+  const deskMenu = document.createElement("details");
+  deskMenu.className = "desk-menu";
+  deskMenu.hidden = true;
+  const deskSummary = document.createElement("summary");
+  deskSummary.textContent = "桌面歌词";
+  deskMenu.append(deskSummary, deskMenuBody());
+  tools.append(both, original, translation, romaji, deskToggle, deskMenu);
 
   const offsetMenu = document.createElement("details");
   offsetMenu.className = "lyric-offset-menu";
@@ -60,6 +66,8 @@ export function mountLyrics(root: HTMLElement): {
   let offsetMs = 0;
   let positionMs = 0;
   let bundles = { original: [] as LyricLine[], translation: [] as LyricLine[], romaji: [] as LyricLine[], yrc: [] as YrcLine[] };
+  let pendingPosition = 0;
+  let paintFrame = 0;
   let active = -1;
   let deskOpen = false;
 
@@ -82,6 +90,7 @@ export function mountLyrics(root: HTMLElement): {
       title: title.textContent ?? "",
       original: bundles.original,
       translation: bundles.translation,
+      yrc: bundles.yrc,
       offsetMs,
     });
   };
@@ -100,6 +109,13 @@ export function mountLyrics(root: HTMLElement): {
     if (yrc && yrc.words.length > 0) {
       const stored = origin.dataset.widths ?? "";
       const widths = stored.length > 0 ? stored.split(",").map(Number) : yrc.words.map((word) => measureWord(word.text));
+      const words = origin.querySelectorAll<HTMLElement>(".lyric-word-hot");
+      yrc.words.forEach((word, wordIndex) => {
+        const hot = words.item(wordIndex);
+        if (!hot) return;
+        const open = (1 - wordFill(word, at)) * 100;
+        hot.style.clipPath = `inset(0 ${open.toFixed(2)}% 0 0)`;
+      });
       progress = sweepProgress(yrc.words, widths, at);
     } else {
       const next = rows[index + 1]?.timeMs ?? row.timeMs + 4000;
@@ -121,7 +137,10 @@ export function mountLyrics(root: HTMLElement): {
         item.classList.toggle("lyric-current", index === next);
       });
       const current = next >= 0 ? items.item(next) : null;
-      if (current instanceof HTMLElement) current.scrollIntoView({ block: "center" });
+      if (current instanceof HTMLElement) {
+        const top = current.offsetTop - list.clientHeight / 2 + current.clientHeight / 2;
+        list.scrollTo({ top: Math.max(0, top), behavior: "auto" });
+      }
     }
     if (next >= 0) paintSweep(next);
   };
@@ -163,7 +182,13 @@ export function mountLyrics(root: HTMLElement): {
           for (const word of words) {
             const span = document.createElement("span");
             span.className = "lyric-word";
-            span.textContent = word.text;
+            const base = document.createElement("span");
+            base.className = "lyric-word-base";
+            base.textContent = word.text;
+            const hot = document.createElement("span");
+            hot.className = "lyric-word-hot";
+            hot.textContent = word.text;
+            span.append(base, hot);
             origin.append(span);
             widths.push(measureWord(word.text));
           }
@@ -198,6 +223,8 @@ export function mountLyrics(root: HTMLElement): {
   const syncDeskButton = (settings: DeskLyricsSettings) => {
     deskOpen = settings.open;
     deskToggle.setAttribute("aria-pressed", settings.open ? "true" : "false");
+    deskMenu.hidden = !settings.open;
+    paintDeskMenu(deskMenu, settings);
   };
 
   both.addEventListener("click", () => choose("both"));
@@ -273,8 +300,16 @@ export function mountLyrics(root: HTMLElement): {
 
   return {
     setTrack,
-    setPosition: paint,
+    setPosition(positionMs: number) {
+      pendingPosition = positionMs;
+      if (paintFrame !== 0) return;
+      paintFrame = requestAnimationFrame(() => {
+        paintFrame = 0;
+        paint(pendingPosition);
+      });
+    },
     destroy: () => {
+      if (paintFrame !== 0) cancelAnimationFrame(paintFrame);
       stopDesk();
       root.replaceChildren();
     },
@@ -288,6 +323,73 @@ function measureWord(text: string): number {
   if (!wordCanvas) return Math.max(1, text.length);
   wordCanvas.font = "40px Segoe UI, PingFang SC, Noto Sans SC, Microsoft YaHei, sans-serif";
   return Math.max(1, wordCanvas.measureText(text).width);
+}
+
+function deskMenuBody(): HTMLElement {
+  const body = document.createElement("div");
+  body.className = "desk-menu-body";
+  const row = (label: string, key: "highlightFollow" | "motion" | "pair" | "wave" | "locked", pressed: boolean) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "text-button";
+    button.dataset.desk = key;
+    button.textContent = label;
+    button.setAttribute("aria-pressed", pressed ? "true" : "false");
+    button.addEventListener("click", () => {
+      const on = button.getAttribute("aria-pressed") !== "true";
+      void window.tide.setDeskLyrics({ [key]: on });
+    });
+    return button;
+  };
+  body.append(
+    row("字内扫过", "highlightFollow", true),
+    row("动效", "motion", true),
+    row("双行译文", "pair", false),
+    row("字后波形", "wave", false),
+    row("锁定", "locked", false),
+  );
+  const opacity = document.createElement("input");
+  opacity.type = "range";
+  opacity.min = "20";
+  opacity.max = "100";
+  opacity.value = "100";
+  opacity.dataset.desk = "opacity";
+  opacity.setAttribute("aria-label", "桌面歌词透明度");
+  opacity.addEventListener("change", () => {
+    void window.tide.setDeskLyrics({ opacity: Number(opacity.value) / 100 });
+  });
+  const glow = document.createElement("input");
+  glow.type = "range";
+  glow.min = "0";
+  glow.max = "100";
+  glow.value = "72";
+  glow.dataset.desk = "glow";
+  glow.setAttribute("aria-label", "桌面歌词光晕");
+  glow.addEventListener("change", () => {
+    void window.tide.setDeskLyrics({ glow: Number(glow.value) / 100 });
+  });
+  const hide = document.createElement("button");
+  hide.type = "button";
+  hide.className = "text-button";
+  hide.textContent = "隐藏";
+  hide.addEventListener("click", () => {
+    void window.tide.setDeskLyrics({ open: false });
+  });
+  body.append(opacity, glow, hide);
+  return body;
+}
+
+function paintDeskMenu(menu: HTMLElement, settings: DeskLyricsSettings): void {
+  menu.querySelectorAll<HTMLButtonElement>("button[data-desk]").forEach((button) => {
+    const key = button.dataset.desk;
+    if (key === "highlightFollow" || key === "motion" || key === "pair" || key === "wave" || key === "locked") {
+      button.setAttribute("aria-pressed", settings[key] ? "true" : "false");
+    }
+  });
+  const opacity = menu.querySelector<HTMLInputElement>("input[data-desk=opacity]");
+  const glow = menu.querySelector<HTMLInputElement>("input[data-desk=glow]");
+  if (opacity && document.activeElement !== opacity) opacity.value = String(Math.round(settings.opacity * 100));
+  if (glow && document.activeElement !== glow) glow.value = String(Math.round(settings.glow * 100));
 }
 
 function viewButton(label: string): HTMLButtonElement {

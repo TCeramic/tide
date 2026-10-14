@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 import type { AudioLevel } from "../core/audio-level";
 import type { DeskLyricsSettings } from "../core/desk-lyrics";
 import { mediaKeyMode, type MediaShortcutMap } from "../core/media-keys";
-import { Ipc, type ApiFailure, type Appearance, type DeskCue, type HealthStatus, type LyricLine, type LyricPayload, type MediaCue, type PlaybackBusEvent, type PlaybackSnapshot, type QrCheck, type QrTicket, type QueueRequest, type SearchHit, type SearchResult, type SessionSnapshot, type TideBridge, type TideToday, type Track } from "../shared/contract";
+import { Ipc, type ApiFailure, type Appearance, type DeskCue, type HealthStatus, type LyricLine, type LyricPayload, type MediaCue, type PlaybackBusEvent, type PlaybackSnapshot, type QrCheck, type QrTicket, type QueueRequest, type SearchHit, type SearchResult, type SessionSnapshot, type TideBridge, type TideToday, type Track, type YrcLine } from "../shared/contract";
 
 function listen<T>(channel: string, listener: (payload: T) => void): () => void {
   const wrapped = (_event: IpcRendererEvent, payload: T) => listener(payload);
@@ -53,7 +53,7 @@ const tide: TideBridge = {
   getDeskLyrics: () => ipcRenderer.invoke(Ipc.deskGet) as Promise<DeskLyricsSettings>,
   setDeskLyrics: (patch) => ipcRenderer.invoke(Ipc.deskSet, patch) as Promise<DeskLyricsSettings>,
   onDeskState: (listener) => listen<DeskLyricsSettings>(Ipc.deskState, listener),
-  pushDeskLines: (payload: { trackId: string; title: string; original: LyricLine[]; translation: LyricLine[]; offsetMs: number }) => {
+  pushDeskLines: (payload: { trackId: string; title: string; original: LyricLine[]; translation: LyricLine[]; yrc?: YrcLine[]; offsetMs: number }) => {
     ipcRenderer.send(Ipc.deskLines, payload);
   },
   onDeskCue: (listener) => listen<DeskCue>(Ipc.deskCue, listener),
@@ -80,6 +80,8 @@ const tide: TideBridge = {
   addLocalTracks: () => ipcRenderer.invoke(Ipc.localAdd) as Promise<SearchHit[]>,
   pickBackdrop: () => ipcRenderer.invoke(Ipc.backdropPick) as Promise<string | null>,
   backdropUrl: () => ipcRenderer.invoke(Ipc.backdropUrl) as Promise<string | null>,
+  pickFont: () => ipcRenderer.invoke(Ipc.fontPick) as Promise<{ family: string; dataUrl: string } | null>,
+  fontFace: () => ipcRenderer.invoke(Ipc.fontFace) as Promise<{ family: string; dataUrl: string } | null>,
 };
 
 contextBridge.exposeInMainWorld("tide", tide);

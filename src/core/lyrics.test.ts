@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { currentLyricIndex, deskLineCue, lineEase, lyricPosition, nextLyricOffset, pairLyrics, parseLrc, parseYrc, sweepProgress } from "./lyrics";
+import { currentLyricIndex, deskLineCue, immersiveProgress, lineEase, lyricPosition, nextLyricOffset, pairLyrics, parseLrc, parseYrc, sweepProgress } from "./lyrics";
 
 describe("lyrics", () => {
   it("parses stamps and follows the playhead", () => {
@@ -66,5 +66,18 @@ describe("lyrics", () => {
     assert.equal(lineEase(0, 1000, 2000), 0);
     assert.ok(lineEase(1500, 1000, 2000) > 0.4 && lineEase(1500, 1000, 2000) < 0.6);
     assert.equal(parseYrc("").length, 0);
+  });
+
+  it("reports a real word sweep and refuses to fake one on a plain line", () => {
+    const yrc = parseYrc("[1000,2000](1000,1000,0)潮(2000,1000,0)汐");
+    const mid = immersiveProgress(yrc, [], 1500);
+    assert.equal(mid.text, "潮汐");
+    assert.equal(mid.wordLevel, true);
+    assert.ok(mid.progress > 0.2 && mid.progress < 0.6);
+    const plain = immersiveProgress([], parseLrc("[00:01.00]整行"), 1500);
+    assert.equal(plain.text, "整行");
+    assert.equal(plain.wordLevel, false);
+    assert.equal(plain.progress, 1);
+    assert.equal(immersiveProgress([], [], 0).text, "");
   });
 });

@@ -1,6 +1,6 @@
 {
   "name": "tide",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "private": true,
   "description": "潮汐 Tide — a personal, unofficial desktop music player",
   "main": "dist/main.js",
@@ -26,7 +26,8 @@
   },
   "dependencies": {
     "lucide": "1.57.0",
-    "NeteaseCloudMusicApi": "4.32.0"
+    "NeteaseCloudMusicApi": "4.32.0",
+    "three": "0.186.1"
   },
   "build": {
     "appId": "dev.tceramic.tide",

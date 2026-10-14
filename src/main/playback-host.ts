@@ -1,7 +1,7 @@
 import { ipcMain, type BrowserWindow, type IpcMainEvent } from "electron";
 import { AUDIO_LEVEL_LABEL, isAudioLevel } from "../core/audio-level";
 import { queueFromHits } from "../core/playback/hits";
-import { exploreSeedIds, pickExploreAdditions, shouldExtendQueue } from "../core/explore-queue";
+import { exploreSeedIds, pickExploreAdditions, shouldInspireNow } from "../core/explore-queue";
 import { PlaybackMachine } from "../core/playback/machine";
 import { countsAsSkip, type ListenKind } from "../core/tide-today";
 import { ListenLog } from "./listen-log";
@@ -199,12 +199,14 @@ export function attachPlayback(
       const parsed = parseHit(hit);
       if (!parsed) return null;
       noteSkip(machine.getState());
-      return machine.insertNext({
+      const track: Track = {
         id: parsed.id,
         title: parsed.title,
         artist: parsed.artist,
         durationMs: parsed.durationMs,
-      });
+      };
+      if (parsed.cover) track.cover = parsed.cover;
+      return machine.insertNext(track);
     },
     setMode: (patch) => {
       if (patch.repeat) machine.setRepeat(patch.repeat);
@@ -214,9 +216,13 @@ export function attachPlayback(
       if (snapshot.explore) void extendExplore();
       return snapshot;
     },
-    next: () => {
+    next: async () => {
+      const state = machine.getState();
+      if (shouldInspireNow(state.queue.length, state.index, state.repeat, state.shuffle, state.explore)) {
+        await extendExplore();
+      }
       const index = machine.nextIndex();
-      if (index == null) return Promise.resolve(machine.getState());
+      if (index == null) return machine.getState();
       return goTo(index);
     },
     previous: () => {
@@ -277,7 +283,7 @@ export function attachPlayback(
   let extending = false;
   async function extendExplore(): Promise<void> {
     const state = machine.getState();
-    if (!state.explore || extending || !shouldExtendQueue(state.queue.length, state.index)) return;
+    if (extending || !shouldInspireNow(state.queue.length, state.index, state.repeat, state.shuffle, state.explore)) return;
     extending = true;
     try {
       const seeds = exploreSeedIds(state.queue.map((track) => track.id), state.index);
@@ -298,12 +304,16 @@ export function attachPlayback(
           : "没有更多相似歌曲，探索先停在现有队列。");
         return;
       }
-      publish(machine.appendTracks(added.map((hit) => ({
-        id: hit.id,
-        title: hit.title,
-        artist: hit.artist,
-        durationMs: hit.durationMs,
-      }))));
+      publish(machine.appendTracks(added.map((hit) => {
+        const track: Track = {
+          id: hit.id,
+          title: hit.title,
+          artist: hit.artist,
+          durationMs: hit.durationMs,
+        };
+        if (hit.cover) track.cover = hit.cover;
+        return track;
+      })));
     } finally {
       extending = false;
     }
@@ -326,14 +336,16 @@ export function attachPlayback(
     if (typeof index !== "number") return control.get();
     return (await control.playHits(hits, index)) ?? control.get();
   });
-  ipcMain.handle(Ipc.ended, () => {
-    const state = machine.getState();
-    if (state.status !== "playing") return state;
+  ipcMain.handle(Ipc.ended, async () => {
+    const before = machine.getState();
+    if (before.status !== "playing") return before;
+    if (shouldInspireNow(before.queue.length, before.index, before.repeat, before.shuffle, before.explore)) {
+      await extendExplore();
+    }
     const finished = machine.finish();
     if (finished.status !== "playing") return publish(finished);
     currentMedia = null;
     generation += 1;
-    void extendExplore();
     return loadCurrent(generation);
   });
   ipcMain.handle(Ipc.playNext, (_event, hit: unknown) => control.playNext(hit) ?? control.get());
@@ -463,13 +475,15 @@ function parseHit(value: unknown): SearchHit | null {
   if (typeof candidate.durationMs !== "number" || !Number.isFinite(candidate.durationMs)) return null;
   if (candidate.durationMs < 0 || candidate.durationMs > 24 * 60 * 60 * 1000) return null;
   if (typeof candidate.playable !== "boolean") return null;
-  return {
+  const hit: SearchHit = {
     id: candidate.id,
     title: candidate.title,
     artist: candidate.artist,
     durationMs: Math.trunc(candidate.durationMs),
     playable: candidate.playable,
   };
+  if (typeof candidate.cover === "string" && /^https?:\/\//.test(candidate.cover)) hit.cover = candidate.cover.slice(0, 500);
+  return hit;
 }
 
 function parseQueueRequest(request: unknown): QueueRequest | null {

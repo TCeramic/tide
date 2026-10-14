@@ -13,19 +13,42 @@ export function mountDeskForm(): { element: HTMLElement; destroy: () => void } {
 
   const openRow = checkRow("桌面歌词");
   const lockRow = checkRow("锁定（点击穿透）");
+  const sweepRow = checkRow("字内扫过");
+  const motionRow = checkRow("动效");
+  const pairRow = checkRow("双行译文");
+  const waveRow = checkRow("字后波形");
   const sizeRow = rangeRow("字号", 18, 64, 32);
   const colorRow = colorRowOf();
   const opacityRow = rangeRow("透明度", 20, 100, 100);
+  const glowRow = rangeRow("光晕", 0, 100, 72);
 
-  panel.append(summary, help, openRow.row, lockRow.row, sizeRow.row, colorRow.row, opacityRow.row);
+  panel.append(
+    summary,
+    help,
+    openRow.row,
+    lockRow.row,
+    sweepRow.row,
+    motionRow.row,
+    pairRow.row,
+    waveRow.row,
+    sizeRow.row,
+    colorRow.row,
+    opacityRow.row,
+    glowRow.row,
+  );
 
   const paint = (settings: DeskLyricsSettings) => {
     openRow.input.checked = settings.open;
     lockRow.input.checked = settings.locked;
     lockRow.input.disabled = !settings.open;
+    sweepRow.input.checked = settings.highlightFollow;
+    motionRow.input.checked = settings.motion;
+    pairRow.input.checked = settings.pair;
+    waveRow.input.checked = settings.wave;
     sizeRow.input.value = String(settings.fontSize);
     colorRow.input.value = settings.color;
     opacityRow.input.value = String(Math.round(settings.opacity * 100));
+    glowRow.input.value = String(Math.round(settings.glow * 100));
   };
 
   const push = (patch: Partial<DeskLyricsSettings>) => {
@@ -34,9 +57,14 @@ export function mountDeskForm(): { element: HTMLElement; destroy: () => void } {
 
   openRow.input.addEventListener("change", () => push({ open: openRow.input.checked }));
   lockRow.input.addEventListener("change", () => push({ locked: lockRow.input.checked }));
+  sweepRow.input.addEventListener("change", () => push({ highlightFollow: sweepRow.input.checked }));
+  motionRow.input.addEventListener("change", () => push({ motion: motionRow.input.checked }));
+  pairRow.input.addEventListener("change", () => push({ pair: pairRow.input.checked }));
+  waveRow.input.addEventListener("change", () => push({ wave: waveRow.input.checked }));
   sizeRow.input.addEventListener("change", () => push({ fontSize: Number(sizeRow.input.value) }));
   colorRow.input.addEventListener("change", () => push({ color: colorRow.input.value }));
   opacityRow.input.addEventListener("change", () => push({ opacity: Number(opacityRow.input.value) / 100 }));
+  glowRow.input.addEventListener("change", () => push({ glow: Number(glowRow.input.value) / 100 }));
 
   const stop = window.tide.onDeskState(paint);
   void window.tide.getDeskLyrics().then(paint);

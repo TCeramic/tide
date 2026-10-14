@@ -1,15 +1,17 @@
 import type { PlaybackSnapshot, SearchHit, SessionSnapshot } from "../../shared/contract";
+import { paintCover } from "../cover";
 import { openNowPlaying } from "../view";
 
 export interface HomeHooks {
   onPlaylists: () => void;
   onDaily: () => void;
-  onDiscover: () => void;
+  onTide: () => void;
   onLocal: () => void;
   onAddLocal: () => void;
+  onProof: () => void;
 }
 
-/** Cold-start card home. Lyrics stay hidden until Now Playing. */
+/** Cold-start cards: continue, library, today's tide, daily, local, proof tree. */
 export function mountHome(root: HTMLElement, hooks: HomeHooks): {
   element: HTMLElement;
   setQueue: (snapshot: PlaybackSnapshot) => void;
@@ -21,36 +23,17 @@ export function mountHome(root: HTMLElement, hooks: HomeHooks): {
   grid.className = "home-grid";
   grid.setAttribute("aria-label", "主页");
 
-  const clock = document.createElement("article");
-  clock.className = "home-card home-clock";
-  const date = document.createElement("p");
-  date.className = "home-kicker";
-  const time = document.createElement("p");
-  time.className = "home-time";
-  const quote = document.createElement("p");
-  quote.className = "home-quote";
-  quote.textContent = "先听手头的歌，潮水自己会来。";
-  clock.append(date, time, quote);
+  const continueCard = card("继续播放", "当前没有在播的曲目", () => openNowPlaying(), "continue");
+  const cover = document.createElement("span");
+  cover.className = "home-cover";
+  paintCover(cover, undefined);
+  continueCard.prepend(cover);
 
-  const tick = () => {
-    const now = new Date();
-    date.textContent = now.toLocaleDateString("zh-CN", { weekday: "long", month: "long", day: "numeric" });
-    time.textContent = now.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
-  };
-  tick();
-  const timer = window.setInterval(tick, 30_000);
-
-  const continueCard = card("继续播放", "当前没有在播的曲目", () => {
-    openNowPlaying();
-    void window.tide.play();
-  });
-  const libraryCard = card("歌单", "云端歌单在登录后出现", hooks.onPlaylists);
-  const dailyCard = card("每日推荐", "登录后解锁", hooks.onDaily);
-  const recentCard = card("最近播放", "还没有记录", hooks.onDiscover);
-  const statsCard = card("今日收听", "0 首", hooks.onDiscover);
-  const nextCard = card("即将播放", "队列是空的", () => openNowPlaying());
-  const discoverCard = card("发现", "按听过的歌找相似的", hooks.onDiscover);
-  const localCard = card("本地音乐", "不登录也能播", hooks.onLocal);
+  const libraryCard = card("歌单", "云端歌单在登录后出现", hooks.onPlaylists, "library");
+  const tideCard = card("今日潮汐", "按听过的歌找相似的", hooks.onTide, "tide");
+  const dailyCard = card("每日推荐", "登录后解锁", hooks.onDaily, "daily");
+  const localCard = card("本地音乐", "不登录也能播", hooks.onLocal, "local");
+  const proofCard = card("证明树", "歌单、歌手、曲", hooks.onProof, "proof");
   const addLocal = document.createElement("button");
   addLocal.type = "button";
   addLocal.className = "text-button";
@@ -61,7 +44,7 @@ export function mountHome(root: HTMLElement, hooks: HomeHooks): {
   });
   localCard.append(addLocal);
 
-  grid.append(clock, continueCard, libraryCard, dailyCard, recentCard, statsCard, nextCard, discoverCard, localCard);
+  grid.append(continueCard, libraryCard, tideCard, dailyCard, localCard, proofCard);
   root.append(grid);
 
   const setBody = (host: HTMLElement, text: string) => {
@@ -74,8 +57,10 @@ export function mountHome(root: HTMLElement, hooks: HomeHooks): {
     setQueue(snapshot) {
       const track = snapshot.index >= 0 ? snapshot.queue[snapshot.index] : undefined;
       setBody(continueCard, track ? `${track.title} · ${track.artist}` : "当前没有在播的曲目");
-      const upcoming = snapshot.queue.slice(snapshot.index + 1, snapshot.index + 3);
-      setBody(nextCard, upcoming.length === 0 ? "队列是空的" : upcoming.map((row) => row.title).join(" · "));
+      if (cover.dataset.cover !== (track?.cover ?? "")) {
+        cover.dataset.cover = track?.cover ?? "";
+        paintCover(cover, track?.cover);
+      }
     },
     setSession(session) {
       const signedIn = session?.state === "logged_in";
@@ -83,21 +68,19 @@ export function mountHome(root: HTMLElement, hooks: HomeHooks): {
       setBody(dailyCard, signedIn ? "打开今天的推荐" : "登录后解锁");
     },
     setDiscover(count, note) {
-      setBody(statsCard, count > 0 ? `${count} 首` : "还没有记录");
-      setBody(recentCard, note || "还没有记录");
-      setBody(discoverCard, note || "按听过的歌找相似的");
+      setBody(tideCard, count > 0 ? (note || `${count} 首`) : (note || "按听过的歌找相似的"));
     },
     setLocal(hits) {
       setBody(localCard, hits.length === 0 ? "不登录也能播" : `${hits.length} 首在这台机器上`);
     },
-    // timer is cleared with the page; destroy is the library's job via element removal
   };
 
-  function card(title: string, body: string, onClick: () => void): HTMLElement {
+  function card(title: string, body: string, onClick: () => void, glyph: string): HTMLElement {
     const element = document.createElement("article");
     element.className = "home-card";
     element.tabIndex = 0;
     element.setAttribute("role", "button");
+    element.append(icon(glyph));
     const heading = document.createElement("h2");
     heading.textContent = title;
     const copy = document.createElement("p");
@@ -113,6 +96,28 @@ export function mountHome(root: HTMLElement, hooks: HomeHooks): {
     });
     return element;
   }
+}
 
-  void timer;
+function icon(kind: string): SVGElement {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 32 32");
+  svg.setAttribute("class", "home-glyph");
+  svg.setAttribute("aria-hidden", "true");
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute("fill", "none");
+  path.setAttribute("stroke", "currentColor");
+  path.setAttribute("stroke-width", "1.6");
+  path.setAttribute("stroke-linecap", "round");
+  path.setAttribute("stroke-linejoin", "round");
+  const paths: Record<string, string> = {
+    continue: "M6 22c3-7 6-7 9 0s6 7 9 0",
+    library: "M8 8h12v16H8zM12 8v16",
+    tide: "M5 20c3-6 6-6 9 0s6 6 9 0M5 14c3-6 6-6 9 0s6 6 9 0",
+    daily: "M16 7v3M16 22v3M7 16h3M22 16h3M9 9l2 2M21 21l2 2M23 9l-2 2M11 21l-2 2",
+    local: "M8 22V10l14-3v15",
+    proof: "M16 24 V16 M16 16 L8 10 M16 16 L24 10 M8 10 V6 M24 10 V6",
+  };
+  path.setAttribute("d", paths[kind] ?? paths.tide ?? "");
+  svg.append(path);
+  return svg;
 }

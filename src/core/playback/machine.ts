@@ -10,12 +10,14 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 function cloneTrack(track: Track): Track {
-  return {
+  const next: Track = {
     id: track.id,
     title: track.title,
     artist: track.artist,
     durationMs: track.durationMs,
   };
+  if (typeof track.cover === "string" && /^https?:\/\//.test(track.cover)) next.cover = track.cover.slice(0, 500);
+  return next;
 }
 
 /**

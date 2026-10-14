@@ -16,6 +16,7 @@ import {
 } from "lucide";
 import { ICON_SIZE, iconButton, setIcon } from "../icons";
 import { applyLike, isLiked, onLiked } from "../liked";
+import { paintCover } from "../cover";
 import { openNowPlaying } from "../view";
 
 const DISCLAIMER_KEY = "tide.risk.ack";
@@ -38,8 +39,8 @@ const ERROR_LABEL: Record<NonNullable<PlaybackSnapshot["error"]>, string> = {
 const PLAY_MODES = [
   { repeat: "all", shuffle: false, explore: false, label: "列表循环" },
   { repeat: "one", shuffle: false, explore: false, label: "单曲循环" },
-  { repeat: "off", shuffle: true, explore: false, label: "随机播放" },
-  { repeat: "off", shuffle: true, explore: true, label: "灵感随机" },
+  { repeat: "off", shuffle: false, explore: true, label: "顺序" },
+  { repeat: "off", shuffle: true, explore: true, label: "随机" },
 ] as const;
 
 export function mountChrome(root: HTMLElement): {
@@ -116,7 +117,7 @@ export function mountChrome(root: HTMLElement): {
 
   const cover = document.createElement("span");
   cover.className = "dock-cover";
-  cover.textContent = "潮";
+  paintCover(cover, undefined);
   const meta = document.createElement("div");
   meta.className = "meta";
   const titleRow = document.createElement("div");
@@ -197,7 +198,10 @@ export function mountChrome(root: HTMLElement): {
     latest = snapshot;
     const track = snapshot.index >= 0 ? snapshot.queue[snapshot.index] : undefined;
     title.textContent = track?.title ?? "没有曲目";
-    cover.textContent = track ? track.title.slice(0, 1) : "潮";
+    if (cover.dataset.cover !== (track?.cover ?? "")) {
+      cover.dataset.cover = track?.cover ?? "";
+      paintCover(cover, track?.cover);
+    }
     const status = STATUS_LABEL[snapshot.status];
     const error = snapshot.error ? ERROR_LABEL[snapshot.error] : "";
     const position = formatTime(snapshot.positionMs);
@@ -220,13 +224,13 @@ export function mountChrome(root: HTMLElement): {
     const atStart = snapshot.index <= 0;
     const atEnd = snapshot.index < 0 || snapshot.index >= snapshot.queue.length - 1;
     prev.disabled = !hasQueue || (atStart && snapshot.repeat !== "all");
-    next.disabled = !hasQueue || (atEnd && snapshot.repeat !== "all" && !(snapshot.shuffle && snapshot.queue.length > 1));
+    next.disabled = !hasQueue || (atEnd && snapshot.repeat !== "all" && !(snapshot.shuffle && snapshot.queue.length > 1) && !snapshot.explore);
 
     const modeNow = PLAY_MODES[modeIndex(snapshot)] ?? PLAY_MODES[0];
     mode.setAttribute("aria-label", modeNow.label);
     mode.setAttribute("aria-pressed", "true");
-    const modeIcon = modeNow.label === "单曲循环" ? Repeat1 : modeNow.label === "随机播放" ? Shuffle : modeNow.label === "灵感随机" ? Compass : Repeat;
-    const modeName = modeNow.label === "单曲循环" ? "Repeat1" : modeNow.label === "随机播放" ? "Shuffle" : modeNow.label === "灵感随机" ? "Compass" : "Repeat";
+    const modeIcon = modeNow.label === "单曲循环" ? Repeat1 : modeNow.label === "随机" ? Shuffle : modeNow.label === "顺序" ? Compass : Repeat;
+    const modeName = modeNow.label === "单曲循环" ? "Repeat1" : modeNow.label === "随机" ? "Shuffle" : modeNow.label === "顺序" ? "Compass" : "Repeat";
     setIcon(mode, modeName, modeIcon, ICON_SIZE.control);
     const volumeIconName = snapshot.volume <= 0 ? "VolumeX" : snapshot.volume < 0.5 ? "Volume1" : "Volume2";
     const volumeNode = snapshot.volume <= 0 ? VolumeX : snapshot.volume < 0.5 ? Volume1 : Volume2;

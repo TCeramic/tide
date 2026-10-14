@@ -7,9 +7,10 @@ import {
   deskWindowSize,
   type DeskLyricsSettings,
 } from "../core/desk-lyrics";
-import { deskLineCue, type LyricLine } from "../core/lyrics";
+import { performanceBudget } from "../core/performance";
+import { deskLineCue, immersiveProgress, lyricPosition, type LyricLine } from "../core/lyrics";
 import type { PlaybackMachine } from "../core/playback/machine";
-import { Ipc, type DeskCue } from "../shared/contract";
+import { Ipc, type DeskCue, type YrcLine } from "../shared/contract";
 import type { SettingsStore } from "./settings";
 
 interface LyricBundle {
@@ -17,6 +18,7 @@ interface LyricBundle {
   title: string;
   original: LyricLine[];
   translation: LyricLine[];
+  yrc: YrcLine[];
   offsetMs: number;
 }
 
@@ -25,6 +27,7 @@ const EMPTY_BUNDLE: LyricBundle = {
   title: "",
   original: [],
   translation: [],
+  yrc: [],
   offsetMs: 0,
 };
 
@@ -70,9 +73,12 @@ export function attachDeskLyrics(options: {
 
   const cueNow = (): DeskCue => {
     const settings = read();
+    const budget = performanceBudget(options.settings.read().performance);
     const state = options.machine.getState();
     const track = state.index >= 0 ? state.queue[state.index] : undefined;
     const same = Boolean(track && track.id === bundle.trackId);
+    const at = lyricPosition(estimatePosition(), same ? bundle.offsetMs : 0);
+    const swept = immersiveProgress(same ? bundle.yrc : [], same ? bundle.original : [], at);
     const frame = deskLineCue(
       same ? bundle.original : [],
       same ? bundle.translation : [],
@@ -80,11 +86,26 @@ export function attachDeskLyrics(options: {
       same ? bundle.offsetMs : 0,
       track?.title || bundle.title,
     );
+    const text = swept.text || (frame.empty ? "" : frame.current);
+    const translation = settings.pair && !frame.empty ? frame.translation : "";
+    const follow = settings.highlightFollow && swept.wordLevel;
     return {
-      ...frame,
+      title: frame.title,
+      text,
+      translation,
+      progress: follow ? swept.progress : 1,
+      wordLevel: follow,
+      highlightFollow: settings.highlightFollow,
+      playing: state.status === "playing",
       fontSize: settings.fontSize,
       color: settings.color,
       opacity: settings.opacity,
+      glow: budget.deskFarGlow ? settings.glow : Math.min(settings.glow, 0.35),
+      motion: settings.motion && budget.deskFps > 30,
+      pair: settings.pair,
+      wave: settings.wave && budget.deskFarGlow,
+      farGlow: budget.deskFarGlow,
+      empty: text.length === 0,
     };
   };
 
@@ -100,6 +121,12 @@ export function attachDeskLyrics(options: {
   const stopTimer = () => {
     if (timer) clearInterval(timer);
     timer = null;
+  };
+
+  const armTimer = () => {
+    stopTimer();
+    const fps = performanceBudget(options.settings.read().performance).deskFps;
+    timer = setInterval(paint, Math.max(16, Math.round(1000 / fps)));
   };
 
   const armShortcut = (open: boolean) => {
@@ -152,7 +179,7 @@ export function attachDeskLyrics(options: {
 
   const ensure = (settings: DeskLyricsSettings) => {
     if (overlay && !overlay.isDestroyed()) {
-      const size = deskWindowSize(settings.fontSize);
+      const size = deskWindowSize(settings.fontSize, settings.pair);
       const bounds = overlay.getBounds();
       if (bounds.width !== size.width || bounds.height !== size.height) {
         overlay.setBounds({ x: bounds.x, y: bounds.y, ...size });
@@ -160,7 +187,7 @@ export function attachDeskLyrics(options: {
       applyLock(settings);
       return;
     }
-    const size = deskWindowSize(settings.fontSize);
+    const size = deskWindowSize(settings.fontSize, settings.pair);
     const origin = clampDeskOrigin(
       settings.x == null || settings.y == null ? null : { x: settings.x, y: settings.y },
       areas(),
@@ -197,15 +224,17 @@ export function attachDeskLyrics(options: {
       paint();
     });
     void win.loadFile(path.join(__dirname, "desk.html"));
-    if (!timer) timer = setInterval(paint, 250);
+    armTimer();
   };
 
   const apply = (patch: Partial<DeskLyricsSettings>): DeskLyricsSettings => {
     const next = deskSettingsFromUnknown({ ...read(), ...patch });
     options.settings.write({ deskLyrics: next });
     publishState(next);
-    if (next.open) ensure(next);
-    else destroyOverlay();
+    if (next.open) {
+      ensure(next);
+      armTimer();
+    } else destroyOverlay();
     armShortcut(next.open);
     paint();
     return next;
@@ -215,7 +244,7 @@ export function attachDeskLyrics(options: {
     const settings = read();
     if (!settings.open || !overlay || overlay.isDestroyed()) return;
     const [x, y] = overlay.getPosition();
-    const size = deskWindowSize(settings.fontSize);
+    const size = deskWindowSize(settings.fontSize, settings.pair);
     const origin = clampDeskOrigin({ x, y }, areas(), size);
     if (origin.x !== x || origin.y !== y) overlay.setPosition(origin.x, origin.y);
   };
@@ -257,8 +286,42 @@ function readBundle(value: unknown): LyricBundle {
     title: typeof record.title === "string" ? record.title.slice(0, 200) : "",
     original: linesOf(record.original),
     translation: linesOf(record.translation),
+    yrc: yrcOf(record.yrc),
     offsetMs: typeof record.offsetMs === "number" && Number.isFinite(record.offsetMs) ? record.offsetMs : 0,
   };
+}
+
+function yrcOf(value: unknown): YrcLine[] {
+  if (!Array.isArray(value)) return [];
+  const lines: YrcLine[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as { timeMs?: unknown; durationMs?: unknown; text?: unknown; words?: unknown };
+    if (typeof row.timeMs !== "number" || !Number.isFinite(row.timeMs)) continue;
+    if (typeof row.text !== "string" || row.text.trim().length === 0) continue;
+    const words: YrcLine["words"] = [];
+    if (Array.isArray(row.words)) {
+      for (const word of row.words) {
+        if (!word || typeof word !== "object") continue;
+        const piece = word as { timeMs?: unknown; durationMs?: unknown; text?: unknown };
+        if (typeof piece.timeMs !== "number" || typeof piece.durationMs !== "number" || typeof piece.text !== "string") continue;
+        if (piece.text.length === 0) continue;
+        words.push({
+          timeMs: piece.timeMs,
+          durationMs: Math.max(1, piece.durationMs),
+          text: piece.text.slice(0, 80),
+        });
+      }
+    }
+    lines.push({
+      timeMs: row.timeMs,
+      durationMs: typeof row.durationMs === "number" && Number.isFinite(row.durationMs) ? row.durationMs : 0,
+      text: row.text.slice(0, 400),
+      words,
+    });
+    if (lines.length >= 4000) break;
+  }
+  return lines;
 }
 
 function linesOf(value: unknown): LyricLine[] {

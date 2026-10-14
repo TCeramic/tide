@@ -1,3 +1,4 @@
+import { performanceBudget } from "../../core/performance";
 import { latticeTargets, stepLattice, type LatticeSpring } from "../lattice-field";
 import { mountLensField, type LensField } from "./lens-field";
 import { paintVoxels } from "./voxel-field";
@@ -40,6 +41,11 @@ export function mountStage(root: HTMLElement): {
   let springs: LatticeSpring[] = [];
   const context = lattice.getContext("2d", { alpha: true });
 
+  const tier = () => {
+    const value = document.documentElement.dataset.performance;
+    return value === "smooth" || value === "vivid" ? value : "balanced";
+  };
+
   const phase = (): number => {
     const raw = Number.parseFloat(document.documentElement.style.getPropertyValue("--tide-phase"));
     return Number.isFinite(raw) ? raw : 0.5;
@@ -58,7 +64,8 @@ export function mountStage(root: HTMLElement): {
       lattice.height = bufferH;
     }
     const energy = scene.playing ? 1 : 0.12;
-    const targets = latticeTargets(64, phase(), energy);
+    const budget = performanceBudget(tier());
+    const targets = latticeTargets(budget.latticePoints, phase(), budget.webgl ? energy : energy * 0.4);
     springs = stepLattice(springs, targets, reduce ? 1 : dt);
     context.clearRect(0, 0, bufferW, bufferH);
     context.fillStyle = document.documentElement.dataset.theme === "dusk"
@@ -80,7 +87,7 @@ export function mountStage(root: HTMLElement): {
     last = now;
       const preset = document.documentElement.dataset.preset;
       const background = document.documentElement.dataset.background;
-      const allowLens = document.documentElement.dataset.performance !== "smooth"
+      const allowLens = performanceBudget(tier()).webgl
         && preset !== "quiet"
         && preset !== "stardust"
         && preset !== "cover-glow"
@@ -108,7 +115,7 @@ export function mountStage(root: HTMLElement): {
   const paintVoxelLayer = () => {
     if (!voxelContext) return;
     const allow = document.documentElement.dataset.view === "playing"
-      && document.documentElement.dataset.performance !== "smooth"
+      && performanceBudget(tier()).voxels
       && document.documentElement.dataset.preset !== "quiet";
     voxels.hidden = !allow;
     if (!allow) return;

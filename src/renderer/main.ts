@@ -95,6 +95,17 @@ function setStageMotion(level: number, motion: number): void {
   });
 }
 
+function installFace(family: string, dataUrl: string): void {
+  const id = "tide-font-face";
+  document.getElementById(id)?.remove();
+  const style = document.createElement("style");
+  style.id = id;
+  const safe = family.replaceAll("\"", "");
+  style.textContent = `@font-face { font-family: "${safe}"; src: url("${dataUrl}"); font-display: swap; }`;
+  document.head.append(style);
+  document.documentElement.style.setProperty("--tide-font-custom", `"${safe}"`);
+}
+
 function coverTint(title: string): string {
   let hash = 0;
   for (const char of title) hash = (hash * 33 + char.charCodeAt(0)) >>> 0;
@@ -108,6 +119,14 @@ function applyAppearance(appearance: Appearance): void {
   root.dataset.preset = appearance.preset;
   root.dataset.performance = appearance.performance;
   root.dataset.background = appearance.background;
+  root.dataset.font = appearance.fontPreset;
+  root.style.setProperty("--tide-font-custom", appearance.fontFamily ? `"${appearance.fontFamily.replaceAll("\"", "")}"` : "sans-serif");
+  if (appearance.fontPreset === "custom") {
+    void window.tide.fontFace().then((face) => {
+      if (!face) return;
+      installFace(face.family, face.dataUrl);
+    });
+  }
   chromeRoot.hidden = !appearance.chromeVisible;
   setStageMotion(appearance.stageLevel, appearance.motion);
   stageLayer.setLattice(appearance.lattice);
@@ -126,6 +145,8 @@ applyAppearance({
   preset: "tide",
   performance: "balanced",
   background: "solid",
+  fontPreset: "system",
+  fontFamily: "",
 });
 void window.tide.backdropUrl().then((url) => {
   if (url) document.documentElement.style.setProperty("--tide-image", `url("${url}")`);

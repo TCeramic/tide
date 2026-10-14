@@ -15,6 +15,16 @@ export interface DeskLyricsSettings {
   fontSize: number;
   color: string;
   opacity: number;
+  /** Word sweep inside the glyph. Off keeps one even line. */
+  highlightFollow: boolean;
+  /** Line-enter fade. Off holds the new line still. */
+  motion: boolean;
+  /** 0 hides the colored glow. 1 is the full halo. */
+  glow: number;
+  /** Second line for a translation. The default is one line. */
+  pair: boolean;
+  /** Optional wave drawn behind the line, never through the glyphs. */
+  wave: boolean;
 }
 
 export const DESK_LOCK_ACCELERATOR = "CommandOrControl+Alt+L";
@@ -27,6 +37,11 @@ export const DEFAULT_DESK_LYRICS: DeskLyricsSettings = {
   fontSize: 32,
   color: "#f7fbfc",
   opacity: 1,
+  highlightFollow: true,
+  motion: true,
+  glow: 0.72,
+  pair: false,
+  wave: false,
 };
 
 const FONT_MIN = 18;
@@ -47,6 +62,7 @@ export function deskSettingsFromUnknown(value: unknown): DeskLyricsSettings {
     : DEFAULT_DESK_LYRICS.color;
   const x = typeof record.x === "number" && Number.isFinite(record.x) ? Math.round(record.x) : null;
   const y = typeof record.y === "number" && Number.isFinite(record.y) ? Math.round(record.y) : null;
+  const glow = typeof record.glow === "number" && Number.isFinite(record.glow) ? record.glow : DEFAULT_DESK_LYRICS.glow;
   return {
     open: record.open === true,
     locked: record.locked === true,
@@ -55,6 +71,11 @@ export function deskSettingsFromUnknown(value: unknown): DeskLyricsSettings {
     fontSize: Math.min(FONT_MAX, Math.max(FONT_MIN, font)),
     color,
     opacity: Math.min(OPACITY_MAX, Math.max(OPACITY_MIN, opacity)),
+    highlightFollow: record.highlightFollow !== false,
+    motion: record.motion !== false,
+    glow: Math.min(1, Math.max(0, glow)),
+    pair: record.pair === true,
+    wave: record.wave === true,
   };
 }
 
@@ -82,7 +103,8 @@ export function clampDeskOrigin(
   return visible ? { x: Math.round(point.x), y: Math.round(point.y) } : fallback;
 }
 
-export function deskWindowSize(fontSize: number): { width: number; height: number } {
+export function deskWindowSize(fontSize: number, pair = false): { width: number; height: number } {
   const size = deskSettingsFromUnknown({ fontSize }).fontSize;
-  return { width: 920, height: Math.round(size * 5.4) };
+  const lines = pair ? 3.4 : 2.15;
+  return { width: 1080, height: Math.round(size * lines + 28) };
 }

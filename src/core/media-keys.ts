@@ -46,6 +46,20 @@ export const EMPTY_MEDIA_SHORTCUTS: MediaShortcutMap = {
   stop: "",
 };
 
+/** Shown and registered when the user has not saved a combo yet. */
+export const DEFAULT_MEDIA_SHORTCUTS: MediaShortcutMap = {
+  toggle: "Ctrl+Alt+Space",
+  next: "Ctrl+Alt+Right",
+  previous: "Ctrl+Alt+Left",
+  stop: "Ctrl+Alt+Down",
+};
+
+export function mediaShortcutsOrDefault(value: unknown): MediaShortcutMap {
+  const parsed = mediaShortcutsFromUnknown(value);
+  if (Object.values(parsed).some((item) => item.length > 0)) return parsed;
+  return { ...DEFAULT_MEDIA_SHORTCUTS };
+}
+
 export interface HardwareKeyState {
   focused: boolean;
   minimized: boolean;
