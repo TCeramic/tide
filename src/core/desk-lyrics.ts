@@ -25,6 +25,12 @@ export interface DeskLyricsSettings {
   pair: boolean;
   /** Optional wave drawn behind the line, never through the glyphs. */
   wave: boolean;
+  /** Horizontal line, or the same line set as a vertical column. */
+  orientation: "horizontal" | "vertical";
+  /** Scales the line-enter travel. The motion switch still turns the enter off. */
+  motionLevel: number;
+  /** 0 leaves the overlay clear. Higher values wash a soft plate behind the line. */
+  backdrop: number;
 }
 
 export const DESK_LOCK_ACCELERATOR = "CommandOrControl+Alt+L";
@@ -34,7 +40,7 @@ export const DEFAULT_DESK_LYRICS: DeskLyricsSettings = {
   locked: false,
   x: null,
   y: null,
-  fontSize: 32,
+  fontSize: 48,
   color: "#f7fbfc",
   opacity: 1,
   highlightFollow: true,
@@ -42,6 +48,9 @@ export const DEFAULT_DESK_LYRICS: DeskLyricsSettings = {
   glow: 0.72,
   pair: false,
   wave: false,
+  orientation: "horizontal",
+  motionLevel: 1,
+  backdrop: 0,
 };
 
 const FONT_MIN = 18;
@@ -63,6 +72,12 @@ export function deskSettingsFromUnknown(value: unknown): DeskLyricsSettings {
   const x = typeof record.x === "number" && Number.isFinite(record.x) ? Math.round(record.x) : null;
   const y = typeof record.y === "number" && Number.isFinite(record.y) ? Math.round(record.y) : null;
   const glow = typeof record.glow === "number" && Number.isFinite(record.glow) ? record.glow : DEFAULT_DESK_LYRICS.glow;
+  const motionLevel = typeof record.motionLevel === "number" && Number.isFinite(record.motionLevel)
+    ? record.motionLevel
+    : DEFAULT_DESK_LYRICS.motionLevel;
+  const backdrop = typeof record.backdrop === "number" && Number.isFinite(record.backdrop)
+    ? record.backdrop
+    : DEFAULT_DESK_LYRICS.backdrop;
   return {
     open: record.open === true,
     locked: record.locked === true,
@@ -76,6 +91,9 @@ export function deskSettingsFromUnknown(value: unknown): DeskLyricsSettings {
     glow: Math.min(1, Math.max(0, glow)),
     pair: record.pair === true,
     wave: record.wave === true,
+    orientation: record.orientation === "vertical" ? "vertical" : "horizontal",
+    motionLevel: Math.min(1, Math.max(0.35, motionLevel)),
+    backdrop: Math.min(0.55, Math.max(0, backdrop)),
   };
 }
 
@@ -103,8 +121,15 @@ export function clampDeskOrigin(
   return visible ? { x: Math.round(point.x), y: Math.round(point.y) } : fallback;
 }
 
-export function deskWindowSize(fontSize: number, pair = false): { width: number; height: number } {
+export function deskWindowSize(
+  fontSize: number,
+  pair = false,
+  orientation: "horizontal" | "vertical" = "horizontal",
+): { width: number; height: number } {
   const size = deskSettingsFromUnknown({ fontSize }).fontSize;
+  if (orientation === "vertical") {
+    return { width: Math.round(size * (pair ? 3.6 : 2.4) + 36), height: 640 };
+  }
   const lines = pair ? 3.4 : 2.15;
   return { width: 1080, height: Math.round(size * lines + 28) };
 }

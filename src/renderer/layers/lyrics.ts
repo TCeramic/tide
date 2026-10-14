@@ -223,7 +223,9 @@ export function mountLyrics(root: HTMLElement): {
   const syncDeskButton = (settings: DeskLyricsSettings) => {
     deskOpen = settings.open;
     deskToggle.setAttribute("aria-pressed", settings.open ? "true" : "false");
+    const wasHidden = deskMenu.hidden;
     deskMenu.hidden = !settings.open;
+    if (settings.open && wasHidden) deskMenu.open = true;
     paintDeskMenu(deskMenu, settings);
   };
 
@@ -341,7 +343,22 @@ function deskMenuBody(): HTMLElement {
     });
     return button;
   };
+  const orient = (label: string, value: "horizontal" | "vertical") => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "text-button";
+    button.dataset.desk = "orientation";
+    button.dataset.value = value;
+    button.textContent = label;
+    button.setAttribute("aria-pressed", value === "horizontal" ? "true" : "false");
+    button.addEventListener("click", () => {
+      void window.tide.setDeskLyrics({ orientation: value });
+    });
+    return button;
+  };
   body.append(
+    orient("横列", "horizontal"),
+    orient("竖列", "vertical"),
     row("字内扫过", "highlightFollow", true),
     row("动效", "motion", true),
     row("双行译文", "pair", false),
@@ -368,6 +385,26 @@ function deskMenuBody(): HTMLElement {
   glow.addEventListener("change", () => {
     void window.tide.setDeskLyrics({ glow: Number(glow.value) / 100 });
   });
+  const motionLevel = document.createElement("input");
+  motionLevel.type = "range";
+  motionLevel.min = "35";
+  motionLevel.max = "100";
+  motionLevel.value = "100";
+  motionLevel.dataset.desk = "motionLevel";
+  motionLevel.setAttribute("aria-label", "桌面歌词动效强度");
+  motionLevel.addEventListener("change", () => {
+    void window.tide.setDeskLyrics({ motionLevel: Number(motionLevel.value) / 100 });
+  });
+  const backdrop = document.createElement("input");
+  backdrop.type = "range";
+  backdrop.min = "0";
+  backdrop.max = "55";
+  backdrop.value = "0";
+  backdrop.dataset.desk = "backdrop";
+  backdrop.setAttribute("aria-label", "桌面歌词背景");
+  backdrop.addEventListener("change", () => {
+    void window.tide.setDeskLyrics({ backdrop: Number(backdrop.value) / 100 });
+  });
   const hide = document.createElement("button");
   hide.type = "button";
   hide.className = "text-button";
@@ -375,7 +412,7 @@ function deskMenuBody(): HTMLElement {
   hide.addEventListener("click", () => {
     void window.tide.setDeskLyrics({ open: false });
   });
-  body.append(opacity, glow, hide);
+  body.append(opacity, glow, motionLevel, backdrop, hide);
   return body;
 }
 
@@ -385,11 +422,18 @@ function paintDeskMenu(menu: HTMLElement, settings: DeskLyricsSettings): void {
     if (key === "highlightFollow" || key === "motion" || key === "pair" || key === "wave" || key === "locked") {
       button.setAttribute("aria-pressed", settings[key] ? "true" : "false");
     }
+    if (key === "orientation") {
+      button.setAttribute("aria-pressed", button.dataset.value === settings.orientation ? "true" : "false");
+    }
   });
   const opacity = menu.querySelector<HTMLInputElement>("input[data-desk=opacity]");
   const glow = menu.querySelector<HTMLInputElement>("input[data-desk=glow]");
+  const motionLevel = menu.querySelector<HTMLInputElement>("input[data-desk=motionLevel]");
+  const backdrop = menu.querySelector<HTMLInputElement>("input[data-desk=backdrop]");
   if (opacity && document.activeElement !== opacity) opacity.value = String(Math.round(settings.opacity * 100));
   if (glow && document.activeElement !== glow) glow.value = String(Math.round(settings.glow * 100));
+  if (motionLevel && document.activeElement !== motionLevel) motionLevel.value = String(Math.round(settings.motionLevel * 100));
+  if (backdrop && document.activeElement !== backdrop) backdrop.value = String(Math.round(settings.backdrop * 100));
 }
 
 function viewButton(label: string): HTMLButtonElement {

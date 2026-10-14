@@ -106,6 +106,9 @@ export function attachDeskLyrics(options: {
       wave: settings.wave && budget.deskFarGlow,
       farGlow: budget.deskFarGlow,
       empty: text.length === 0,
+      orientation: settings.orientation,
+      motionLevel: settings.motionLevel,
+      backdrop: settings.backdrop,
     };
   };
 
@@ -179,7 +182,7 @@ export function attachDeskLyrics(options: {
 
   const ensure = (settings: DeskLyricsSettings) => {
     if (overlay && !overlay.isDestroyed()) {
-      const size = deskWindowSize(settings.fontSize, settings.pair);
+      const size = deskWindowSize(settings.fontSize, settings.pair, settings.orientation);
       const bounds = overlay.getBounds();
       if (bounds.width !== size.width || bounds.height !== size.height) {
         overlay.setBounds({ x: bounds.x, y: bounds.y, ...size });
@@ -187,7 +190,7 @@ export function attachDeskLyrics(options: {
       applyLock(settings);
       return;
     }
-    const size = deskWindowSize(settings.fontSize, settings.pair);
+    const size = deskWindowSize(settings.fontSize, settings.pair, settings.orientation);
     const origin = clampDeskOrigin(
       settings.x == null || settings.y == null ? null : { x: settings.x, y: settings.y },
       areas(),
@@ -244,7 +247,7 @@ export function attachDeskLyrics(options: {
     const settings = read();
     if (!settings.open || !overlay || overlay.isDestroyed()) return;
     const [x, y] = overlay.getPosition();
-    const size = deskWindowSize(settings.fontSize, settings.pair);
+    const size = deskWindowSize(settings.fontSize, settings.pair, settings.orientation);
     const origin = clampDeskOrigin({ x, y }, areas(), size);
     if (origin.x !== x || origin.y !== y) overlay.setPosition(origin.x, origin.y);
   };

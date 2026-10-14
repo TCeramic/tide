@@ -17,10 +17,13 @@ export function mountDeskForm(): { element: HTMLElement; destroy: () => void } {
   const motionRow = checkRow("动效");
   const pairRow = checkRow("双行译文");
   const waveRow = checkRow("字后波形");
+  const columnRow = checkRow("竖列");
   const sizeRow = rangeRow("字号", 18, 64, 32);
   const colorRow = colorRowOf();
   const opacityRow = rangeRow("透明度", 20, 100, 100);
   const glowRow = rangeRow("光晕", 0, 100, 72);
+  const motionLevelRow = rangeRow("动效强度", 35, 100, 100);
+  const backdropRow = rangeRow("背景", 0, 55, 0);
 
   panel.append(
     summary,
@@ -31,10 +34,13 @@ export function mountDeskForm(): { element: HTMLElement; destroy: () => void } {
     motionRow.row,
     pairRow.row,
     waveRow.row,
+    columnRow.row,
     sizeRow.row,
     colorRow.row,
     opacityRow.row,
     glowRow.row,
+    motionLevelRow.row,
+    backdropRow.row,
   );
 
   const paint = (settings: DeskLyricsSettings) => {
@@ -45,10 +51,13 @@ export function mountDeskForm(): { element: HTMLElement; destroy: () => void } {
     motionRow.input.checked = settings.motion;
     pairRow.input.checked = settings.pair;
     waveRow.input.checked = settings.wave;
+    columnRow.input.checked = settings.orientation === "vertical";
     sizeRow.input.value = String(settings.fontSize);
     colorRow.input.value = settings.color;
     opacityRow.input.value = String(Math.round(settings.opacity * 100));
     glowRow.input.value = String(Math.round(settings.glow * 100));
+    motionLevelRow.input.value = String(Math.round(settings.motionLevel * 100));
+    backdropRow.input.value = String(Math.round(settings.backdrop * 100));
   };
 
   const push = (patch: Partial<DeskLyricsSettings>) => {
@@ -61,10 +70,13 @@ export function mountDeskForm(): { element: HTMLElement; destroy: () => void } {
   motionRow.input.addEventListener("change", () => push({ motion: motionRow.input.checked }));
   pairRow.input.addEventListener("change", () => push({ pair: pairRow.input.checked }));
   waveRow.input.addEventListener("change", () => push({ wave: waveRow.input.checked }));
+  columnRow.input.addEventListener("change", () => push({ orientation: columnRow.input.checked ? "vertical" : "horizontal" }));
   sizeRow.input.addEventListener("change", () => push({ fontSize: Number(sizeRow.input.value) }));
   colorRow.input.addEventListener("change", () => push({ color: colorRow.input.value }));
   opacityRow.input.addEventListener("change", () => push({ opacity: Number(opacityRow.input.value) / 100 }));
   glowRow.input.addEventListener("change", () => push({ glow: Number(glowRow.input.value) / 100 }));
+  motionLevelRow.input.addEventListener("change", () => push({ motionLevel: Number(motionLevelRow.input.value) / 100 }));
+  backdropRow.input.addEventListener("change", () => push({ backdrop: Number(backdropRow.input.value) / 100 }));
 
   const stop = window.tide.onDeskState(paint);
   void window.tide.getDeskLyrics().then(paint);

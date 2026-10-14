@@ -15,7 +15,27 @@ const currentEl = current;
 const transEl = trans;
 const waveEl = wave;
 let waveFrame = 0;
+let easeFrame = 0;
 let shown = "";
+let shownProgress = 1;
+let targetProgress = 1;
+
+function writeSweep(value: number): void {
+  root.style.setProperty("--sweep", `${(value * 100).toFixed(2)}%`);
+}
+
+function easeSweep(): void {
+  easeFrame = 0;
+  const delta = targetProgress - shownProgress;
+  if (Math.abs(delta) < 0.004) {
+    shownProgress = targetProgress;
+    writeSweep(shownProgress);
+    return;
+  }
+  shownProgress += delta * 0.42;
+  writeSweep(shownProgress);
+  easeFrame = requestAnimationFrame(easeSweep);
+}
 
 function paint(cue: DeskCue): void {
   root.style.setProperty("--desk-size", `${cue.fontSize}px`);
@@ -23,8 +43,22 @@ function paint(cue: DeskCue): void {
   root.style.setProperty("--glow", cue.farGlow ? String(cue.glow) : String(Math.min(cue.glow, 0.28)));
   root.style.setProperty("--glow-far", cue.farGlow ? String(cue.glow * 0.65) : "0");
   root.style.setProperty("--feather", "6%");
-  const sweep = cue.wordLevel ? Math.min(1, Math.max(0, cue.progress)) * 100 : 100;
-  root.style.setProperty("--sweep", `${sweep.toFixed(2)}%`);
+  root.style.setProperty("--desk-backdrop", String(cue.backdrop ?? 0));
+  const level = cue.motion ? (cue.motionLevel ?? 1) : 0;
+  root.style.setProperty("--motion-shift", `${(8 * level).toFixed(1)}px`);
+  root.style.setProperty("--motion-blur", `${(10 * level).toFixed(1)}px`);
+  root.dataset.orient = cue.orientation === "vertical" ? "vertical" : "horizontal";
+  const nextProgress = cue.wordLevel ? Math.min(1, Math.max(0, cue.progress)) : 1;
+  const jumped = Math.abs(nextProgress - shownProgress) > 0.28 || !cue.wordLevel || !cue.playing;
+  targetProgress = nextProgress;
+  if (jumped) {
+    if (easeFrame) cancelAnimationFrame(easeFrame);
+    easeFrame = 0;
+    shownProgress = nextProgress;
+    writeSweep(shownProgress);
+  } else if (!easeFrame) {
+    easeFrame = requestAnimationFrame(easeSweep);
+  }
   currentEl.dataset.sweep = cue.wordLevel ? "word" : "line";
   currentEl.dataset.far = cue.farGlow ? "true" : "false";
   currentEl.classList.toggle("is-paused", !cue.playing);

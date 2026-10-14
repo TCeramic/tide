@@ -27,6 +27,17 @@ describe("desktop lyrics settings", () => {
     assert.equal(next.opacity, 1);
     assert.equal(deskSettingsFromUnknown({ x: 10 }).x, null);
     assert.equal(deskSettingsFromUnknown({ opacity: 0.05 }).opacity, 0.2);
+    assert.equal(deskSettingsFromUnknown({}).orientation, "horizontal");
+    assert.equal(deskSettingsFromUnknown({ orientation: "vertical" }).orientation, "vertical");
+    assert.equal(deskSettingsFromUnknown({ orientation: "column" }).orientation, "horizontal");
+    assert.equal(deskSettingsFromUnknown({ motionLevel: 4 }).motionLevel, 1);
+    assert.equal(deskSettingsFromUnknown({ motionLevel: 0 }).motionLevel, 0.35);
+    assert.equal(deskSettingsFromUnknown({ backdrop: 2 }).backdrop, 0.55);
+    assert.equal(deskSettingsFromUnknown({ backdrop: -1 }).backdrop, 0);
+    const column = deskWindowSize(32, false, "vertical");
+    const row = deskWindowSize(32, false, "horizontal");
+    assert.ok(column.height > column.width);
+    assert.ok(row.width > row.height);
   });
 
   it("keeps a point on the second display and returns a lost point to the first", () => {

@@ -37,6 +37,7 @@ function showPlayback(snapshot: PlaybackSnapshot): void {
   const track = snapshot.index >= 0 ? (snapshot.queue[snapshot.index] ?? null) : null;
   if (track) document.documentElement.style.setProperty("--cover-tint", coverTint(track.title));
   playingNow = snapshot.status === "playing";
+  document.documentElement.dataset.status = snapshot.status;
   stageLayer.setScene({ level: Number.parseFloat(document.documentElement.style.getPropertyValue("--tide-stage")) || 0, motion: motionAmount, playing: playingNow });
   chromeLayer.setPlayback(snapshot);
   lyricsLayer.setTrack(track);

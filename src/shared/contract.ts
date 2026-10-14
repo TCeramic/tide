@@ -223,6 +223,11 @@ export interface DeskCue {
   wave: boolean;
   farGlow: boolean;
   empty: boolean;
+  orientation: "horizontal" | "vertical";
+  /** 0.35–1. The overlay ignores this when motion is off. */
+  motionLevel: number;
+  /** 0 is a clear overlay. */
+  backdrop: number;
 }
 
 /** First-party daily list. Built from the local listen log, not NetEase recommend APIs. */

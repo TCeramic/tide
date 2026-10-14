@@ -36,12 +36,22 @@ body {
   font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
+.stack::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 10% 4%;
+  border-radius: 28px;
+  background: rgba(7, 16, 24, var(--desk-backdrop, 0));
+  pointer-events: none;
+}
+
 .current,
 .trans {
   margin: 0;
   max-width: 100%;
   line-height: 1.15;
-  font-weight: 760;
+  font-weight: 900;
   letter-spacing: 0.01em;
   -webkit-text-stroke: 0.2px rgba(255, 255, 255, 0.72);
   paint-order: stroke fill;
@@ -105,8 +115,53 @@ body {
 }
 
 @keyframes desk-in {
-  from { opacity: 0; filter: blur(8px); transform: translateY(6px); }
+  from { opacity: 0; filter: blur(var(--motion-blur, 8px)); transform: translateY(var(--motion-shift, 6px)); }
   to { opacity: var(--desk-opacity, 1); filter: blur(0); transform: translateY(0); }
+}
+
+html[data-orient="vertical"] .stack {
+  writing-mode: vertical-rl;
+  flex-direction: row;
+  padding: 36px 18% 36px 22%;
+}
+
+html[data-orient="vertical"] .current {
+  background-image: linear-gradient(
+    180deg,
+    #fff8ee 0%,
+    #fffdf8 var(--sweep, 0%),
+    #d9c8ff calc(var(--sweep, 0%) + var(--feather, 6%)),
+    #c5d8ff 100%
+  );
+}
+
+html[data-orient="vertical"] .current.is-long {
+  animation-name: desk-roll-y;
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 8%, #000 92%, transparent);
+  mask-image: linear-gradient(180deg, transparent, #000 8%, #000 92%, transparent);
+}
+
+html[data-orient="vertical"] .current.enter {
+  animation-name: desk-in-col;
+}
+
+html[data-orient="vertical"] #wave {
+  top: 8%;
+  bottom: 8%;
+  left: 4px;
+  right: auto;
+  width: 16%;
+  height: auto;
+}
+
+@keyframes desk-in-col {
+  from { opacity: 0; filter: blur(var(--motion-blur, 8px)); transform: translateX(var(--motion-shift, 6px)); }
+  to { opacity: var(--desk-opacity, 1); filter: blur(0); transform: translateX(0); }
+}
+
+@keyframes desk-roll-y {
+  from { transform: translateY(8%); }
+  to { transform: translateY(-8%); }
 }
 
 @keyframes desk-roll {
