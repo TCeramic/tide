@@ -1,4 +1,5 @@
 import {
+  isFontPresetId,
   isPerformanceTier,
   isShellId,
   isStageBackground,
@@ -209,6 +210,14 @@ export function appearancePatchFromArgs(args: unknown): Partial<Appearance> | nu
     if (!isStageBackground(record.background)) return null;
     patch.background = record.background;
   }
+  if ("fontPreset" in record) {
+    if (!isFontPresetId(record.fontPreset)) return null;
+    patch.fontPreset = record.fontPreset;
+  }
+  if ("fontFamily" in record) {
+    if (typeof record.fontFamily !== "string") return null;
+    patch.fontFamily = record.fontFamily;
+  }
   if (
     patch.chromeVisible === undefined
     && patch.stageLevel === undefined
@@ -219,6 +228,8 @@ export function appearancePatchFromArgs(args: unknown): Partial<Appearance> | nu
     && patch.preset === undefined
     && patch.performance === undefined
     && patch.background === undefined
+    && patch.fontPreset === undefined
+    && patch.fontFamily === undefined
   ) return null;
   return patch;
 }
@@ -237,12 +248,16 @@ function readTrack(value: unknown): Track | null {
   if (typeof candidate.artist !== "string" || candidate.artist.length === 0 || candidate.artist.length > 300) return null;
   if (typeof candidate.durationMs !== "number" || !Number.isFinite(candidate.durationMs)) return null;
   if (candidate.durationMs < 0 || candidate.durationMs > 24 * 60 * 60 * 1000) return null;
-  return {
+  const track: Track = {
     id: candidate.id,
     title: candidate.title,
     artist: candidate.artist,
     durationMs: candidate.durationMs,
   };
+  if (typeof candidate.cover === "string" && /^https?:\/\//.test(candidate.cover)) {
+    track.cover = candidate.cover.slice(0, 500);
+  }
+  return track;
 }
 
 function readHit(value: unknown): SearchHit | null {

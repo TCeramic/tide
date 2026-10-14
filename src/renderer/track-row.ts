@@ -1,5 +1,6 @@
 import { Heart, MoreHorizontal, Play } from "lucide";
 import type { PlaylistSummary, SearchHit } from "../shared/contract";
+import { paintCover } from "./cover";
 import { openNowPlaying } from "./view";
 import { ICON_SIZE, iconButton, setIcon } from "./icons";
 import { applyLike, isLiked } from "./liked";
@@ -16,6 +17,24 @@ export function fillTrackList(
   note: (message: string, warn: boolean) => void,
 ): void {
   list.replaceChildren();
+  const start = document.createElement("li");
+  start.className = "hit-start";
+  const startButton = document.createElement("button");
+  startButton.type = "button";
+  startButton.className = "text-button";
+  startButton.textContent = "开始播放";
+  startButton.addEventListener("click", () => {
+    const selected = Number(list.dataset.selected ?? "");
+    const index = Number.isInteger(selected) && hits[selected]?.playable ? selected : hits.findIndex((row) => row.playable);
+    if (index < 0) {
+      note("没有可播放的地址", true);
+      return;
+    }
+    openNowPlaying();
+    void window.tide.playHits([...hits], index);
+  });
+  start.append(startButton);
+  list.append(start);
   hits.forEach((hit, index) => {
     const item = document.createElement("li");
     item.className = "hit-row";
@@ -28,6 +47,9 @@ export function fillTrackList(
       void window.tide.playHits([...hits], index);
     });
 
+    const art = document.createElement("span");
+    art.className = "hit-cover";
+    paintCover(art, hit.cover);
     const main = document.createElement("button");
     main.type = "button";
     main.className = hit.playable ? "hit" : "hit unavailable";
@@ -41,8 +63,13 @@ export function fillTrackList(
     main.append(title, meta);
     if (hit.playable) {
       main.addEventListener("click", () => {
+        list.dataset.selected = String(index);
+        list.querySelectorAll(".hit").forEach((row) => row.classList.remove("is-selected"));
+        main.classList.add("is-selected");
+      });
+      main.addEventListener("dblclick", () => {
         openNowPlaying();
-      void window.tide.playHits([...hits], index);
+        void window.tide.playHits([...hits], index);
       });
     }
 
@@ -118,7 +145,7 @@ export function fillTrackList(
     collect.append(picker, save);
     menu.append(playItem, nextItem, likeItem, collect, shareItem);
 
-    item.append(play, main, like, more, menu);
+    item.append(art, play, main, like, more, menu);
     list.append(item);
   });
 }

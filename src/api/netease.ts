@@ -14,7 +14,7 @@ interface NcmBody {
     qrurl?: string;
     qrimg?: string;
     account?: { id?: number; anonimousUser?: boolean };
-    profile?: { userId?: number; nickname?: string };
+    profile?: { userId?: number; nickname?: string; avatarUrl?: string };
   };
   playlist?: NcmPlaylist[];
 }
@@ -256,7 +256,10 @@ export function readUser(result: NcmResult): SessionUser | null {
   const id = data.profile?.userId ?? data.account?.id;
   if (id == null) return null;
   const nickname = data.profile?.nickname?.trim();
-  return { id: String(id), nickname: nickname && nickname.length > 0 ? nickname : "网易云用户" };
+  const user = { id: String(id), nickname: nickname && nickname.length > 0 ? nickname : "网易云用户" };
+  const avatar = data.profile?.avatarUrl;
+  if (typeof avatar === "string" && isHttpUrl(avatar)) return { ...user, avatar };
+  return user;
 }
 
 export function readPlaylists(result: NcmResult): PlaylistSummary[] {
@@ -516,7 +519,18 @@ function toHit(
     playable: playableOf(song, privilege, unknownPlayable),
   };
   if (song.liked === true) hit.liked = true;
+  const cover = readCoverUrl(song);
+  if (cover) hit.cover = cover;
   return hit;
+}
+
+/** Album art from a song payload. Only http(s) URLs are kept. */
+export function readCoverUrl(song: Record<string, unknown>): string | null {
+  const album = asRecord(song.al) ?? asRecord(song.album);
+  const raw = album?.picUrl ?? song.picUrl;
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  return isHttpUrl(trimmed) ? trimmed : null;
 }
 
 function playableOf(

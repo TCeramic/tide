@@ -14,12 +14,14 @@ export function queueFromHits(
     const hit = hits[i];
     if (!hit?.playable) continue;
     if (i === index) queueIndex = tracks.length;
-    tracks.push({
+    const track: Track = {
       id: hit.id,
       title: hit.title,
       artist: hit.artist,
       durationMs: hit.durationMs,
-    });
+    };
+    if (hit.cover && /^https?:\/\//.test(hit.cover)) track.cover = hit.cover;
+    tracks.push(track);
   }
   if (queueIndex < 0) return null;
   return { tracks, index: queueIndex };

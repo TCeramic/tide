@@ -1,5 +1,21 @@
 # 更新记录 / Changelog
 
+## 0.9.1
+
+- 底栏运输键列宽固定，进度和标题不再把按钮挤走。列表、继续播放和底栏使用专辑封面，失败时是波浪占位，不再用歌名首字。
+- 逐字歌词按测宽做字内扫过，一帧合并一次绘制。没有逐字时间的行整行高亮，不假装扫过。
+- 播放模式增加「顺序」：当前列表播完再按相似歌曲续上。「随机」仍在剩余不多时续上。
+- 应用图标从波浪原图重新裁出透明圆角，角落不再留色块。Windows 系统标题栏颜色跟随透镜或点阵外壳。
+- 登录和设置在空闲时完全移出画面，悬停、聚焦或打开时再回来。
+- 主页只留继续播放、歌单、今日潮汐、每日推荐、本地和证明树，卡片贴在左上，下面留出舞台。单击选中，双击或「开始播放」才开播。已登录时右上角用头像。播放钮松手回弹；唱片预设只在播放时转动。
+- 字体可选预设、手写字体族或导入字体文件。热键输入框显示已绑定的组合。
+- 性能档流畅 / 均衡 / 炫酷会改 WebGL、点阵密度、模糊和桌面歌词远光，并写入外观设置。
+- 桌面歌词改为单行沉浸：字内水平扫过、外发光、波形只在字后。可选双行译文和长句横滚。主进程计算进度，覆盖层不解析逐字歌词。开启后的子菜单可以改横列或竖列、字内扫过、动效强度、锁定、透明度、背景和显隐，并与设置页同一组开关。登录和设置在收起时完全离开画面。
+- 证明树选用 Lattice 的 ProofTree（Three.js，MIT）。流畅档退回列表。
+- 健康检查版本为 `0.9.1`。
+
+The dock keeps its controls put. Covers replace title initials. Word lyrics sweep inside the glyph. Sequential play finishes the list, then continues from similar songs. The icon is a transparent rounded wave. Login and settings slide fully away. Home is the common cards, and a click does not start playback. Fonts, filled hotkeys, and performance tiers persist. Desktop lyrics are one immersive line with an in-glyph sweep; the overlay does not parse word timings. The submenu can switch that line to a vertical column and matches the settings for sweep, motion, lock, opacity, and backdrop. The proof tree is Lattice's ProofTree. Health is `0.9.1`.
+
 ## 0.9.0
 
 - 窗口外壳改成透镜（Lens）的玻璃、液体和光。侧栏、免责声明和底栏是玻璃透镜：定向高光、液体舞台、播放时的光。控件松手用弹簧回弹。减弱动态时停住，减弱透明度时改成不透明面板。

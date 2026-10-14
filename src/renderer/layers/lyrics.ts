@@ -33,7 +33,13 @@ export function mountLyrics(root: HTMLElement): {
   const translation = viewButton("翻译");
   const romaji = viewButton("罗马音");
   const deskToggle = viewButton("桌面歌词");
-  tools.append(both, original, translation, romaji, deskToggle);
+  const deskMenu = document.createElement("details");
+  deskMenu.className = "desk-menu";
+  deskMenu.hidden = true;
+  const deskSummary = document.createElement("summary");
+  deskSummary.textContent = "桌面歌词";
+  deskMenu.append(deskSummary, deskMenuBody());
+  tools.append(both, original, translation, romaji, deskToggle, deskMenu);
 
   const offsetMenu = document.createElement("details");
   offsetMenu.className = "lyric-offset-menu";
@@ -60,6 +66,8 @@ export function mountLyrics(root: HTMLElement): {
   let offsetMs = 0;
   let positionMs = 0;
   let bundles = { original: [] as LyricLine[], translation: [] as LyricLine[], romaji: [] as LyricLine[], yrc: [] as YrcLine[] };
+  let pendingPosition = 0;
+  let paintFrame = 0;
   let active = -1;
   let deskOpen = false;
 
@@ -82,6 +90,7 @@ export function mountLyrics(root: HTMLElement): {
       title: title.textContent ?? "",
       original: bundles.original,
       translation: bundles.translation,
+      yrc: bundles.yrc,
       offsetMs,
     });
   };
@@ -95,6 +104,9 @@ export function mountLyrics(root: HTMLElement): {
     const rows = timedRows();
     const row = rows[index];
     if (!row) return;
+    const mask = origin.querySelector<HTMLElement>(".lyric-mask");
+    const hot = origin.querySelector<HTMLElement>(".lyric-hot");
+    if (!mask || !hot) return;
     const yrc = usingYrc() ? bundles.yrc[index] : undefined;
     let progress = 0;
     if (yrc && yrc.words.length > 0) {
@@ -105,7 +117,7 @@ export function mountLyrics(root: HTMLElement): {
       const next = rows[index + 1]?.timeMs ?? row.timeMs + 4000;
       progress = lineEase(at, row.timeMs, next);
     }
-    origin.style.setProperty("--lyric-progress", `${(progress * 100).toFixed(2)}%`);
+    writeLyricSweep(mask, hot, progress);
   };
 
   const paint = (nextPosition = positionMs) => {
@@ -121,7 +133,10 @@ export function mountLyrics(root: HTMLElement): {
         item.classList.toggle("lyric-current", index === next);
       });
       const current = next >= 0 ? items.item(next) : null;
-      if (current instanceof HTMLElement) current.scrollIntoView({ block: "center" });
+      if (current instanceof HTMLElement) {
+        const top = current.offsetTop - list.clientHeight / 2 + current.clientHeight / 2;
+        list.scrollTo({ top: Math.max(0, top), behavior: "auto" });
+      }
     }
     if (next >= 0) paintSweep(next);
   };
@@ -158,19 +173,17 @@ export function mountLyrics(root: HTMLElement): {
         const origin = document.createElement("span");
         origin.className = "lyric-origin karaoke";
         const words = usingYrc() ? bundles.yrc[index]?.words ?? [] : [];
-        if (words.length > 0) {
-          const widths: number[] = [];
-          for (const word of words) {
-            const span = document.createElement("span");
-            span.className = "lyric-word";
-            span.textContent = word.text;
-            origin.append(span);
-            widths.push(measureWord(word.text));
-          }
-          origin.dataset.widths = widths.join(",");
-        } else {
-          origin.textContent = row.original;
-        }
+        const run = document.createElement("span");
+        run.className = "lyric-run";
+        run.textContent = row.original;
+        const mask = document.createElement("span");
+        mask.className = "lyric-mask";
+        const hot = document.createElement("span");
+        hot.className = "lyric-hot";
+        hot.textContent = row.original;
+        mask.append(hot);
+        origin.append(run, mask);
+        if (words.length > 0) origin.dataset.widths = words.map((word) => String(measureWord(word.text))).join(",");
         item.append(origin);
         if (row.translation.length > 0) {
           const trans = document.createElement("span");
@@ -198,6 +211,10 @@ export function mountLyrics(root: HTMLElement): {
   const syncDeskButton = (settings: DeskLyricsSettings) => {
     deskOpen = settings.open;
     deskToggle.setAttribute("aria-pressed", settings.open ? "true" : "false");
+    const wasHidden = deskMenu.hidden;
+    deskMenu.hidden = !settings.open;
+    if (settings.open && wasHidden) deskMenu.open = true;
+    paintDeskMenu(deskMenu, settings);
   };
 
   both.addEventListener("click", () => choose("both"));
@@ -273,8 +290,16 @@ export function mountLyrics(root: HTMLElement): {
 
   return {
     setTrack,
-    setPosition: paint,
+    setPosition(positionMs: number) {
+      pendingPosition = positionMs;
+      if (paintFrame !== 0) return;
+      paintFrame = requestAnimationFrame(() => {
+        paintFrame = 0;
+        paint(pendingPosition);
+      });
+    },
     destroy: () => {
+      if (paintFrame !== 0) cancelAnimationFrame(paintFrame);
       stopDesk();
       root.replaceChildren();
     },
@@ -283,11 +308,133 @@ export function mountLyrics(root: HTMLElement): {
 
 let wordCanvas: CanvasRenderingContext2D | null = null;
 
+/** One compositor sweep. The mask and the fill counter-scale so the edge can stop inside a glyph. */
+function writeLyricSweep(mask: HTMLElement, hot: HTMLElement, progress: number): void {
+  const amount = Math.min(1, Math.max(0, progress));
+  if (amount <= 0.001) {
+    mask.style.opacity = "0";
+    return;
+  }
+  const scale = amount >= 0.999 ? 1 : amount;
+  mask.style.opacity = "1";
+  mask.style.transform = `scaleX(${scale})`;
+  hot.style.transform = `scaleX(${scale === 1 ? 1 : 1 / scale})`;
+}
+
 function measureWord(text: string): number {
   wordCanvas ??= document.createElement("canvas").getContext("2d");
   if (!wordCanvas) return Math.max(1, text.length);
   wordCanvas.font = "40px Segoe UI, PingFang SC, Noto Sans SC, Microsoft YaHei, sans-serif";
   return Math.max(1, wordCanvas.measureText(text).width);
+}
+
+function deskMenuBody(): HTMLElement {
+  const body = document.createElement("div");
+  body.className = "desk-menu-body";
+  const row = (label: string, key: "highlightFollow" | "motion" | "pair" | "wave" | "locked", pressed: boolean) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "text-button";
+    button.dataset.desk = key;
+    button.textContent = label;
+    button.setAttribute("aria-pressed", pressed ? "true" : "false");
+    button.addEventListener("click", () => {
+      const on = button.getAttribute("aria-pressed") !== "true";
+      void window.tide.setDeskLyrics({ [key]: on });
+    });
+    return button;
+  };
+  const orient = (label: string, value: "horizontal" | "vertical") => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "text-button";
+    button.dataset.desk = "orientation";
+    button.dataset.value = value;
+    button.textContent = label;
+    button.setAttribute("aria-pressed", value === "horizontal" ? "true" : "false");
+    button.addEventListener("click", () => {
+      void window.tide.setDeskLyrics({ orientation: value });
+    });
+    return button;
+  };
+  body.append(
+    orient("横列", "horizontal"),
+    orient("竖列", "vertical"),
+    row("字内扫过", "highlightFollow", true),
+    row("动效", "motion", true),
+    row("双行译文", "pair", false),
+    row("字后波形", "wave", false),
+    row("锁定", "locked", false),
+  );
+  const opacity = document.createElement("input");
+  opacity.type = "range";
+  opacity.min = "20";
+  opacity.max = "100";
+  opacity.value = "100";
+  opacity.dataset.desk = "opacity";
+  opacity.setAttribute("aria-label", "桌面歌词透明度");
+  opacity.addEventListener("change", () => {
+    void window.tide.setDeskLyrics({ opacity: Number(opacity.value) / 100 });
+  });
+  const glow = document.createElement("input");
+  glow.type = "range";
+  glow.min = "0";
+  glow.max = "100";
+  glow.value = "72";
+  glow.dataset.desk = "glow";
+  glow.setAttribute("aria-label", "桌面歌词光晕");
+  glow.addEventListener("change", () => {
+    void window.tide.setDeskLyrics({ glow: Number(glow.value) / 100 });
+  });
+  const motionLevel = document.createElement("input");
+  motionLevel.type = "range";
+  motionLevel.min = "35";
+  motionLevel.max = "100";
+  motionLevel.value = "100";
+  motionLevel.dataset.desk = "motionLevel";
+  motionLevel.setAttribute("aria-label", "桌面歌词动效强度");
+  motionLevel.addEventListener("change", () => {
+    void window.tide.setDeskLyrics({ motionLevel: Number(motionLevel.value) / 100 });
+  });
+  const backdrop = document.createElement("input");
+  backdrop.type = "range";
+  backdrop.min = "0";
+  backdrop.max = "55";
+  backdrop.value = "0";
+  backdrop.dataset.desk = "backdrop";
+  backdrop.setAttribute("aria-label", "桌面歌词背景");
+  backdrop.addEventListener("change", () => {
+    void window.tide.setDeskLyrics({ backdrop: Number(backdrop.value) / 100 });
+  });
+  const hide = document.createElement("button");
+  hide.type = "button";
+  hide.className = "text-button";
+  hide.textContent = "隐藏";
+  hide.addEventListener("click", () => {
+    void window.tide.setDeskLyrics({ open: false });
+  });
+  body.append(opacity, glow, motionLevel, backdrop, hide);
+  return body;
+}
+
+function paintDeskMenu(menu: HTMLElement, settings: DeskLyricsSettings): void {
+  menu.querySelectorAll<HTMLButtonElement>("button[data-desk]").forEach((button) => {
+    const key = button.dataset.desk;
+    if (key === "highlightFollow" || key === "motion" || key === "pair" || key === "wave" || key === "locked") {
+      button.setAttribute("aria-pressed", settings[key] ? "true" : "false");
+    }
+    if (key === "orientation") {
+      button.setAttribute("aria-pressed", button.dataset.value === settings.orientation ? "true" : "false");
+    }
+  });
+  const opacity = menu.querySelector<HTMLInputElement>("input[data-desk=opacity]");
+  const glow = menu.querySelector<HTMLInputElement>("input[data-desk=glow]");
+  const motionLevel = menu.querySelector<HTMLInputElement>("input[data-desk=motionLevel]");
+  const backdrop = menu.querySelector<HTMLInputElement>("input[data-desk=backdrop]");
+  if (opacity && document.activeElement !== opacity) opacity.value = String(Math.round(settings.opacity * 100));
+  if (glow && document.activeElement !== glow) glow.value = String(Math.round(settings.glow * 100));
+  if (motionLevel && document.activeElement !== motionLevel) motionLevel.value = String(Math.round(settings.motionLevel * 100));
+  if (backdrop && document.activeElement !== backdrop) backdrop.value = String(Math.round(settings.backdrop * 100));
 }
 
 function viewButton(label: string): HTMLButtonElement {

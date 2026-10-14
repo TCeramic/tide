@@ -16,9 +16,8 @@ import {
 } from "lucide";
 import { ICON_SIZE, iconButton, setIcon } from "../icons";
 import { applyLike, isLiked, onLiked } from "../liked";
+import { paintCover } from "../cover";
 import { openNowPlaying } from "../view";
-
-const DISCLAIMER_KEY = "tide.risk.ack";
 
 const STATUS_LABEL: Record<PlaybackSnapshot["status"], string> = {
   idle: "空闲",
@@ -38,8 +37,8 @@ const ERROR_LABEL: Record<NonNullable<PlaybackSnapshot["error"]>, string> = {
 const PLAY_MODES = [
   { repeat: "all", shuffle: false, explore: false, label: "列表循环" },
   { repeat: "one", shuffle: false, explore: false, label: "单曲循环" },
-  { repeat: "off", shuffle: true, explore: false, label: "随机播放" },
-  { repeat: "off", shuffle: true, explore: true, label: "灵感随机" },
+  { repeat: "off", shuffle: false, explore: true, label: "顺序" },
+  { repeat: "off", shuffle: true, explore: true, label: "随机" },
 ] as const;
 
 export function mountChrome(root: HTMLElement): {
@@ -56,28 +55,6 @@ export function mountChrome(root: HTMLElement): {
   titlebar.className = "tide-titlebar";
   titlebar.textContent = "潮汐";
   root.append(titlebar);
-
-  const disclaimer = document.createElement("section");
-  disclaimer.className = "disclaimer";
-  disclaimer.hidden = readAck();
-
-  const disclaimerTitle = document.createElement("h1");
-  disclaimerTitle.textContent = "使用前请阅读";
-
-  const disclaimerBody = document.createElement("p");
-  disclaimerBody.textContent =
-    "潮汐是非官方客户端，仅供个人自用。使用非官方接口和 Cookie（含 MUSIC_U）可能违反网易云服务条款，并可能导致接口失效或账号受限。继续使用即表示这些后果由你自行承担。 Unofficial client for personal use. Account limits are your risk.";
-
-  const ack = document.createElement("button");
-  ack.type = "button";
-  ack.className = "text-button";
-  ack.textContent = "知道了";
-  ack.addEventListener("click", () => {
-    writeAck();
-    disclaimer.hidden = true;
-  });
-
-  disclaimer.append(disclaimerTitle, disclaimerBody, ack);
 
   const transport = document.createElement("footer");
   transport.className = "transport";
@@ -116,7 +93,7 @@ export function mountChrome(root: HTMLElement): {
 
   const cover = document.createElement("span");
   cover.className = "dock-cover";
-  cover.textContent = "潮";
+  paintCover(cover, undefined);
   const meta = document.createElement("div");
   meta.className = "meta";
   const titleRow = document.createElement("div");
@@ -191,13 +168,16 @@ export function mountChrome(root: HTMLElement): {
   dockMain.className = "dock-main";
   dockMain.append(cover, meta, controls, volumeWrap);
   transport.append(dockMain, seekRow);
-  root.append(disclaimer, transport);
+  root.append(transport);
 
   const setPlayback = (snapshot: PlaybackSnapshot) => {
     latest = snapshot;
     const track = snapshot.index >= 0 ? snapshot.queue[snapshot.index] : undefined;
     title.textContent = track?.title ?? "没有曲目";
-    cover.textContent = track ? track.title.slice(0, 1) : "潮";
+    if (cover.dataset.cover !== (track?.cover ?? "")) {
+      cover.dataset.cover = track?.cover ?? "";
+      paintCover(cover, track?.cover);
+    }
     const status = STATUS_LABEL[snapshot.status];
     const error = snapshot.error ? ERROR_LABEL[snapshot.error] : "";
     const position = formatTime(snapshot.positionMs);
@@ -220,13 +200,13 @@ export function mountChrome(root: HTMLElement): {
     const atStart = snapshot.index <= 0;
     const atEnd = snapshot.index < 0 || snapshot.index >= snapshot.queue.length - 1;
     prev.disabled = !hasQueue || (atStart && snapshot.repeat !== "all");
-    next.disabled = !hasQueue || (atEnd && snapshot.repeat !== "all" && !(snapshot.shuffle && snapshot.queue.length > 1));
+    next.disabled = !hasQueue || (atEnd && snapshot.repeat !== "all" && !(snapshot.shuffle && snapshot.queue.length > 1) && !snapshot.explore);
 
     const modeNow = PLAY_MODES[modeIndex(snapshot)] ?? PLAY_MODES[0];
     mode.setAttribute("aria-label", modeNow.label);
     mode.setAttribute("aria-pressed", "true");
-    const modeIcon = modeNow.label === "单曲循环" ? Repeat1 : modeNow.label === "随机播放" ? Shuffle : modeNow.label === "灵感随机" ? Compass : Repeat;
-    const modeName = modeNow.label === "单曲循环" ? "Repeat1" : modeNow.label === "随机播放" ? "Shuffle" : modeNow.label === "灵感随机" ? "Compass" : "Repeat";
+    const modeIcon = modeNow.label === "单曲循环" ? Repeat1 : modeNow.label === "随机" ? Shuffle : modeNow.label === "顺序" ? Compass : Repeat;
+    const modeName = modeNow.label === "单曲循环" ? "Repeat1" : modeNow.label === "随机" ? "Shuffle" : modeNow.label === "顺序" ? "Compass" : "Repeat";
     setIcon(mode, modeName, modeIcon, ICON_SIZE.control);
     const volumeIconName = snapshot.volume <= 0 ? "VolumeX" : snapshot.volume < 0.5 ? "Volume1" : "Volume2";
     const volumeNode = snapshot.volume <= 0 ? VolumeX : snapshot.volume < 0.5 ? Volume1 : Volume2;
@@ -273,21 +253,5 @@ function formatTime(ms: number): string {
   const minutes = Math.floor(total / 60);
   const seconds = total % 60;
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-}
-
-function readAck(): boolean {
-  try {
-    return localStorage.getItem(DISCLAIMER_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function writeAck(): void {
-  try {
-    localStorage.setItem(DISCLAIMER_KEY, "1");
-  } catch {
-    // The card still closes for this session when storage is unavailable.
-  }
 }
 

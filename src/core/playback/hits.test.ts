@@ -19,6 +19,16 @@ describe("queueFromHits", () => {
     });
   });
 
+  it("keeps an http cover and drops anything else", () => {
+    const row = hit("a", true);
+    row.cover = "https://p1.music.126.net/cover.jpg";
+    const queued = queueFromHits([row], 0);
+    assert.equal(queued?.tracks[0]?.cover, "https://p1.music.126.net/cover.jpg");
+    const blocked = hit("b", true);
+    blocked.cover = "javascript:alert(1)";
+    assert.equal(queueFromHits([blocked], 0)?.tracks[0]?.cover, undefined);
+  });
+
   it("ignores a gray row", () => {
     const hits = [hit("a", true), hit("gray", false)];
     assert.equal(queueFromHits(hits, 1), null);

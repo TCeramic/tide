@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { describe, it } from "node:test";
-import { createNeteaseClient, markLiked, readCatalog, readCollect, readDailySongs, readLikeIds, readLoginRefresh, readLyricBundle, readLyricText, readPersonalFm, readPlaylistTracks, readPlaylists, readQrCheck, readQrImage, readQrKey, readRadarId, readSearch, readSimilar, readSongUrl, readUser } from "./netease";
+import { createNeteaseClient, markLiked, readCatalog, readCollect, readCoverUrl, readDailySongs, readLikeIds, readLoginRefresh, readLyricBundle, readLyricText, readPersonalFm, readPlaylistTracks, readPlaylists, readQrCheck, readQrImage, readQrKey, readRadarId, readSearch, readSimilar, readSongUrl, readUser } from "./netease";
 
 describe("netease adapters", () => {
   it("reads a logged-in account and ignores anonymous sessions", () => {
@@ -271,5 +271,12 @@ describe("netease adapters", () => {
     );
     assert.throws(() => readCollect(wrapped(400, "参数错误")), { message: "collect_failed" });
     assert.doesNotThrow(() => readCollect(wrapped(200, "ok")));
+  });
+
+  it("keeps only http album art", () => {
+    assert.equal(readCoverUrl({ al: { picUrl: "https://p1.music.126.net/cover.jpg" } }), "https://p1.music.126.net/cover.jpg");
+    assert.equal(readCoverUrl({ album: { picUrl: "http://example.test/a.png" } }), "http://example.test/a.png");
+    assert.equal(readCoverUrl({ al: { picUrl: "javascript:alert(1)" } }), null);
+    assert.equal(readCoverUrl({ name: "无封面" }), null);
   });
 });

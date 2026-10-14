@@ -26,6 +26,9 @@ import { mountHome } from "./home";
 import { mountPresetForm } from "./preset-form";
 import { applyLike, isLiked, onLiked, setLikedIds } from "../liked";
 import { fillTrackList } from "../track-row";
+import { mountProof } from "./proof-view";
+
+const RISK_ACK = "tide.risk.ack";
 
 /** Search, login, and playlist list inside #chrome. */
 export function mountLibrary(root: HTMLElement): {
@@ -158,7 +161,7 @@ export function mountLibrary(root: HTMLElement): {
     input.className = "key-input";
     input.maxLength = 64;
     input.spellcheck = false;
-    input.placeholder = "Ctrl+Alt+Right";
+    input.placeholder = "";
     input.setAttribute("aria-label", MEDIA_ACTION_LABEL[action]);
     keyInputs[action] = input;
     field.append(input);
@@ -260,12 +263,12 @@ export function mountLibrary(root: HTMLElement): {
   });
   const deskForm = mountDeskForm();
   const presets = mountPresetForm();
-  settingsPanel.append(settingsSummary, presets.element, latticeRow, qualityLabel, keyPanel, deskForm.element, bus);
+  settingsPanel.append(settingsSummary, riskNotice(), presets.element, latticeRow, qualityLabel, keyPanel, deskForm.element, bus);
 
   const topbar = document.createElement("div");
   topbar.className = "topbar";
-  const homeButton = button("主页");
-  prependIcon(homeButton, "House", House, ICON_SIZE.row);
+  const homeButton = iconButton("主页", "House", House, ICON_SIZE.control);
+  homeButton.classList.add("home-mark");
   topbar.append(homeButton, searchForm);
 
   const queueCol = document.createElement("aside");
@@ -279,10 +282,16 @@ export function mountLibrary(root: HTMLElement): {
   sheet.hidden = true;
   sheet.append(viewBar, searchNote, hits, tideHeading, tideActions, recommendHeading, recommend, list);
 
+  const loginPeek = document.createElement("div");
+  loginPeek.className = "peek peek-login";
   const loginButton = iconButton("登录", "LogIn", LogIn, ICON_SIZE.control);
   loginButton.classList.add("corner-btn", "corner-login");
+  loginPeek.append(loginButton);
+  const settingsPeek = document.createElement("div");
+  settingsPeek.className = "peek peek-settings";
   const settingsButton = iconButton("设置", "Settings", Settings, ICON_SIZE.control);
   settingsButton.classList.add("corner-btn", "corner-settings");
+  settingsPeek.append(settingsButton);
   const loginPop = document.createElement("section");
   loginPop.className = "corner-panel login-panel glass";
   loginPop.hidden = true;
@@ -299,28 +308,55 @@ export function mountLibrary(root: HTMLElement): {
   };
   const showHomeCards = () => {
     sheet.hidden = true;
+    proofHost.hidden = true;
+    proof.stop();
     home.element.hidden = false;
     showHome();
   };
   homeButton.addEventListener("click", showHomeCards);
   loginButton.addEventListener("click", () => {
     loginPop.hidden = !loginPop.hidden;
+    loginButton.dataset.open = loginPop.hidden ? "false" : "true";
     settingsPop.hidden = true;
+    settingsButton.dataset.open = "false";
   });
   settingsButton.addEventListener("click", () => {
     settingsPop.hidden = !settingsPop.hidden;
+    settingsButton.dataset.open = settingsPop.hidden ? "false" : "true";
     loginPop.hidden = true;
+    loginButton.dataset.open = "false";
   });
 
+  const proofHost = document.createElement("section");
+  proofHost.className = "proof-host glass";
+  proofHost.hidden = true;
+  const proof = mountProof(proofHost, (id, name) => {
+    showSearchNote(name, false);
+    const numeric = /^\d{1,20}$/.test(id);
+    if (!numeric) return;
+    const index = shownHits.findIndex((hit) => hit.id === id);
+    if (index >= 0) {
+      openNowPlaying();
+      void window.tide.playHits(shownHits, index);
+    }
+  });
   const home = mountHome(root, {
     onPlaylists: () => showSheet(),
     onDaily: () => {
       showSheet();
+      proofHost.hidden = true;
       dailyButton.click();
     },
-    onDiscover: () => {
+    onTide: () => {
       showSheet();
+      proofHost.hidden = true;
       tideButton.click();
+    },
+    onProof: () => {
+      sheet.hidden = true;
+      home.element.hidden = true;
+      proofHost.hidden = false;
+      proof.show(playlists, shownHits);
     },
     onLocal: () => {
       showSheet();
@@ -341,7 +377,7 @@ export function mountLibrary(root: HTMLElement): {
     },
   });
 
-  root.append(topbar, queueCol, sheet, loginButton, settingsButton, loginPop, settingsPop);
+  root.append(topbar, queueCol, sheet, proofHost, loginPeek, settingsPeek, loginPop, settingsPop);
   void searchHeading;
   void panel;
 
@@ -404,6 +440,7 @@ export function mountLibrary(root: HTMLElement): {
     }
     const signedIn = session.state === "logged_in";
     loginButton.dataset.attention = signedIn ? "false" : "true";
+    paintAvatar(loginButton, signedIn ? session.user?.avatar : undefined);
     home.setSession(session);
     recommendHeading.hidden = !signedIn;
     recommend.hidden = !signedIn;
@@ -566,11 +603,7 @@ export function mountLibrary(root: HTMLElement): {
     showSearchNote(label, false);
     renderHits(result.hits);
     const index = result.hits.findIndex((hit) => hit.playable);
-    if (index < 0) {
-      showSearchNote(result.hits.length === 0 ? `${label}是空的` : `${label}里没有可播放的曲目`, true);
-      return;
-    }
-    void window.tide.playHits(result.hits, index);
+    if (index < 0) showSearchNote(result.hits.length === 0 ? `${label}是空的` : `${label}里没有可播放的曲目`, true);
   };
 
   dailyButton.addEventListener("click", () => {
@@ -695,7 +728,7 @@ export function mountLibrary(root: HTMLElement): {
       showKeyResult(result.shortcuts, result.messages);
       if (result.messages.length === 0) {
         keyNote.hidden = false;
-        keyNote.textContent = "已保存。留空表示不使用额外组合键。";
+        keyNote.textContent = "已保存。输入框里是当前绑定的组合。";
         keyNote.classList.remove("warn");
       }
     });
@@ -881,9 +914,41 @@ export function mountLibrary(root: HTMLElement): {
       stopPoll();
       stopLiked();
       deskForm.destroy();
+      proof.stop();
       panel.remove();
     },
   };
+}
+
+function riskNotice(): HTMLElement {
+  const section = document.createElement("section");
+  section.className = "disclaimer";
+  let acked = false;
+  try {
+    acked = localStorage.getItem(RISK_ACK) === "1";
+  } catch {
+    acked = false;
+  }
+  section.hidden = acked;
+  const title = document.createElement("h2");
+  title.textContent = "使用前请阅读";
+  const body = document.createElement("p");
+  body.textContent =
+    "潮汐是非官方客户端，仅供个人自用。使用非官方接口和 Cookie（含 MUSIC_U）可能违反网易云服务条款，并可能导致接口失效或账号受限。继续使用即表示这些后果由你自行承担。";
+  const ack = document.createElement("button");
+  ack.type = "button";
+  ack.className = "text-button";
+  ack.textContent = "知道了";
+  ack.addEventListener("click", () => {
+    try {
+      localStorage.setItem(RISK_ACK, "1");
+    } catch {
+      // The note still closes for this session when storage is unavailable.
+    }
+    section.hidden = true;
+  });
+  section.append(title, body, ack);
+  return section;
 }
 
 function heading(text: string, name: string, node: IconNode): HTMLHeadingElement {
@@ -900,4 +965,18 @@ function button(label: string): HTMLButtonElement {
   element.className = "text-button";
   element.textContent = label;
   return element;
+}
+
+function paintAvatar(button: HTMLButtonElement, avatar: string | undefined): void {
+  const existing = button.querySelector("img");
+  if (!avatar || !/^https?:\/\//.test(avatar)) {
+    existing?.remove();
+    button.classList.remove("has-avatar");
+    return;
+  }
+  button.classList.add("has-avatar");
+  const image = existing instanceof HTMLImageElement ? existing : document.createElement("img");
+  image.alt = "";
+  image.src = avatar;
+  if (!existing) button.replaceChildren(image);
 }

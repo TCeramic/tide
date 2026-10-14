@@ -2,14 +2,16 @@ import fs from "node:fs";
 import path from "node:path";
 import { isAudioLevel, type AudioLevel } from "../core/audio-level";
 import { deskSettingsFromUnknown, type DeskLyricsSettings } from "../core/desk-lyrics";
-import { mediaShortcutsFromUnknown, type MediaShortcutMap } from "../core/media-keys";
+import { mediaShortcutsOrDefault, type MediaShortcutMap } from "../core/media-keys";
 import {
+  isFontPresetId,
   isPerformanceTier,
   isShellId,
   isStageBackground,
   isThemeId,
   isVisualPresetId,
   type Appearance,
+  type FontPresetId,
   type PerformanceTier,
   type ShellId,
   type StageBackground,
@@ -26,6 +28,8 @@ export interface TideSettings extends Appearance {
   /** When on, Tide registers the four system media keys and other players lose them. */
   captureMediaKeys: boolean;
   deskLyrics: DeskLyricsSettings;
+  /** Basename of an imported face under userData/fonts. Empty when unused. */
+  fontFile: string;
 }
 
 const DEFAULT_VOLUME = 0.8;
@@ -49,8 +53,13 @@ export function settingsFromUnknown(value: unknown): TideSettings {
   const preset: VisualPresetId = isVisualPresetId(record.preset) ? record.preset : "tide";
   const performance: PerformanceTier = isPerformanceTier(record.performance) ? record.performance : "balanced";
   const background: StageBackground = isStageBackground(record.background) ? record.background : "solid";
+  const fontPreset: FontPresetId = isFontPresetId(record.fontPreset) ? record.fontPreset : "system";
+  const fontFamily = typeof record.fontFamily === "string"
+    ? record.fontFamily.replace(/[^\w\s,"'-]/g, "").trim().slice(0, 80)
+    : "";
+  const fontFile = typeof record.fontFile === "string" && /^[\w.-]{1,80}$/.test(record.fontFile) ? record.fontFile : "";
   const quality: AudioLevel = isAudioLevel(record.quality) ? record.quality : "standard";
-  const mediaShortcuts = mediaShortcutsFromUnknown(record.mediaShortcuts);
+  const mediaShortcuts = mediaShortcutsOrDefault(record.mediaShortcuts);
   const captureMediaKeys = typeof record.captureMediaKeys === "boolean" ? record.captureMediaKeys : true;
   const deskLyrics = deskSettingsFromUnknown(record.deskLyrics);
   return {
@@ -64,10 +73,13 @@ export function settingsFromUnknown(value: unknown): TideSettings {
     preset,
     performance,
     background,
+    fontPreset,
+    fontFamily,
     quality,
     mediaShortcuts,
     captureMediaKeys,
     deskLyrics,
+    fontFile,
   };
 }
 
