@@ -1,4 +1,4 @@
-import { currentLyricIndex, lineEase, lyricPosition, nextLyricOffset, pairLyrics, sweepProgress, wordFill, type LyricLine } from "../../core/lyrics";
+import { currentLyricIndex, lineEase, lyricPosition, nextLyricOffset, pairLyrics, sweepProgress, type LyricLine } from "../../core/lyrics";
 import type { YrcLine } from "../../shared/contract";
 import type { DeskLyricsSettings } from "../../core/desk-lyrics";
 import type { Track } from "../../core/playback/types";
@@ -104,24 +104,20 @@ export function mountLyrics(root: HTMLElement): {
     const rows = timedRows();
     const row = rows[index];
     if (!row) return;
+    const mask = origin.querySelector<HTMLElement>(".lyric-mask");
+    const hot = origin.querySelector<HTMLElement>(".lyric-hot");
+    if (!mask || !hot) return;
     const yrc = usingYrc() ? bundles.yrc[index] : undefined;
     let progress = 0;
     if (yrc && yrc.words.length > 0) {
       const stored = origin.dataset.widths ?? "";
       const widths = stored.length > 0 ? stored.split(",").map(Number) : yrc.words.map((word) => measureWord(word.text));
-      const words = origin.querySelectorAll<HTMLElement>(".lyric-word-hot");
-      yrc.words.forEach((word, wordIndex) => {
-        const hot = words.item(wordIndex);
-        if (!hot) return;
-        const open = (1 - wordFill(word, at)) * 100;
-        hot.style.clipPath = `inset(0 ${open.toFixed(2)}% 0 0)`;
-      });
       progress = sweepProgress(yrc.words, widths, at);
     } else {
       const next = rows[index + 1]?.timeMs ?? row.timeMs + 4000;
       progress = lineEase(at, row.timeMs, next);
     }
-    origin.style.setProperty("--lyric-progress", `${(progress * 100).toFixed(2)}%`);
+    writeLyricSweep(mask, hot, progress);
   };
 
   const paint = (nextPosition = positionMs) => {
@@ -177,25 +173,17 @@ export function mountLyrics(root: HTMLElement): {
         const origin = document.createElement("span");
         origin.className = "lyric-origin karaoke";
         const words = usingYrc() ? bundles.yrc[index]?.words ?? [] : [];
-        if (words.length > 0) {
-          const widths: number[] = [];
-          for (const word of words) {
-            const span = document.createElement("span");
-            span.className = "lyric-word";
-            const base = document.createElement("span");
-            base.className = "lyric-word-base";
-            base.textContent = word.text;
-            const hot = document.createElement("span");
-            hot.className = "lyric-word-hot";
-            hot.textContent = word.text;
-            span.append(base, hot);
-            origin.append(span);
-            widths.push(measureWord(word.text));
-          }
-          origin.dataset.widths = widths.join(",");
-        } else {
-          origin.textContent = row.original;
-        }
+        const run = document.createElement("span");
+        run.className = "lyric-run";
+        run.textContent = row.original;
+        const mask = document.createElement("span");
+        mask.className = "lyric-mask";
+        const hot = document.createElement("span");
+        hot.className = "lyric-hot";
+        hot.textContent = row.original;
+        mask.append(hot);
+        origin.append(run, mask);
+        if (words.length > 0) origin.dataset.widths = words.map((word) => String(measureWord(word.text))).join(",");
         item.append(origin);
         if (row.translation.length > 0) {
           const trans = document.createElement("span");
@@ -319,6 +307,19 @@ export function mountLyrics(root: HTMLElement): {
 }
 
 let wordCanvas: CanvasRenderingContext2D | null = null;
+
+/** One compositor sweep. The mask and the fill counter-scale so the edge can stop inside a glyph. */
+function writeLyricSweep(mask: HTMLElement, hot: HTMLElement, progress: number): void {
+  const amount = Math.min(1, Math.max(0, progress));
+  if (amount <= 0.001) {
+    mask.style.opacity = "0";
+    return;
+  }
+  const scale = amount >= 0.999 ? 1 : amount;
+  mask.style.opacity = "1";
+  mask.style.transform = `scaleX(${scale})`;
+  hot.style.transform = `scaleX(${scale === 1 ? 1 : 1 / scale})`;
+}
 
 function measureWord(text: string): number {
   wordCanvas ??= document.createElement("canvas").getContext("2d");

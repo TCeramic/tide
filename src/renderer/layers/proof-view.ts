@@ -3,7 +3,7 @@ import { catalogFromPlaylists, DEMO_PLAYLISTS, latticeRecords, type ProofPlaylis
 import type { PlaylistSummary, SearchHit } from "../../shared/contract";
 import { ProofTree } from "../vendor/lattice/gl/prooftree.js";
 
-/** Clickable Lattice proof tree. Songs are leaves. WebGL drops to a list on the smooth tier. */
+/** Clickable Lattice proof tree. Songs are leaves. WebGL is the default; the list is only the failure path. */
 export function mountProof(host: HTMLElement, onSong: (id: string, name: string) => void): {
   show: (playlists: readonly PlaylistSummary[], hits: readonly SearchHit[]) => void;
   stop: () => void;
@@ -37,23 +37,39 @@ export function mountProof(host: HTMLElement, onSong: (id: string, name: string)
     const catalog = catalogFromPlaylists(source);
     const names = new Map(catalog.nodes.map((node) => [node.id, node]));
     list.replaceChildren();
-    const smooth = document.documentElement.dataset.performance === "smooth";
-    if (smooth || !startGl(catalog.rootId, latticeRecords(catalog.nodes), names, onSong, status, canvas, (value) => {
+    list.hidden = true;
+    canvas.hidden = false;
+    const failure = startGl(catalog.rootId, latticeRecords(catalog.nodes), names, onSong, status, canvas, (value) => {
       tree = value.tree;
       renderer = value.renderer;
       running = true;
-    })) {
+    });
+    if (failure) {
       canvas.hidden = true;
+      list.hidden = false;
       renderList(list, catalog.nodes, catalog.rootId, names, onSong, status);
-      status.textContent = smooth ? "流畅档用列表。点曲名可选，双击播放。" : "点阵没有起来，先用列表。";
+      status.textContent = `WebGL 没有起来：${failure}。已改用列表。`;
       return;
     }
-    canvas.hidden = false;
+    status.textContent = "WebGL 证明树。点曲名预览。";
+    let last = 0;
     const loop = (now: number) => {
       if (!running || !tree || !renderer) return;
-      const stage = stageFor(canvas, renderer);
-      tree.update(1 / 60, now / 1000, stage);
-      renderer.render(stage.scene, stage.camera);
+      const dt = last === 0 ? 1 / 60 : Math.min(0.05, (now - last) / 1000);
+      last = now;
+      try {
+        const stage = stageFor(canvas, renderer);
+        tree.update(dt, now / 1000, stage);
+        renderer.render(stage.scene, stage.camera);
+      } catch (error) {
+        running = false;
+        const message = error instanceof Error ? error.message : String(error);
+        canvas.hidden = true;
+        list.hidden = false;
+        renderList(list, catalog.nodes, catalog.rootId, names, onSong, status);
+        status.textContent = `WebGL 没有起来：${message.replace(/\s+/g, " ").slice(0, 180)}。已改用列表。`;
+        return;
+      }
       frame = requestAnimationFrame(loop);
     };
     frame = requestAnimationFrame(loop);
@@ -84,12 +100,12 @@ function startGl(
   status: HTMLElement,
   canvas: HTMLCanvasElement,
   keep: (value: { tree: ProofTree; renderer: THREE.WebGLRenderer }) => void,
-): boolean {
+): string | null {
   try {
-    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: false, powerPreference: "low-power" });
-    renderer.setClearColor(0x000000, 0);
+    const renderer = new THREE.WebGLRenderer({ canvas, alpha: false, antialias: true });
+    renderer.setClearColor(0x07080b, 1);
     const tree = new ProofTree({ byId: byId as unknown as Map<string, unknown>, station: "tree", ground: true });
-    tree.setWorld({ ink: "#ece7da", hot: "#ff5a1f", hot2: "#7fd8ff", blend: "additive", gridAlpha: 0.35 });
+    tree.setWorld({ ink: "#ece7da", hot: "#ff5a1f", hot2: "#7fd8ff", blend: "normal", gridAlpha: 0.45 });
     tree.grow(rootId);
     tree.addEventListener("pick", (event) => {
       const id = (event as CustomEvent<string>).detail;
@@ -100,27 +116,33 @@ function startGl(
       else tree.grow(id);
     });
     tree.addEventListener("hover", (event) => {
-      const detail = (event as CustomEvent<{ t?: { name?: string } } | null>).detail;
-      if (detail?.t?.name) status.textContent = detail.t.name;
+      const detail = (event as CustomEvent<{ tid?: string } | null>).detail;
+      const node = detail?.tid ? names.get(detail.tid) : undefined;
+      if (node) status.textContent = node.name;
     });
     const stage = stageFor(canvas, renderer);
     stage.scene.add(tree.object);
     keep({ tree, renderer });
     const pointer = stage.pointer;
     canvas.addEventListener("pointermove", (event) => {
-      const rect = canvas.getBoundingClientRect();
-      pointer.x = event.clientX - rect.left;
-      pointer.y = event.clientY - rect.top;
-      pointer.inside = true;
+      const bounds = canvas.getBoundingClientRect();
+      pointer.x = event.clientX - bounds.left;
+      pointer.y = event.clientY - bounds.top;
+      pointer.inside = bounds.width > 0;
       tree.onPointerMove(stage);
+    });
+    canvas.addEventListener("pointerleave", () => {
+      pointer.inside = false;
     });
     canvas.addEventListener("pointerdown", () => {
       tree.onPointerDown(stage);
     });
     canvas.addEventListener("pointerup", () => tree.onPointerUp());
-    return true;
-  } catch {
-    return false;
+    return null;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("ProofTree WebGL failed", error);
+    return message.replace(/\s+/g, " ").slice(0, 180);
   }
 }
 
@@ -137,15 +159,15 @@ function stageFor(canvas: HTMLCanvasElement, renderer: THREE.WebGLRenderer) {
   renderer.setSize(width, height, false);
   stage.camera.aspect = width / height;
   stage.camera.updateProjectionMatrix();
-  stage.dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  stage.dpr = Math.max(1.5, Math.min(window.devicePixelRatio || 1, 2));
   return stage;
 }
 
 function makeStage(canvas: HTMLCanvasElement, renderer: THREE.WebGLRenderer) {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 40);
-  camera.position.set(0.2, 1.8, 6.4);
-  camera.lookAt(0, 1.1, 0);
+  camera.position.set(0.2, 1.7, 3.9);
+  camera.lookAt(0, 1.15, 0);
   return {
     scene,
     camera,

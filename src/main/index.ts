@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, globalShortcut, ipcMain } from "electron";
-import { titleBarChrome } from "../core/titlebar";
+import { titleBarChrome, windowBackground } from "../core/titlebar";
 import fs from "node:fs";
 import path from "node:path";
 import { LocalLibrary } from "../api/local-library";
@@ -30,6 +30,12 @@ import { SettingsStore } from "./settings";
 import { loadTideToday } from "./tide-today";
 
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
+if (process.env.TIDE_SOFTWARE_GL === "1") {
+  app.commandLine.appendSwitch("ignore-gpu-blocklist");
+  app.commandLine.appendSwitch("enable-unsafe-swiftshader");
+  app.commandLine.appendSwitch("use-gl", "angle");
+  app.commandLine.appendSwitch("use-angle", "swiftshader");
+}
 if (process.env.TIDE_USER_DATA) app.setPath("userData", process.env.TIDE_USER_DATA);
 
 let mainWindow: BrowserWindow | null = null;
@@ -78,7 +84,7 @@ function createWindow(): BrowserWindow {
     minWidth: 800,
     minHeight: 560,
     show: false,
-    backgroundColor: shell === "lattice" ? "#07080b" : "#102833",
+    backgroundColor: windowBackground(shell),
     title: "潮汐 Tide",
     icon: windowIcon(),
     autoHideMenuBar: true,
@@ -158,7 +164,7 @@ function pushAppearance(): void {
   if (win && !win.isDestroyed()) {
     win.webContents.send(Ipc.appearance, appearance);
     applyTitleBar(win, appearance.shell);
-    win.setBackgroundColor(appearance.shell === "lattice" ? "#07080b" : "#102833");
+    win.setBackgroundColor(windowBackground(appearance.shell));
   }
   commandServer?.publish({ type: "appearance", appearance });
 }

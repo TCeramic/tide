@@ -20,8 +20,28 @@ let shown = "";
 let shownProgress = 1;
 let targetProgress = 1;
 
+const ink = document.createElement("span");
+ink.className = "ink";
+const mask = document.createElement("span");
+mask.className = "mask";
+const sweep = document.createElement("span");
+sweep.className = "sweep";
+sweep.setAttribute("aria-hidden", "true");
+mask.append(sweep);
+currentEl.replaceChildren(ink, mask);
+
 function writeSweep(value: number): void {
-  root.style.setProperty("--sweep", `${(value * 100).toFixed(2)}%`);
+  const amount = Math.min(1, Math.max(0, value));
+  const vertical = root.dataset.orient === "vertical";
+  const axis = vertical ? "Y" : "X";
+  if (amount <= 0.001) {
+    mask.style.opacity = "0";
+    return;
+  }
+  const scale = amount >= 0.999 ? 1 : amount;
+  mask.style.opacity = "1";
+  mask.style.transform = `scale${axis}(${scale})`;
+  sweep.style.transform = `scale${axis}(${scale === 1 ? 1 : 1 / scale})`;
 }
 
 function easeSweep(): void {
@@ -64,8 +84,9 @@ function paint(cue: DeskCue): void {
   currentEl.classList.toggle("is-paused", !cue.playing);
   currentEl.classList.toggle("is-still", !cue.motion);
   const line = cue.empty ? "" : cue.text;
-  if (currentEl.textContent !== line) {
-    currentEl.textContent = line;
+  if (ink.textContent !== line) {
+    ink.textContent = line;
+    sweep.textContent = line;
     currentEl.classList.remove("enter");
     if (cue.motion && line.length > 0 && shown !== line) currentEl.classList.add("enter");
     shown = line;

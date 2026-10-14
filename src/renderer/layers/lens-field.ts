@@ -36,7 +36,7 @@ void main() {
   vec3 duskB = vec3(0.48, 0.18, 0.28);
   vec3 ca = mix(tideA, duskA, uDusk);
   vec3 cb = mix(tideB, duskB, uDusk);
-  vec3 base = mix(vec3(0.027, 0.055, 0.08), vec3(0.09, 0.04, 0.055), uDusk);
+  vec3 base = mix(vec3(0.094, 0.235, 0.404), vec3(0.353, 0.220, 0.302), uDusk);
   vec3 color = base;
   color = mix(color, ca, smoothstep(0.58, 0.0, da));
   color = mix(color, cb, smoothstep(0.52, 0.0, db) * 0.85);

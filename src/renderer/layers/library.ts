@@ -28,6 +28,8 @@ import { applyLike, isLiked, onLiked, setLikedIds } from "../liked";
 import { fillTrackList } from "../track-row";
 import { mountProof } from "./proof-view";
 
+const RISK_ACK = "tide.risk.ack";
+
 /** Search, login, and playlist list inside #chrome. */
 export function mountLibrary(root: HTMLElement): {
   setApiReady: (ready: boolean) => void;
@@ -261,7 +263,7 @@ export function mountLibrary(root: HTMLElement): {
   });
   const deskForm = mountDeskForm();
   const presets = mountPresetForm();
-  settingsPanel.append(settingsSummary, presets.element, latticeRow, qualityLabel, keyPanel, deskForm.element, bus);
+  settingsPanel.append(settingsSummary, riskNotice(), presets.element, latticeRow, qualityLabel, keyPanel, deskForm.element, bus);
 
   const topbar = document.createElement("div");
   topbar.className = "topbar";
@@ -916,6 +918,37 @@ export function mountLibrary(root: HTMLElement): {
       panel.remove();
     },
   };
+}
+
+function riskNotice(): HTMLElement {
+  const section = document.createElement("section");
+  section.className = "disclaimer";
+  let acked = false;
+  try {
+    acked = localStorage.getItem(RISK_ACK) === "1";
+  } catch {
+    acked = false;
+  }
+  section.hidden = acked;
+  const title = document.createElement("h2");
+  title.textContent = "使用前请阅读";
+  const body = document.createElement("p");
+  body.textContent =
+    "潮汐是非官方客户端，仅供个人自用。使用非官方接口和 Cookie（含 MUSIC_U）可能违反网易云服务条款，并可能导致接口失效或账号受限。继续使用即表示这些后果由你自行承担。";
+  const ack = document.createElement("button");
+  ack.type = "button";
+  ack.className = "text-button";
+  ack.textContent = "知道了";
+  ack.addEventListener("click", () => {
+    try {
+      localStorage.setItem(RISK_ACK, "1");
+    } catch {
+      // The note still closes for this session when storage is unavailable.
+    }
+    section.hidden = true;
+  });
+  section.append(title, body, ack);
+  return section;
 }
 
 function heading(text: string, name: string, node: IconNode): HTMLHeadingElement {

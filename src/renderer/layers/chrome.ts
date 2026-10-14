@@ -19,8 +19,6 @@ import { applyLike, isLiked, onLiked } from "../liked";
 import { paintCover } from "../cover";
 import { openNowPlaying } from "../view";
 
-const DISCLAIMER_KEY = "tide.risk.ack";
-
 const STATUS_LABEL: Record<PlaybackSnapshot["status"], string> = {
   idle: "空闲",
   loading: "载入",
@@ -57,28 +55,6 @@ export function mountChrome(root: HTMLElement): {
   titlebar.className = "tide-titlebar";
   titlebar.textContent = "潮汐";
   root.append(titlebar);
-
-  const disclaimer = document.createElement("section");
-  disclaimer.className = "disclaimer";
-  disclaimer.hidden = readAck();
-
-  const disclaimerTitle = document.createElement("h1");
-  disclaimerTitle.textContent = "使用前请阅读";
-
-  const disclaimerBody = document.createElement("p");
-  disclaimerBody.textContent =
-    "潮汐是非官方客户端，仅供个人自用。使用非官方接口和 Cookie（含 MUSIC_U）可能违反网易云服务条款，并可能导致接口失效或账号受限。继续使用即表示这些后果由你自行承担。 Unofficial client for personal use. Account limits are your risk.";
-
-  const ack = document.createElement("button");
-  ack.type = "button";
-  ack.className = "text-button";
-  ack.textContent = "知道了";
-  ack.addEventListener("click", () => {
-    writeAck();
-    disclaimer.hidden = true;
-  });
-
-  disclaimer.append(disclaimerTitle, disclaimerBody, ack);
 
   const transport = document.createElement("footer");
   transport.className = "transport";
@@ -192,7 +168,7 @@ export function mountChrome(root: HTMLElement): {
   dockMain.className = "dock-main";
   dockMain.append(cover, meta, controls, volumeWrap);
   transport.append(dockMain, seekRow);
-  root.append(disclaimer, transport);
+  root.append(transport);
 
   const setPlayback = (snapshot: PlaybackSnapshot) => {
     latest = snapshot;
@@ -277,21 +253,5 @@ function formatTime(ms: number): string {
   const minutes = Math.floor(total / 60);
   const seconds = total % 60;
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-}
-
-function readAck(): boolean {
-  try {
-    return localStorage.getItem(DISCLAIMER_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function writeAck(): void {
-  try {
-    localStorage.setItem(DISCLAIMER_KEY, "1");
-  } catch {
-    // The card still closes for this session when storage is unavailable.
-  }
 }
 
