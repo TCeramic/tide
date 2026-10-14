@@ -34,6 +34,8 @@ const PLAYBACK_LABEL = {
 } as const;
 
 function showPlayback(snapshot: PlaybackSnapshot): void {
+  playingNow = snapshot.status === "playing";
+  stageLayer.setScene({ level: Number.parseFloat(document.documentElement.style.getPropertyValue("--tide-stage")) || 0, motion: motionAmount, playing: playingNow });
   chromeLayer.setPlayback(snapshot);
   const track = snapshot.index >= 0 ? (snapshot.queue[snapshot.index] ?? null) : null;
   lyricsLayer.setTrack(track);
@@ -45,7 +47,7 @@ function showPlayback(snapshot: PlaybackSnapshot): void {
 
 installMediaSession();
 
-const stopStage = mountStage(stage);
+const stageLayer = mountStage(stage);
 const lyricsLayer = mountLyrics(lyrics);
 const chromeLayer = mountChrome(chrome);
 const library = mountLibrary(chrome);
@@ -61,6 +63,7 @@ const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").match
 let stopClock = (): void => undefined;
 let motionOn = false;
 let motionAmount = 1;
+let playingNow = false;
 
 function clamp01(value: number, fallback: number): number {
   if (!Number.isFinite(value)) return fallback;
@@ -71,6 +74,7 @@ function setStageMotion(level: number, motion: number): void {
   const stage = clamp01(level, 1);
   motionAmount = clamp01(motion, 1);
   document.documentElement.style.setProperty("--tide-stage", String(stage));
+  stageLayer.setScene({ level: stage, motion: motionAmount, playing: playingNow });
   const wantMotion = stage > 0 && motionAmount > 0 && !reduceMotion;
   if (wantMotion === motionOn) {
     if (!wantMotion) document.documentElement.style.setProperty("--tide-phase", "0.5");
@@ -143,7 +147,7 @@ void window.tide.getHealth().then((status) => {
 
 window.addEventListener("beforeunload", () => {
   stopClock();
-  stopStage();
+  stageLayer.destroy();
   lyricsLayer.destroy();
   chromeLayer.destroy();
   library.destroy();

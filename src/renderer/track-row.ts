@@ -1,4 +1,6 @@
+import { Heart, MoreHorizontal, Play } from "lucide";
 import type { PlaylistSummary, SearchHit } from "../shared/contract";
+import { ICON_SIZE, iconButton, setIcon } from "./icons";
 import { applyLike, isLiked } from "./liked";
 
 export function songPageUrl(id: string): string {
@@ -17,7 +19,7 @@ export function fillTrackList(
     const item = document.createElement("li");
     item.className = "hit-row";
 
-    const play = iconButton(hit.playable ? "播放" : "没有可播放的地址", "▶");
+    const play = iconButton(hit.playable ? "播放" : "没有可播放的地址", "Play", Play, ICON_SIZE.row);
     play.disabled = !hit.playable;
     play.addEventListener("click", () => {
       if (!hit.playable) return;
@@ -42,8 +44,9 @@ export function fillTrackList(
     }
 
     const likedNow = isLiked(hit.id, hit.liked);
-    const like = iconButton(likedNow ? "取消喜欢" : "喜欢", likedNow ? "♥" : "♡");
+    const like = iconButton(likedNow ? "取消喜欢" : "喜欢", "Heart", Heart, ICON_SIZE.row);
     like.classList.toggle("on", likedNow);
+    if (likedNow) setIcon(like, "Heart", Heart, ICON_SIZE.row, true);
     like.addEventListener("click", () => {
       const wanted = !isLiked(hit.id, hit.liked);
       void window.tide.likeSong(hit.id, wanted).then((result) => {
@@ -56,7 +59,7 @@ export function fillTrackList(
       });
     });
 
-    const more = iconButton("更多", "⋯");
+    const more = iconButton("更多", "MoreHorizontal", MoreHorizontal, ICON_SIZE.row);
     const menu = document.createElement("div");
     menu.className = "track-menu";
     menu.hidden = true;
@@ -114,15 +117,6 @@ export function fillTrackList(
     item.append(play, main, like, more, menu);
     list.append(item);
   });
-}
-
-function iconButton(label: string, glyph: string): HTMLButtonElement {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "icon-button";
-  button.setAttribute("aria-label", label);
-  button.textContent = glyph;
-  return button;
 }
 
 function menuButton(label: string, onClick: () => void): HTMLButtonElement {

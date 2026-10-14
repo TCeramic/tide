@@ -1,3 +1,9 @@
+/*
+ * Shell material adapted from Lens (玻璃 · 液体 · 光).
+ * Copyright (c) 2026 DayDreamInAReverie, MIT.
+ * https://github.com/ruiqichenbiec/design-systems
+ * Original Tide surfaces. That repository is not copied here.
+ */
 :root {
   --tide-bg: #071018;
   --tide-bg-raise: #10212c;
@@ -6,12 +12,21 @@
   --tide-accent: #3ec6c0;
   --tide-accent-dim: #1d5c59;
   --tide-danger: #e07a72;
-  --tide-line: rgba(231, 242, 244, 0.14);
+  --tide-line: rgba(231, 242, 244, 0.16);
   --tide-wash: rgba(62, 198, 192, 0.22);
   --tide-panel: rgba(7, 16, 24, 0.88);
-  --tide-chrome-h: 92px;
+  --tide-dock-h: 84px;
+  --tide-chrome-h: 118px;
   --tide-font: "Segoe UI", "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
   --tide-phase: 0.35;
+  --lens-blur: 18px;
+  --lens-radius: 30px;
+  --lens-glass: rgba(10, 22, 30, 0.48);
+  --lens-specular: rgba(255, 255, 255, 0.5);
+  --lens-liquid-a: rgba(62, 198, 192, 0.55);
+  --lens-liquid-b: rgba(72, 116, 196, 0.4);
+  --lens-liquid-c: rgba(232, 168, 140, 0.2);
+  --lens-spring: cubic-bezier(0.16, 1.35, 0.32, 1);
   color-scheme: dark;
 }
 
@@ -25,6 +40,10 @@
   --tide-line: rgba(248, 238, 230, 0.16);
   --tide-wash: rgba(232, 161, 90, 0.28);
   --tide-panel: rgba(26, 14, 18, 0.9);
+  --lens-glass: rgba(38, 16, 22, 0.52);
+  --lens-liquid-a: rgba(232, 161, 90, 0.5);
+  --lens-liquid-b: rgba(176, 72, 88, 0.38);
+  --lens-liquid-c: rgba(244, 214, 170, 0.18);
   color-scheme: dark;
 }
 
@@ -61,21 +80,39 @@ body {
   opacity: var(--tide-stage, 1);
   background:
     radial-gradient(
-      90% 70% at calc(18% + var(--tide-phase) * 64%) 115%,
-      var(--tide-wash),
-      transparent 58%
+      42% 36% at calc(16% + var(--tide-phase) * 28%) calc(74% - var(--tide-phase) * 12%),
+      var(--lens-liquid-a),
+      transparent 70%
     ),
+    radial-gradient(
+      36% 42% at calc(80% - var(--tide-phase) * 22%) calc(26% + var(--tide-phase) * 16%),
+      var(--lens-liquid-b),
+      transparent 68%
+    ),
+    radial-gradient(28% 24% at 48% 92%, var(--lens-liquid-c), transparent 72%),
     linear-gradient(180deg, var(--tide-bg) 0%, var(--tide-bg-raise) 100%);
   pointer-events: none;
 }
 
-.tide-horizon {
+#stage.has-lens-field {
+  background: linear-gradient(180deg, var(--tide-bg) 0%, var(--tide-bg-raise) 100%);
+}
+
+.lens-field,
+.lattice-field {
   position: absolute;
-  left: 8%;
-  right: 8%;
-  bottom: calc(var(--tide-chrome-h) + 18%);
-  height: 1px;
-  background: var(--tide-line);
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.lattice-field {
+  z-index: 1;
+}
+
+.lattice-field[hidden] {
+  display: none;
 }
 
 #lyrics {
@@ -87,6 +124,9 @@ body {
 }
 
 .lyrics-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   margin: 0 0 12px;
   color: var(--tide-accent);
   letter-spacing: 0.18em;
@@ -126,6 +166,7 @@ body {
 .lyric-list li.lyric-current {
   color: var(--tide-fg);
   font-size: 18px;
+  text-shadow: 0 0 18px var(--tide-wash);
 }
 
 .lyric-trans {
@@ -167,9 +208,15 @@ body {
   right: 24px;
   width: auto;
   padding: 18px 20px 16px;
-  border: 1px solid var(--tide-line);
-  border-radius: 14px;
-  background: var(--tide-panel);
+  border: 1px solid transparent;
+  border-radius: var(--lens-radius);
+  background: var(--lens-glass);
+  box-shadow:
+    inset 1px 1px 0 var(--lens-specular),
+    inset -1px -1px 0 rgba(255, 255, 255, 0.08),
+    0 16px 40px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(var(--lens-blur)) saturate(1.35);
+  -webkit-backdrop-filter: blur(var(--lens-blur)) saturate(1.35);
 }
 
 .disclaimer h1 {
@@ -193,15 +240,56 @@ body {
   width: 288px;
   overflow: auto;
   padding: 14px 14px 16px;
-  border: 1px solid var(--tide-line);
-  border-radius: 14px;
-  background: var(--tide-panel);
+  border: 1px solid transparent;
+  border-radius: var(--lens-radius);
+  background: var(--lens-glass);
+  box-shadow:
+    inset 1px 1px 0 var(--lens-specular),
+    inset -1px -1px 0 rgba(255, 255, 255, 0.08),
+    0 18px 44px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(var(--lens-blur)) saturate(1.35);
+  -webkit-backdrop-filter: blur(var(--lens-blur)) saturate(1.35);
+}
+
+.library::before,
+.disclaimer::before,
+.transport::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), transparent 46px);
+}
+
+.library > *,
+.disclaimer > * {
+  position: relative;
+  z-index: 1;
+}
+
+.library {
+  isolation: isolate;
+}
+
+.library h2,
+.with-icon {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .library h2 {
   margin: 0 0 8px;
   font-size: 16px;
   font-weight: 600;
+}
+
+.section-icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--tide-accent);
 }
 
 .library h2:not(:first-child) {
@@ -303,7 +391,7 @@ body {
   margin-bottom: 8px;
 }
 
-.view-bar span {
+.view-bar span:not(.section-icon) {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -398,6 +486,13 @@ body {
 .icon-button:disabled {
   opacity: 0.35;
   cursor: default;
+}
+
+.icon-button svg,
+.section-icon svg,
+.volume-icon svg,
+.wordmark-icon svg {
+  display: block;
 }
 
 .icon-button[aria-pressed="true"],
@@ -610,50 +705,63 @@ body {
 
 .transport {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  left: 16px;
+  right: 16px;
+  bottom: 14px;
   display: grid;
   grid-template-columns: auto auto minmax(140px, 1.1fr) minmax(100px, 1fr) auto;
   gap: 12px;
   align-items: center;
-  height: var(--tide-chrome-h);
-  padding: 0 20px;
-  border-top: 1px solid var(--tide-line);
-  background: rgba(7, 16, 24, 0.94);
+  height: var(--tide-dock-h);
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: 34px;
+  background: var(--lens-glass);
+  box-shadow:
+    inset 1px 1px 0 var(--lens-specular),
+    inset -1px -1px 0 rgba(255, 255, 255, 0.08),
+    0 18px 40px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(var(--lens-blur)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--lens-blur)) saturate(1.4);
+  overflow: hidden;
+}
+
+.transport > * {
+  position: relative;
+  z-index: 1;
 }
 
 .transport .icon-button {
-  width: 36px;
-  height: 36px;
-  color: #f4fbfc;
-  background: rgba(244, 251, 252, 0.14);
-  border: 1px solid rgba(244, 251, 252, 0.72);
-}
-
-.transport .icon-button svg {
-  display: block;
-  width: 18px;
-  height: 18px;
-  overflow: visible;
+  width: 40px;
+  height: 40px;
+  color: var(--tide-fg);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 
 .transport .icon-button:hover {
   color: #ffffff;
-  background: rgba(62, 198, 192, 0.4);
-  border-color: #9cf0ea;
+  background: color-mix(in srgb, var(--tide-accent) 32%, transparent);
+  border-color: color-mix(in srgb, var(--tide-accent) 70%, white);
 }
 
 .transport .icon-button.play {
-  width: 44px;
-  height: 44px;
+  width: 46px;
+  height: 46px;
   color: #071018;
-  background: #3ec6c0;
-  border-color: #e7fffd;
+  background: var(--tide-accent);
+  border-color: rgba(255, 255, 255, 0.72);
 }
 
 .transport .icon-button.play:hover {
-  background: #67e4de;
+  filter: brightness(1.08);
+}
+
+.transport .icon-button.play.is-playing {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 0 22px var(--tide-wash);
 }
 
 .transport .icon-button.like.on {
@@ -679,13 +787,7 @@ body {
 
 .volume-icon {
   display: inline-flex;
-  color: #f4fbfc;
-}
-
-.volume-icon svg {
-  display: block;
-  width: 18px;
-  height: 18px;
+  color: var(--tide-fg);
 }
 
 .transport-controls {
@@ -709,12 +811,22 @@ body {
 }
 
 .wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: var(--tide-accent);
   font-size: 14px;
   letter-spacing: 0.12em;
 }
 
+.wordmark-icon {
+  display: inline-flex;
+}
+
 .text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   border: 1px solid var(--tide-line);
   border-radius: 999px;
   background: transparent;
@@ -777,6 +889,45 @@ input[type="range"] {
   color: var(--tide-danger);
 }
 
+.queue-row .icon-button {
+  width: 28px;
+  height: 28px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon-button,
+  .text-button {
+    transition: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .icon-button,
+  .text-button {
+    transition:
+      transform 460ms var(--lens-spring),
+      background-color 180ms linear,
+      color 180ms linear,
+      border-color 180ms linear,
+      box-shadow 180ms linear;
+  }
+
+  .icon-button:active,
+  .text-button:active {
+    transform: scale(0.94);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .library,
+  .disclaimer,
+  .transport {
+    background: var(--tide-panel);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
 @media (max-width: 860px) {
   #lyrics {
     padding-left: 24px;
@@ -802,7 +953,7 @@ input[type="range"] {
     grid-template-columns: auto 1fr auto;
     grid-template-rows: auto auto auto;
     height: auto;
-    min-height: var(--tide-chrome-h);
+    min-height: var(--tide-dock-h);
     padding: 12px 16px;
   }
 

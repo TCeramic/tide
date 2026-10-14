@@ -1,4 +1,22 @@
 import type { HealthStatus, PlaybackSnapshot } from "../../shared/contract";
+import {
+  Compass,
+  Grid3x3,
+  Heart,
+  Music2,
+  Pause,
+  Play,
+  Repeat,
+  Repeat1,
+  Shuffle,
+  SkipBack,
+  SkipForward,
+  Volume1,
+  Volume2,
+  VolumeX,
+} from "lucide";
+import { ICON_SIZE, iconButton, setIcon } from "../icons";
+import { onLattice, readLattice, writeLattice } from "../lattice-pref";
 import { applyLike, isLiked, onLiked } from "../liked";
 
 const DISCLAIMER_KEY = "tide.risk.ack";
@@ -62,41 +80,59 @@ export function mountChrome(root: HTMLElement): {
 
   const wordmark = document.createElement("span");
   wordmark.className = "wordmark";
-  wordmark.textContent = "潮汐";
+  const mark = document.createElement("span");
+  mark.className = "wordmark-icon";
+  setIcon(mark, "Music2", Music2, ICON_SIZE.control);
+  const markText = document.createElement("span");
+  markText.textContent = "潮汐";
+  wordmark.append(mark, markText);
 
-  const prev = iconButton("上一首", svg("M16 5v14L7 12z", true), () => {
+  const prev = iconButton("上一首", "SkipBack", SkipBack, ICON_SIZE.control);
+  prev.addEventListener("click", () => {
     void window.tide.previous();
   });
-  const play = iconButton("播放", PLAY_PATH, () => {
+  const play = iconButton("播放", "Play", Play, ICON_SIZE.play);
+  play.classList.add("play");
+  play.addEventListener("click", () => {
     if (latest?.status === "playing") void window.tide.pause();
     else void window.tide.play();
   });
-  play.classList.add("play");
-  const next = iconButton("下一首", svg("M8 5v14l9-7z", true), () => {
+  const next = iconButton("下一首", "SkipForward", SkipForward, ICON_SIZE.control);
+  next.addEventListener("click", () => {
     void window.tide.next();
   });
-  const mode = iconButton("列表循环", svg("M7 7h8a4 4 0 0 1 0 8H8"), () => {
+  const mode = iconButton("列表循环", "Repeat", Repeat, ICON_SIZE.control);
+  mode.addEventListener("click", () => {
     const current = latest?.repeat ?? "all";
     const index = REPEAT_CYCLE.indexOf(current);
     const repeat = REPEAT_CYCLE[(index + 1) % REPEAT_CYCLE.length] ?? "all";
     void window.tide.setMode({ repeat });
   });
-  const shuffle = iconButton("随机播放", svg("M6 7h4l8 10M18 7h-4L6 17"), () => {
+  const shuffle = iconButton("随机播放", "Shuffle", Shuffle, ICON_SIZE.control);
+  shuffle.addEventListener("click", () => {
     void window.tide.setMode({ shuffle: !(latest?.shuffle ?? false) });
   });
-  const explore = iconButton("探索续播", svg("M12 6v12M6 12h12"), () => {
+  const explore = iconButton("探索续播", "Compass", Compass, ICON_SIZE.control);
+  explore.addEventListener("click", () => {
     void window.tide.setMode({ explore: !(latest?.explore ?? false) });
+  });
+  const lattice = iconButton("点阵", "Grid3x3", Grid3x3, ICON_SIZE.control);
+  lattice.classList.add("lattice-toggle");
+  lattice.setAttribute("aria-pressed", readLattice() ? "true" : "false");
+  lattice.addEventListener("click", () => {
+    writeLattice(!readLattice());
   });
 
   const controls = document.createElement("div");
   controls.className = "transport-controls";
-  controls.append(prev, play, next, mode, shuffle, explore);
+  controls.append(prev, play, next, mode, shuffle, explore, lattice);
 
   const meta = document.createElement("div");
   meta.className = "meta";
   const titleRow = document.createElement("div");
   titleRow.className = "title-row";
-  const like = iconButton("喜欢", HEART, () => {
+  const like = iconButton("喜欢", "Heart", Heart, ICON_SIZE.control);
+  like.addEventListener("click", () => {
     const track = latest && latest.index >= 0 ? latest.queue[latest.index] : undefined;
     if (!track) return;
     const wanted = !isLiked(track.id);
@@ -153,7 +189,7 @@ export function mountChrome(root: HTMLElement): {
   const volumeIcon = document.createElement("span");
   volumeIcon.className = "volume-icon";
   volumeIcon.setAttribute("aria-hidden", "true");
-  volumeIcon.innerHTML = svg("M4 10h3l5-4v12l-5-4H4m11-5a4 4 0 0 1 0 6");
+  setIcon(volumeIcon, "Volume2", Volume2, ICON_SIZE.control);
   const volumeWrap = document.createElement("div");
   volumeWrap.className = "volume";
   volumeWrap.append(volumeIcon, volume);
@@ -177,11 +213,12 @@ export function mountChrome(root: HTMLElement): {
     const liked = track ? isLiked(track.id) : false;
     like.classList.toggle("on", liked);
     like.setAttribute("aria-label", liked ? "取消喜欢" : "喜欢");
-    like.innerHTML = liked ? HEART_ON : HEART;
+    setIcon(like, "Heart", Heart, ICON_SIZE.control, liked);
 
     const playing = snapshot.status === "playing";
+    play.classList.toggle("is-playing", playing);
     play.setAttribute("aria-label", playing ? "暂停" : "播放");
-    play.innerHTML = playing ? PAUSE_PATH : PLAY_PATH;
+    setIcon(play, playing ? "Pause" : "Play", playing ? Pause : Play, ICON_SIZE.play);
     const hasQueue = snapshot.queue.length > 0 && snapshot.index >= 0;
     const atStart = snapshot.index <= 0;
     const atEnd = snapshot.index < 0 || snapshot.index >= snapshot.queue.length - 1;
@@ -190,8 +227,12 @@ export function mountChrome(root: HTMLElement): {
 
     mode.setAttribute("aria-label", REPEAT_LABEL[snapshot.repeat]);
     mode.setAttribute("aria-pressed", snapshot.repeat === "off" ? "false" : "true");
+    setIcon(mode, snapshot.repeat === "one" ? "Repeat1" : "Repeat", snapshot.repeat === "one" ? Repeat1 : Repeat, ICON_SIZE.control);
     shuffle.setAttribute("aria-pressed", snapshot.shuffle ? "true" : "false");
     explore.setAttribute("aria-pressed", snapshot.explore ? "true" : "false");
+    const volumeIconName = snapshot.volume <= 0 ? "VolumeX" : snapshot.volume < 0.5 ? "Volume1" : "Volume2";
+    const volumeNode = snapshot.volume <= 0 ? VolumeX : snapshot.volume < 0.5 ? Volume1 : Volume2;
+    setIcon(volumeIcon, volumeIconName, volumeNode, ICON_SIZE.control);
 
     const durationMs = track?.durationMs ?? 0;
     seek.max = String(durationMs);
@@ -207,37 +248,19 @@ export function mountChrome(root: HTMLElement): {
   const stopLiked = onLiked(() => {
     if (latest) setPlayback(latest);
   });
+  const stopLattice = onLattice((on) => {
+    lattice.setAttribute("aria-pressed", on ? "true" : "false");
+  });
 
   return {
     setPlayback,
     setHealth,
     destroy: () => {
       stopLiked();
+      stopLattice();
       root.replaceChildren();
     },
   };
-}
-
-const PLAY_PATH = svg("M8 5v14l11-7z", true);
-const PAUSE_PATH = svg("M7 5h4v14H7zm6 0h4v14h-4z", true);
-const HEART = svg("M12 19s-7-4.4-7-8.5A3.5 3.5 0 0 1 12 8a3.5 3.5 0 0 1 7 2.5C19 14.6 12 19 12 19z");
-const HEART_ON = svg("M12 19s-7-4.4-7-8.5A3.5 3.5 0 0 1 12 8a3.5 3.5 0 0 1 7 2.5C19 14.6 12 19 12 19z", true);
-
-function svg(body: string, filled = false): string {
-  const paint = filled
-    ? `fill="currentColor"`
-    : `fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"`;
-  return `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" ${paint}>${body}</svg>`;
-}
-
-function iconButton(label: string, markup: string, onClick: () => void): HTMLButtonElement {
-  const element = document.createElement("button");
-  element.type = "button";
-  element.className = "icon-button";
-  element.setAttribute("aria-label", label);
-  element.innerHTML = markup;
-  element.addEventListener("click", onClick);
-  return element;
 }
 
 function formatTime(ms: number): string {

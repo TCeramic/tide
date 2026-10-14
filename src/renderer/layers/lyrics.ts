@@ -1,6 +1,8 @@
 import { currentLyricIndex, lyricPosition, nextLyricOffset, pairLyrics, type LyricLine } from "../../core/lyrics";
 import type { DeskLyricsSettings } from "../../core/desk-lyrics";
 import type { Track } from "../../core/playback/types";
+import { Music2 } from "lucide";
+import { ICON_SIZE, prependIcon } from "../icons";
 
 type LyricView = "both" | "original" | "translation" | "romaji";
 
@@ -18,6 +20,7 @@ export function mountLyrics(root: HTMLElement): {
   const kicker = document.createElement("p");
   kicker.className = "lyrics-kicker";
   kicker.textContent = "潮汐 Tide";
+  prependIcon(kicker, "Music2", Music2, ICON_SIZE.row);
 
   const title = document.createElement("p");
   title.className = "lyrics-title";

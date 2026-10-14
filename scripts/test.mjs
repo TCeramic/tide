@@ -26,6 +26,7 @@ const entryPoints = [
   "src/core/command-bus.test.ts",
   "src/main/bus-files.test.ts",
   "src/main/command-server.test.ts",
+  "src/renderer/shell.test.ts",
 ];
 
 await mkdir(outdir, { recursive: true });
