@@ -1,6 +1,6 @@
 import { latticeTargets, stepLattice, type LatticeSpring } from "../lattice-field";
-import { onLattice, readLattice } from "../lattice-pref";
 import { mountLensField, type LensField } from "./lens-field";
+import { paintVoxels } from "./voxel-field";
 
 export interface StageScene {
   level: number;
@@ -15,6 +15,7 @@ export interface StageScene {
  */
 export function mountStage(root: HTMLElement): {
   setScene: (scene: StageScene) => void;
+  setLattice: (on: boolean) => void;
   destroy: () => void;
 } {
   root.replaceChildren();
@@ -23,9 +24,14 @@ export function mountStage(root: HTMLElement): {
   if (field) root.append(field.canvas);
   const lattice = document.createElement("canvas");
   lattice.className = "lattice-field";
-  lattice.hidden = !readLattice();
+  lattice.hidden = true;
   lattice.setAttribute("aria-hidden", "true");
   root.append(lattice);
+  const voxels = document.createElement("canvas");
+  voxels.className = "voxel-field";
+  voxels.setAttribute("aria-hidden", "true");
+  root.append(voxels);
+  const voxelContext = voxels.getContext("2d", { alpha: true });
   let scene: StageScene = { level: 1, motion: 1, playing: false };
   let raf = 0;
   let last = 0;
@@ -72,10 +78,19 @@ export function mountStage(root: HTMLElement): {
   const paint = (now: number) => {
     const dt = last === 0 ? 1 / 60 : Math.min(0.05, (now - last) / 1000);
     last = now;
+      const preset = document.documentElement.dataset.preset;
+      const background = document.documentElement.dataset.background;
+      const allowLens = document.documentElement.dataset.performance !== "smooth"
+        && preset !== "quiet"
+        && preset !== "stardust"
+        && preset !== "cover-glow"
+        && background !== "cover"
+        && background !== "image";
     if (field) {
-      const ok = field.draw(phase(), document.documentElement.dataset.theme === "dusk");
+      field.canvas.hidden = !allowLens;
+      const ok = !allowLens || field.draw(phase(), document.documentElement.dataset.theme === "dusk");
       frames += 1;
-      if (!ok && frames > 20) {
+      if (allowLens && !ok && frames > 20) {
         slow += 1;
         if (slow > 8) {
           field.destroy();
@@ -87,6 +102,27 @@ export function mountStage(root: HTMLElement): {
       }
     }
     paintLattice(dt);
+    paintVoxelLayer();
+  };
+
+  const paintVoxelLayer = () => {
+    if (!voxelContext) return;
+    const allow = document.documentElement.dataset.view === "playing"
+      && document.documentElement.dataset.performance !== "smooth"
+      && document.documentElement.dataset.preset !== "quiet";
+    voxels.hidden = !allow;
+    if (!allow) return;
+    const width = voxels.clientWidth;
+    const height = voxels.clientHeight;
+    if (width < 2 || height < 2) return;
+    const ratio = Math.min(window.devicePixelRatio || 1, 1.5);
+    const bufferW = Math.floor(width * ratio);
+    const bufferH = Math.floor(height * ratio);
+    if (voxels.width !== bufferW || voxels.height !== bufferH) {
+      voxels.width = bufferW;
+      voxels.height = bufferH;
+    }
+    paintVoxels(voxelContext, bufferW, bufferH, phase(), scene.playing);
   };
 
   const moving = (): boolean => {
@@ -111,8 +147,9 @@ export function mountStage(root: HTMLElement): {
     raf = requestAnimationFrame(loop);
   };
 
+  let latticeOn = false;
   const sync = () => {
-    lattice.hidden = !readLattice();
+    lattice.hidden = !latticeOn;
     root.classList.toggle("has-lens-field", field !== null);
     if (moving()) {
       if (raf === 0) raf = requestAnimationFrame(loop);
@@ -125,7 +162,6 @@ export function mountStage(root: HTMLElement): {
   const onResize = () => sync();
   const observer = new ResizeObserver(onResize);
   observer.observe(root);
-  const stopLattice = onLattice(() => sync());
   document.addEventListener("visibilitychange", sync);
   sync();
 
@@ -134,9 +170,12 @@ export function mountStage(root: HTMLElement): {
       scene = next;
       sync();
     },
+    setLattice(on) {
+      latticeOn = on;
+      sync();
+    },
     destroy() {
       stopLoop();
-      stopLattice();
       observer.disconnect();
       document.removeEventListener("visibilitychange", sync);
       field?.destroy();

@@ -153,7 +153,7 @@ The loopback API asks NetEase for a URL and accepts only `http` / `https`. If th
 
 `settings.write`、`appearance.write`、`session.logout`、`session.clearCookie` 默认拒绝，错误码 `denied`。单次请求带 `"allow": true`，或把指令名写进 `userData/bus-allow.json` 的 `allow` 数组，才会执行。这个文件不保存 Cookie。`playlist.organize` 同样默认拒绝；即使允许，也返回 `unsupported`，因为当前没有改网易云歌单的接口。
 
-`appearance.write` 只动已有的 `#stage`、`#lyrics`、`#chrome`。`theme` 取 `tide`（默认的青夜）或 `dusk`（暖夜）。`motion` 从 0 到 1，0 停住现有洗色相位，1 是完整摆动。`chromeVisible` 隐藏或显示控件层，`stageLevel` 从 0 到 1 调整洗色不透明度。不会加壁纸或粒子。未知主题名会被拒绝。
+`appearance.write` 只动已有的 `#stage`、`#lyrics`、`#chrome`。`theme` 取 `tide`（默认的青夜）或 `dusk`（暖夜）。`motion` 从 0 到 1。`lattice` 是可选点阵。`shell` 取 `lens`（默认）或 `lattice`。`preset` 取 `tide`、`cover-glow`、`vinyl`、`stardust`、`quiet`。`performance` 取 `smooth`、`balanced`、`vivid`。`background` 取 `solid`、`cover`、`image`。未知名字会被拒绝。
 
 ```bash
 curl -X POST http://127.0.0.1:39272/command \
@@ -172,7 +172,7 @@ Playback commands cover get, play, pause, seek, volume, next, previous, queue, p
 
 `settings.write`, `appearance.write`, `session.logout`, and `session.clearCookie` return `denied` unless the request sets `"allow": true` or `userData/bus-allow.json` lists the command. That file stores no cookie. `playlist.organize` is denied the same way. If it is allowed, the result is `unsupported`, because this app cannot edit a NetEase playlist.
 
-`appearance.write` only changes the existing `#stage`, `#lyrics`, and `#chrome` layers. `theme` is `tide` (the default teal night) or `dusk` (a warm night). `motion` runs from 0 to 1: 0 freezes the existing wash phase, and 1 is the full travel. `chromeVisible` hides the controls. `stageLevel` sets the wash opacity from 0 to 1. There is no wallpaper and no particle system. An unknown theme name is rejected.
+`appearance.write` only changes the existing `#stage`, `#lyrics`, and `#chrome` layers. `theme` is `tide` or `dusk`. `shell` is `lens` (default) or `lattice`. `preset` is `tide`, `cover-glow`, `vinyl`, `stardust`, or `quiet`. `performance` is `smooth`, `balanced`, or `vivid`. `background` is `solid`, `cover`, or `image`. `lattice` toggles the optional dot field. An unknown name is rejected.
 
 ## Windows 包 / Windows package
 
@@ -188,9 +188,9 @@ The zip is a portable folder, not an installer. Unzip it and run `Tide.exe`. The
 
 玻璃与弹簧的想法来自 [Lens](https://github.com/ruiqichenbiec/design-systems)（Copyright (c) 2026 DayDreamInAReverie，MIT，仓库已不再维护）。潮汐只改编了这个想法，没有复制该仓库。图标是 [Lucide](https://lucide.dev)（ISC），和 lucide-react 同一套字形；壳层不是 React，所以用 vanilla `lucide`。
 
-`appearance.write` 仍然只改主题、动效、控件显隐和舞台强度。点阵不在这条指令里。
+`appearance.write` 可以改主题、动效、控件显隐、舞台强度、点阵开关、外壳（`lens` / `lattice`）、视觉预设、性能档和背景。点阵默认关。写盘仍要 `allow`。
 
-0.9.0 redraws the three layers as Lens glass. Liquid is the stage wash. Light marks the playing state. WebGL2 refraction is optional and falls back to CSS. Lattice toggles from the bar and from Settings, stays off until asked, and is not the shell. Overture is not used. The glass and spring ideas are adapted from Lens (Copyright (c) 2026 DayDreamInAReverie, MIT); this repo does not copy that project. Icons are Lucide. `appearance.write` still does not include the lattice switch.
+0.9.0 redraws the three layers as Lens glass. Liquid is the stage wash. Light marks the playing state. WebGL2 refraction is optional and falls back to CSS. Lattice toggles from Settings, stays off until asked, and is not the shell. `appearance.write` persists `lattice`, `shell` (`lens` or `lattice`), `preset`, `performance`, and `background`. Overture is not used. The glass and spring ideas are adapted from Lens (Copyright (c) 2026 DayDreamInAReverie, MIT); this repo does not copy that project. Icons are Lucide.
 
 ## 下一步 / Next
 

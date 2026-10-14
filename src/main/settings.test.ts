@@ -15,6 +15,11 @@ describe("settings", () => {
       stageLevel: 1,
       theme: "tide",
       motion: 1,
+      lattice: false,
+      shell: "lens",
+      preset: "tide",
+      performance: "balanced",
+      background: "solid",
       quality: "standard",
       mediaShortcuts: { ...EMPTY_MEDIA_SHORTCUTS },
       captureMediaKeys: true,
@@ -26,6 +31,11 @@ describe("settings", () => {
       stageLevel: 1,
       theme: "dusk",
       motion: 1,
+      lattice: false,
+      shell: "lens",
+      preset: "tide",
+      performance: "balanced",
+      background: "solid",
       quality: "hires",
       mediaShortcuts: { ...EMPTY_MEDIA_SHORTCUTS },
       captureMediaKeys: true,
@@ -37,6 +47,11 @@ describe("settings", () => {
       stageLevel: 1,
       theme: "tide",
       motion: 0,
+      lattice: false,
+      shell: "lens",
+      preset: "tide",
+      performance: "balanced",
+      background: "solid",
       quality: "standard",
       mediaShortcuts: { ...EMPTY_MEDIA_SHORTCUTS },
       captureMediaKeys: true,
@@ -61,6 +76,11 @@ describe("settings", () => {
       stageLevel: 1,
       theme: "tide",
       motion: 1,
+      lattice: false,
+      shell: "lens",
+      preset: "tide",
+      performance: "balanced",
+      background: "solid",
       quality: "standard",
       mediaShortcuts: { ...EMPTY_MEDIA_SHORTCUTS },
       captureMediaKeys: true,
@@ -73,6 +93,10 @@ describe("settings", () => {
     assert.equal(themed.theme, "dusk");
     assert.equal(themed.motion, 0);
     assert.equal(themed.volume, 0.2);
+    assert.equal(themed.lattice, false);
+    store.write({ lattice: true });
+    assert.equal(store.read().lattice, true);
+    assert.equal(settingsFromUnknown({ volume: 0.2 }).lattice, false);
     assert.equal("cookie" in saved, false);
     fs.writeFileSync(file, "{");
     assert.equal(store.read().volume, 0.8);

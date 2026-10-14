@@ -16,6 +16,7 @@ const entryPoints = [
   "src/core/playlist-pages.test.ts",
   "src/core/explore-queue.test.ts",
   "src/core/lyrics.test.ts",
+  "src/core/local-library.test.ts",
   "src/api/cookie.test.ts",
   "src/api/netease.test.ts",
   "src/api/server.test.ts",
@@ -27,6 +28,7 @@ const entryPoints = [
   "src/main/bus-files.test.ts",
   "src/main/command-server.test.ts",
   "src/renderer/shell.test.ts",
+  "src/renderer/contrast.test.ts",
 ];
 
 await mkdir(outdir, { recursive: true });

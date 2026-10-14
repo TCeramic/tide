@@ -458,7 +458,7 @@ function parseHits(value: unknown): SearchHit[] | null {
 function parseHit(value: unknown): SearchHit | null {
   if (!value || typeof value !== "object") return null;
   const candidate = value as Record<string, unknown>;
-  if (typeof candidate.id !== "string" || !/^\d{1,20}$/.test(candidate.id)) return null;
+  if (typeof candidate.id !== "string" || !/^(\d{1,20}|local-[a-f0-9]{12})$/.test(candidate.id)) return null;
   if (!isShortText(candidate.title) || !isShortText(candidate.artist)) return null;
   if (typeof candidate.durationMs !== "number" || !Number.isFinite(candidate.durationMs)) return null;
   if (candidate.durationMs < 0 || candidate.durationMs > 24 * 60 * 60 * 1000) return null;

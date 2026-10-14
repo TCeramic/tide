@@ -1,4 +1,5 @@
-import { currentLyricIndex, lyricPosition, nextLyricOffset, pairLyrics, type LyricLine } from "../../core/lyrics";
+import { currentLyricIndex, lineEase, lyricPosition, nextLyricOffset, pairLyrics, sweepProgress, type LyricLine } from "../../core/lyrics";
+import type { YrcLine } from "../../shared/contract";
 import type { DeskLyricsSettings } from "../../core/desk-lyrics";
 import type { Track } from "../../core/playback/types";
 import { Music2 } from "lucide";
@@ -58,11 +59,14 @@ export function mountLyrics(root: HTMLElement): {
   let view: LyricView = "both";
   let offsetMs = 0;
   let positionMs = 0;
-  let bundles = { original: [] as LyricLine[], translation: [] as LyricLine[], romaji: [] as LyricLine[] };
+  let bundles = { original: [] as LyricLine[], translation: [] as LyricLine[], romaji: [] as LyricLine[], yrc: [] as YrcLine[] };
   let active = -1;
   let deskOpen = false;
 
+  const usingYrc = (): boolean => (view === "both" || view === "original") && bundles.yrc.length > 0;
+
   const timedRows = (): LyricLine[] => {
+    if (usingYrc()) return bundles.yrc.map((row) => ({ timeMs: row.timeMs, text: row.text }));
     if (view === "both") {
       return pairLyrics(bundles.original, bundles.translation).map((row) => ({
         timeMs: row.timeMs,
@@ -82,19 +86,44 @@ export function mountLyrics(root: HTMLElement): {
     });
   };
 
+  const paintSweep = (index: number) => {
+    const item = list.children.item(index);
+    if (!(item instanceof HTMLElement)) return;
+    const origin = item.querySelector(".lyric-origin");
+    if (!(origin instanceof HTMLElement)) return;
+    const at = lyricPosition(positionMs, offsetMs);
+    const rows = timedRows();
+    const row = rows[index];
+    if (!row) return;
+    const yrc = usingYrc() ? bundles.yrc[index] : undefined;
+    let progress = 0;
+    if (yrc && yrc.words.length > 0) {
+      const stored = origin.dataset.widths ?? "";
+      const widths = stored.length > 0 ? stored.split(",").map(Number) : yrc.words.map((word) => measureWord(word.text));
+      progress = sweepProgress(yrc.words, widths, at);
+    } else {
+      const next = rows[index + 1]?.timeMs ?? row.timeMs + 4000;
+      progress = lineEase(at, row.timeMs, next);
+    }
+    origin.style.setProperty("--lyric-progress", `${(progress * 100).toFixed(2)}%`);
+  };
+
   const paint = (nextPosition = positionMs) => {
     positionMs = nextPosition;
     const lines = timedRows();
     if (lines.length === 0) return;
     const next = currentLyricIndex(lines, lyricPosition(positionMs, offsetMs));
-    if (next === active) return;
+    const changed = next !== active;
     active = next;
-    const items = list.querySelectorAll("li");
-    items.forEach((item, index) => {
-      item.classList.toggle("lyric-current", index === next);
-    });
-    const current = next >= 0 ? items.item(next) : null;
-    if (current instanceof HTMLElement) current.scrollIntoView({ block: "center" });
+    if (changed) {
+      const items = list.querySelectorAll("li");
+      items.forEach((item, index) => {
+        item.classList.toggle("lyric-current", index === next);
+      });
+      const current = next >= 0 ? items.item(next) : null;
+      if (current instanceof HTMLElement) current.scrollIntoView({ block: "center" });
+    }
+    if (next >= 0) paintSweep(next);
   };
 
   const showOffset = () => {
@@ -119,12 +148,29 @@ export function mountLyrics(root: HTMLElement): {
       return;
     }
     line.textContent = "";
-    if (view === "both") {
-      for (const row of pairLyrics(bundles.original, bundles.translation)) {
+    if (view === "both" || (view === "original" && usingYrc())) {
+      const source = usingYrc()
+        ? bundles.yrc.map((row) => ({ timeMs: row.timeMs, text: row.text }))
+        : bundles.original;
+      const paired = pairLyrics(source, view === "original" ? [] : bundles.translation);
+      paired.forEach((row, index) => {
         const item = document.createElement("li");
         const origin = document.createElement("span");
-        origin.className = "lyric-origin";
-        origin.textContent = row.original;
+        origin.className = "lyric-origin karaoke";
+        const words = usingYrc() ? bundles.yrc[index]?.words ?? [] : [];
+        if (words.length > 0) {
+          const widths: number[] = [];
+          for (const word of words) {
+            const span = document.createElement("span");
+            span.className = "lyric-word";
+            span.textContent = word.text;
+            origin.append(span);
+            widths.push(measureWord(word.text));
+          }
+          origin.dataset.widths = widths.join(",");
+        } else {
+          origin.textContent = row.original;
+        }
         item.append(origin);
         if (row.translation.length > 0) {
           const trans = document.createElement("span");
@@ -133,7 +179,7 @@ export function mountLyrics(root: HTMLElement): {
           item.append(trans);
         }
         list.append(item);
-      }
+      });
     } else {
       for (const row of lines) {
         const item = document.createElement("li");
@@ -189,7 +235,7 @@ export function mountLyrics(root: HTMLElement): {
     shownId = id;
     generation += 1;
     const token = generation;
-    bundles = { original: [], translation: [], romaji: [] };
+    bundles = { original: [], translation: [], romaji: [], yrc: [] };
     active = -1;
     list.replaceChildren();
     if (!track) {
@@ -212,6 +258,7 @@ export function mountLyrics(root: HTMLElement): {
         original: result.lines,
         translation: result.translation ?? [],
         romaji: result.romaji ?? [],
+        yrc: result.yrc ?? [],
       };
       renderLines();
       publishDesk();
@@ -232,6 +279,15 @@ export function mountLyrics(root: HTMLElement): {
       root.replaceChildren();
     },
   };
+}
+
+let wordCanvas: CanvasRenderingContext2D | null = null;
+
+function measureWord(text: string): number {
+  wordCanvas ??= document.createElement("canvas").getContext("2d");
+  if (!wordCanvas) return Math.max(1, text.length);
+  wordCanvas.font = "40px Segoe UI, PingFang SC, Noto Sans SC, Microsoft YaHei, sans-serif";
+  return Math.max(1, wordCanvas.measureText(text).width);
 }
 
 function viewButton(label: string): HTMLButtonElement {

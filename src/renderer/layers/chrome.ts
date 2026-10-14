@@ -1,7 +1,6 @@
 import type { HealthStatus, PlaybackSnapshot } from "../../shared/contract";
 import {
   Compass,
-  Grid3x3,
   Heart,
   Music2,
   Pause,
@@ -16,8 +15,8 @@ import {
   VolumeX,
 } from "lucide";
 import { ICON_SIZE, iconButton, setIcon } from "../icons";
-import { onLattice, readLattice, writeLattice } from "../lattice-pref";
 import { applyLike, isLiked, onLiked } from "../liked";
+import { openNowPlaying } from "../view";
 
 const DISCLAIMER_KEY = "tide.risk.ack";
 
@@ -36,22 +35,27 @@ const ERROR_LABEL: Record<NonNullable<PlaybackSnapshot["error"]>, string> = {
   signed_out: "请先登录",
 };
 
-const REPEAT_CYCLE = ["off", "all", "one"] as const;
-
-const REPEAT_LABEL: Record<(typeof REPEAT_CYCLE)[number], string> = {
-  off: "顺序播放",
-  all: "列表循环",
-  one: "单曲循环",
-};
+const PLAY_MODES = [
+  { repeat: "all", shuffle: false, explore: false, label: "列表循环" },
+  { repeat: "one", shuffle: false, explore: false, label: "单曲循环" },
+  { repeat: "off", shuffle: true, explore: false, label: "随机播放" },
+  { repeat: "off", shuffle: true, explore: true, label: "灵感随机" },
+] as const;
 
 export function mountChrome(root: HTMLElement): {
   setPlayback: (snapshot: PlaybackSnapshot) => void;
   setHealth: (status: HealthStatus) => void;
+  setLattice: (on: boolean) => void;
   destroy: () => void;
 } {
   root.replaceChildren();
 
   let latest: PlaybackSnapshot | null = null;
+
+  const titlebar = document.createElement("header");
+  titlebar.className = "tide-titlebar";
+  titlebar.textContent = "潮汐";
+  root.append(titlebar);
 
   const disclaimer = document.createElement("section");
   disclaimer.className = "disclaimer";
@@ -78,15 +82,6 @@ export function mountChrome(root: HTMLElement): {
   const transport = document.createElement("footer");
   transport.className = "transport";
 
-  const wordmark = document.createElement("span");
-  wordmark.className = "wordmark";
-  const mark = document.createElement("span");
-  mark.className = "wordmark-icon";
-  setIcon(mark, "Music2", Music2, ICON_SIZE.control);
-  const markText = document.createElement("span");
-  markText.textContent = "潮汐";
-  wordmark.append(mark, markText);
-
   const prev = iconButton("上一首", "SkipBack", SkipBack, ICON_SIZE.control);
   prev.addEventListener("click", () => {
     void window.tide.previous();
@@ -95,7 +90,10 @@ export function mountChrome(root: HTMLElement): {
   play.classList.add("play");
   play.addEventListener("click", () => {
     if (latest?.status === "playing") void window.tide.pause();
-    else void window.tide.play();
+    else {
+      openNowPlaying();
+      void window.tide.play();
+    }
   });
   const next = iconButton("下一首", "SkipForward", SkipForward, ICON_SIZE.control);
   next.addEventListener("click", () => {
@@ -103,30 +101,22 @@ export function mountChrome(root: HTMLElement): {
   });
   const mode = iconButton("列表循环", "Repeat", Repeat, ICON_SIZE.control);
   mode.addEventListener("click", () => {
-    const current = latest?.repeat ?? "all";
-    const index = REPEAT_CYCLE.indexOf(current);
-    const repeat = REPEAT_CYCLE[(index + 1) % REPEAT_CYCLE.length] ?? "all";
-    void window.tide.setMode({ repeat });
+    const index = modeIndex(latest);
+    const next = PLAY_MODES[(index + 1) % PLAY_MODES.length] ?? PLAY_MODES[0];
+    void window.tide.setMode({ repeat: next.repeat, shuffle: next.shuffle, explore: next.explore });
   });
-  const shuffle = iconButton("随机播放", "Shuffle", Shuffle, ICON_SIZE.control);
-  shuffle.addEventListener("click", () => {
-    void window.tide.setMode({ shuffle: !(latest?.shuffle ?? false) });
-  });
-  const explore = iconButton("探索续播", "Compass", Compass, ICON_SIZE.control);
-  explore.addEventListener("click", () => {
-    void window.tide.setMode({ explore: !(latest?.explore ?? false) });
-  });
-  const lattice = iconButton("点阵", "Grid3x3", Grid3x3, ICON_SIZE.control);
-  lattice.classList.add("lattice-toggle");
-  lattice.setAttribute("aria-pressed", readLattice() ? "true" : "false");
-  lattice.addEventListener("click", () => {
-    writeLattice(!readLattice());
+  const lyricJump = iconButton("歌词", "Music2", Music2, ICON_SIZE.control);
+  lyricJump.addEventListener("click", () => {
+    openNowPlaying();
   });
 
   const controls = document.createElement("div");
   controls.className = "transport-controls";
-  controls.append(prev, play, next, mode, shuffle, explore, lattice);
+  controls.append(prev, play, next, mode, lyricJump);
 
+  const cover = document.createElement("span");
+  cover.className = "dock-cover";
+  cover.textContent = "潮";
   const meta = document.createElement("div");
   meta.className = "meta";
   const titleRow = document.createElement("div");
@@ -194,13 +184,20 @@ export function mountChrome(root: HTMLElement): {
   volumeWrap.className = "volume";
   volumeWrap.append(volumeIcon, volume);
 
-  transport.append(wordmark, controls, meta, seek, volumeWrap);
+  const seekRow = document.createElement("div");
+  seekRow.className = "dock-seek";
+  seekRow.append(seek);
+  const dockMain = document.createElement("div");
+  dockMain.className = "dock-main";
+  dockMain.append(cover, meta, controls, volumeWrap);
+  transport.append(dockMain, seekRow);
   root.append(disclaimer, transport);
 
   const setPlayback = (snapshot: PlaybackSnapshot) => {
     latest = snapshot;
     const track = snapshot.index >= 0 ? snapshot.queue[snapshot.index] : undefined;
     title.textContent = track?.title ?? "没有曲目";
+    cover.textContent = track ? track.title.slice(0, 1) : "潮";
     const status = STATUS_LABEL[snapshot.status];
     const error = snapshot.error ? ERROR_LABEL[snapshot.error] : "";
     const position = formatTime(snapshot.positionMs);
@@ -225,11 +222,12 @@ export function mountChrome(root: HTMLElement): {
     prev.disabled = !hasQueue || (atStart && snapshot.repeat !== "all");
     next.disabled = !hasQueue || (atEnd && snapshot.repeat !== "all" && !(snapshot.shuffle && snapshot.queue.length > 1));
 
-    mode.setAttribute("aria-label", REPEAT_LABEL[snapshot.repeat]);
-    mode.setAttribute("aria-pressed", snapshot.repeat === "off" ? "false" : "true");
-    setIcon(mode, snapshot.repeat === "one" ? "Repeat1" : "Repeat", snapshot.repeat === "one" ? Repeat1 : Repeat, ICON_SIZE.control);
-    shuffle.setAttribute("aria-pressed", snapshot.shuffle ? "true" : "false");
-    explore.setAttribute("aria-pressed", snapshot.explore ? "true" : "false");
+    const modeNow = PLAY_MODES[modeIndex(snapshot)] ?? PLAY_MODES[0];
+    mode.setAttribute("aria-label", modeNow.label);
+    mode.setAttribute("aria-pressed", "true");
+    const modeIcon = modeNow.label === "单曲循环" ? Repeat1 : modeNow.label === "随机播放" ? Shuffle : modeNow.label === "灵感随机" ? Compass : Repeat;
+    const modeName = modeNow.label === "单曲循环" ? "Repeat1" : modeNow.label === "随机播放" ? "Shuffle" : modeNow.label === "灵感随机" ? "Compass" : "Repeat";
+    setIcon(mode, modeName, modeIcon, ICON_SIZE.control);
     const volumeIconName = snapshot.volume <= 0 ? "VolumeX" : snapshot.volume < 0.5 ? "Volume1" : "Volume2";
     const volumeNode = snapshot.volume <= 0 ? VolumeX : snapshot.volume < 0.5 ? Volume1 : Volume2;
     setIcon(volumeIcon, volumeIconName, volumeNode, ICON_SIZE.control);
@@ -248,19 +246,26 @@ export function mountChrome(root: HTMLElement): {
   const stopLiked = onLiked(() => {
     if (latest) setPlayback(latest);
   });
-  const stopLattice = onLattice((on) => {
-    lattice.setAttribute("aria-pressed", on ? "true" : "false");
-  });
 
   return {
     setPlayback,
     setHealth,
+    setLattice(on: boolean) {
+      void on;
+      // The lattice switch lives in Settings. The stage still follows appearance.
+    },
     destroy: () => {
       stopLiked();
-      stopLattice();
       root.replaceChildren();
     },
   };
+}
+
+function modeIndex(snapshot: PlaybackSnapshot | null): number {
+  if (!snapshot) return 0;
+  const found = PLAY_MODES.findIndex((mode) =>
+    mode.repeat === snapshot.repeat && mode.shuffle === snapshot.shuffle && mode.explore === snapshot.explore);
+  return found >= 0 ? found : 0;
 }
 
 function formatTime(ms: number): string {

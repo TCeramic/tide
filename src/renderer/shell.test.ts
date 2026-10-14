@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import * as lucide from "lucide";
-import { latticeEnabled, latticeTargets, stepLattice, writeLatticeFlag } from "./lattice-field";
+import { latticeTargets, stepLattice } from "./lattice-field";
 import { ICON_SIZE, ICON_STROKE, SHELL_ICONS } from "./icons";
 import { settleSpring, stepSpring } from "./spring";
 
@@ -34,19 +34,7 @@ describe("lens spring", () => {
 });
 
 describe("lattice layer", () => {
-  it("stays off until asked, and keeps points inside the frame", () => {
-    const memory = new Map<string, string>();
-    const storage = {
-      getItem: (key: string) => memory.get(key) ?? null,
-      setItem: (key: string, value: string) => {
-        memory.set(key, value);
-      },
-    };
-    assert.equal(latticeEnabled(storage), false);
-    assert.equal(latticeEnabled(null), false);
-    writeLatticeFlag(storage, true);
-    assert.equal(latticeEnabled(storage), true);
-
+  it("keeps points inside the frame", () => {
     const idle = latticeTargets(64, 0.25, 0);
     const playing = latticeTargets(64, 0.8, 1);
     assert.equal(idle.length, 64);

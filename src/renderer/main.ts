@@ -34,10 +34,11 @@ const PLAYBACK_LABEL = {
 } as const;
 
 function showPlayback(snapshot: PlaybackSnapshot): void {
+  const track = snapshot.index >= 0 ? (snapshot.queue[snapshot.index] ?? null) : null;
+  if (track) document.documentElement.style.setProperty("--cover-tint", coverTint(track.title));
   playingNow = snapshot.status === "playing";
   stageLayer.setScene({ level: Number.parseFloat(document.documentElement.style.getPropertyValue("--tide-stage")) || 0, motion: motionAmount, playing: playingNow });
   chromeLayer.setPlayback(snapshot);
-  const track = snapshot.index >= 0 ? (snapshot.queue[snapshot.index] ?? null) : null;
   lyricsLayer.setTrack(track);
   lyricsLayer.setPosition(snapshot.positionMs);
   library.setPlayback(PLAYBACK_LABEL[snapshot.status]);
@@ -94,13 +95,41 @@ function setStageMotion(level: number, motion: number): void {
   });
 }
 
-function applyAppearance(appearance: Appearance): void {
-  document.documentElement.dataset.theme = isThemeId(appearance.theme) ? appearance.theme : "tide";
-  chromeRoot.hidden = !appearance.chromeVisible;
-  setStageMotion(appearance.stageLevel, appearance.motion);
+function coverTint(title: string): string {
+  let hash = 0;
+  for (const char of title) hash = (hash * 33 + char.charCodeAt(0)) >>> 0;
+  return `hsl(${hash % 360} 42% 16%)`;
 }
 
-applyAppearance({ chromeVisible: true, stageLevel: 1, theme: "tide", motion: 1 });
+function applyAppearance(appearance: Appearance): void {
+  const root = document.documentElement;
+  root.dataset.theme = isThemeId(appearance.theme) ? appearance.theme : "tide";
+  root.dataset.shell = appearance.shell === "lattice" ? "lattice" : "lens";
+  root.dataset.preset = appearance.preset;
+  root.dataset.performance = appearance.performance;
+  root.dataset.background = appearance.background;
+  chromeRoot.hidden = !appearance.chromeVisible;
+  setStageMotion(appearance.stageLevel, appearance.motion);
+  stageLayer.setLattice(appearance.lattice);
+  chromeLayer.setLattice(appearance.lattice);
+  library.setLattice(appearance.lattice);
+  library.setAppearance(appearance);
+}
+
+applyAppearance({
+  chromeVisible: true,
+  stageLevel: 1,
+  theme: "tide",
+  motion: 1,
+  lattice: false,
+  shell: "lens",
+  preset: "tide",
+  performance: "balanced",
+  background: "solid",
+});
+void window.tide.backdropUrl().then((url) => {
+  if (url) document.documentElement.style.setProperty("--tide-image", `url("${url}")`);
+});
 window.tide.onAppearance(applyAppearance);
 
 window.tide.onEvent((event: PlaybackBusEvent) => {

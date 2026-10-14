@@ -1,5 +1,7 @@
-import { app, BrowserWindow, globalShortcut, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain } from "electron";
+import fs from "node:fs";
 import path from "node:path";
+import { LocalLibrary } from "../api/local-library";
 import { isAudioLevel } from "../core/audio-level";
 import {
   applyShortcutPlan,
@@ -13,6 +15,7 @@ import {
   type MediaAction,
   type MediaSource,
 } from "../core/media-keys";
+import { appearancePatchFromArgs } from "../core/command-bus";
 import { PlaybackMachine } from "../core/playback/machine";
 import { DEFAULT_API_PORT, DEFAULT_BUS_PORT, Ipc, type Appearance, type HealthStatus } from "../shared/contract";
 import { checkHealth, serverBundlePath, startApiProcess, type ApiProcess } from "./api-host";
@@ -124,6 +127,11 @@ function appearanceOf(value: Appearance): Appearance {
     stageLevel: value.stageLevel,
     theme: value.theme,
     motion: value.motion,
+    lattice: value.lattice,
+    shell: value.shell,
+    preset: value.preset,
+    performance: value.performance,
+    background: value.background,
   };
 }
 
@@ -173,6 +181,48 @@ app.whenReady().then(async () => {
   const playback = attachPlayback(() => mainWindow, machine, () => apiPort, (volume) => {
     settings.write({ volume });
   }, listenLog, () => settings.read().quality);
+  const libraryFile = path.join(app.getPath("userData"), "local-library.json");
+  const backdropFile = path.join(app.getPath("userData"), "backdrop");
+  ipcMain.handle(Ipc.localList, () => new LocalLibrary(libraryFile).list());
+  ipcMain.handle(Ipc.localAdd, async () => {
+    const picked = await dialog.showOpenDialog({
+      title: "添加本地音乐",
+      properties: ["openFile", "multiSelections"],
+      filters: [{ name: "音频", extensions: ["mp3", "flac", "m4a", "wav", "ogg", "aac"] }],
+    });
+    const library = new LocalLibrary(libraryFile);
+    if (picked.canceled) return library.list();
+    return library.add(picked.filePaths);
+  });
+  const readBackdrop = (): string | null => {
+    try {
+      const bytes = fs.readFileSync(backdropFile);
+      if (bytes.length === 0 || bytes.length > 1_800_000) return null;
+      const mime = bytes[0] === 0x89 ? "image/png" : bytes[0] === 0xff ? "image/jpeg" : bytes[0] === 0x52 ? "image/webp" : "image/jpeg";
+      return `data:${mime};base64,${bytes.toString("base64")}`;
+    } catch {
+      return null;
+    }
+  };
+  ipcMain.handle(Ipc.backdropUrl, () => readBackdrop());
+  ipcMain.handle(Ipc.backdropPick, async () => {
+    const picked = await dialog.showOpenDialog({
+      title: "选择背景图片",
+      properties: ["openFile"],
+      filters: [{ name: "图片", extensions: ["png", "jpg", "jpeg", "webp"] }],
+    });
+    const file = picked.filePaths[0];
+    if (picked.canceled || !file) return null;
+    fs.copyFileSync(file, backdropFile);
+    return readBackdrop();
+  });
+  ipcMain.handle(Ipc.appearanceSet, (_event, patch: unknown) => {
+    const parsed = appearancePatchFromArgs(patch);
+    if (!parsed || !settingsStore) return appearanceOf(settings.read());
+    const next = settings.write(parsed);
+    pushAppearance();
+    return appearanceOf(next);
+  });
   ipcMain.handle(Ipc.qualityGet, () => settings.read().quality);
   ipcMain.handle(Ipc.qualitySet, (_event, level: unknown) => {
     if (!isAudioLevel(level)) return settings.read().quality;
@@ -351,7 +401,10 @@ app.whenReady().then(async () => {
   apiProcess = startApiProcess(
     serverBundlePath(),
     Number.isInteger(requestedPort) ? requestedPort : DEFAULT_API_PORT,
-    { TIDE_COOKIE_FILE: cookieFile },
+    {
+      TIDE_COOKIE_FILE: cookieFile,
+      TIDE_LIBRARY_FILE: path.join(app.getPath("userData"), "local-library.json"),
+    },
   );
   try {
     const bound = await apiProcess.ready;

@@ -43,6 +43,7 @@ export const SHELL_ICONS = [
   "Radio",
   "LogIn",
   "Waypoints",
+  "House",
 ] as const;
 
 export type { IconNode };

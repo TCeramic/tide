@@ -4,9 +4,12 @@
 
 - 窗口外壳改成透镜（Lens）的玻璃、液体和光。侧栏、免责声明和底栏是玻璃透镜：定向高光、液体舞台、播放时的光。控件松手用弹簧回弹。减弱动态时停住，减弱透明度时改成不透明面板。
 - WebGL2 液体折射是可选的。上下文失败、系统要求减弱动态，或连续多帧过慢时，画布会拆掉，CSS 洗色继续工作。半分辨率、低功耗，避免在 Windows 上拖住界面。
-- 点阵只做可选的播放环境层，默认关闭。底栏和「设置」里可以打开。它不是外壳。序曲（Overture）没有进入这个版本。
+- 点阵只做可选的播放环境层，默认关闭。开关在「设置」里，并写入 `settings.json`，随 `appearance.read` / `appearance.write` 走。外壳仍默认是透镜；点阵外壳只改标题条和底栏。序曲（Overture）没有进入这个版本。
 - 图标统一为 Lucide（与 lucide-react 同一套：Play、Pause、SkipBack、SkipForward、Volume2、Heart、Search、Settings、List、ListMusic 等）。描边都是 1.75，尺寸只有 16、18、22。壳层是 DOM，所以用 vanilla `lucide` 包，没有把界面改写成 React。
-- 0.8.3 的播放、队列、喜欢、双语歌词、桌面歌词、热键和媒体键、本地 API `:39271`、指令总线 `:39272`、主题 tide / dusk 保持不变。点阵开关只存在本机界面，不进 `appearance.write`。
+- 0.8.3 的播放、队列、喜欢、双语歌词、桌面歌词、热键和媒体键、本地 API `:39271`、指令总线 `:39272`、主题 tide / dusk 保持不变。点阵开关写入 `settings.json`，并随 `appearance.read` / `appearance.write` 走指令总线。
+- 歌词列加了局部暗底，次级字在最亮的液体高光和点阵上仍达到 WCAG 4.5。
+- 冷启动是卡片主页。播放或打开正在播放才进入歌词舞台。逐字歌词走 `/lyric/new`，没有 yrc 时回到 LRC。未登录也可以用本地曲目和主页。
+- 视觉预设（潮汐默认、封面晕影、唱片、星尘、留白）、性能档和外壳（透镜 / 点阵）写在外观设置里。
 - 玻璃和弹簧的想法改编自 [design-systems](https://github.com/ruiqichenbiec/design-systems) 的 Lens（Copyright (c) 2026 DayDreamInAReverie，MIT，已不再维护）。这里是潮汐自己的表面和着色器，没有整仓复制。
 - 健康检查版本为 `0.9.0`。
 

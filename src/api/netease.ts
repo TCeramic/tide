@@ -48,6 +48,7 @@ interface NcmModule {
   recommend_resource(query: { cookie?: string }): Promise<unknown>;
   simi_song(query: { id: string; limit?: number; cookie?: string }): Promise<unknown>;
   lyric(query: { id: string; cookie?: string }): Promise<unknown>;
+  lyric_new?(query: { id: string; cookie?: string }): Promise<unknown>;
   like(query: { id: string; like: "true" | "false"; cookie?: string }): Promise<unknown>;
   likelist(query: { uid: string; cookie?: string }): Promise<unknown>;
   playlist_tracks(query: { op: "add" | "del"; pid: string; tracks: string; cookie?: string }): Promise<unknown>;
@@ -74,6 +75,8 @@ export interface LyricBundle {
   lyric: string;
   translation: string;
   romaji: string;
+  yrc: string;
+  ytlrc: string;
 }
 
 export interface LoginRefresh {
@@ -99,6 +102,7 @@ export interface NeteaseClient {
   artistSongs(id: string, cookie: string | null): Promise<SearchHit[]>;
   albumTracks(id: string, cookie: string | null): Promise<SearchHit[]>;
   lyric(id: string, cookie: string | null): Promise<LyricBundle>;
+  lyricNew(id: string, cookie: string | null): Promise<LyricBundle>;
   personalFm(cookie: string): Promise<SearchHit[]>;
   fmTrash(id: string, cookie: string): Promise<void>;
   refreshLogin(cookie: string): Promise<LoginRefresh>;
@@ -173,6 +177,14 @@ export function createNeteaseClient(module: NcmModule = loadNeteaseModule()): Ne
     async lyric(id, cookie) {
       try {
         return readLyricBundle(await module.lyric(withCookie({ id }, cookie)));
+      } catch (error) {
+        rethrowSignedOut(error);
+      }
+    },
+    async lyricNew(id, cookie) {
+      if (!module.lyric_new) return emptyLyric();
+      try {
+        return readLyricBundle(await module.lyric_new(withCookie({ id }, cookie)));
       } catch (error) {
         rethrowSignedOut(error);
       }
@@ -334,7 +346,17 @@ export function readLyricBundle(result: unknown): LyricBundle {
     const row = asRecord(body[key]);
     return typeof row?.lyric === "string" ? row.lyric : "";
   };
-  return { lyric: text("lrc"), translation: text("tlyric"), romaji: text("romalrc") };
+  return {
+    lyric: text("lrc"),
+    translation: text("tlyric"),
+    romaji: text("romalrc"),
+    yrc: text("yrc"),
+    ytlrc: text("ytlrc"),
+  };
+}
+
+function emptyLyric(): LyricBundle {
+  return { lyric: "", translation: "", romaji: "", yrc: "", ytlrc: "" };
 }
 
 /** `personal_fm` songs. Privilege is often missing, so a row stays playable. */

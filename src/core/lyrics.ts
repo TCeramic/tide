@@ -1,3 +1,5 @@
+import type { LyricWord, YrcLine } from "../shared/contract";
+
 export interface LyricLine {
   timeMs: number;
   text: string;
@@ -62,9 +64,18 @@ export interface LyricPair {
 
 const PAIR_WINDOW_MS = 1_500;
 
-/** Stack a translation under the original line when their stamps are close. */
+const CREDIT_LINE = /^(?:作词|作曲|编曲|制作人|出品人?|原唱|翻唱|吉他|贝斯|鼓|和声|录音|混音|母带|监制)\s*[:：]/;
+
+export function isCreditLine(text: string): boolean {
+  return CREDIT_LINE.test(text.trim());
+}
+
+/** Stack a translation under the original line when their stamps are close. Credits stay untranslated. */
 export function pairLyrics(original: readonly LyricLine[], translation: readonly LyricLine[]): LyricPair[] {
   return original.map((line) => {
+    if (isCreditLine(line.text)) {
+      return { timeMs: line.timeMs, original: line.text, translation: "" };
+    }
     let best = "";
     let bestDelta = PAIR_WINDOW_MS + 1;
     for (const row of translation) {
@@ -77,7 +88,7 @@ export function pairLyrics(original: readonly LyricLine[], translation: readonly
     return {
       timeMs: line.timeMs,
       original: line.text,
-      translation: bestDelta <= PAIR_WINDOW_MS ? best : "",
+      translation: bestDelta <= PAIR_WINDOW_MS && !isCreditLine(best) ? best : "",
     };
   });
 }
@@ -118,4 +129,100 @@ export function deskLineCue(
     next: at(index + 1)?.original ?? "",
     empty: false,
   };
+}
+
+const YRC_LINE = /^\[(\d+),(\d+)\](.*)$/;
+
+/**
+ * Parse a NetEase YRC blob.
+ * Lines look like `[startMs,durMs](startMs,durMs,0)字`.
+ * JSON credit rows are skipped. A line with no words stays line-level.
+ */
+export function parseYrc(source: string | null | undefined): YrcLine[] {
+  if (!source) return [];
+  const lines: YrcLine[] = [];
+  for (const raw of source.split(/\r?\n/)) {
+    const trimmed = raw.trim();
+    if (trimmed.length === 0 || trimmed.startsWith("{")) continue;
+    const header = YRC_LINE.exec(trimmed);
+    if (!header) continue;
+    const timeMs = Number(header[1]);
+    const durationMs = Number(header[2]);
+    if (!Number.isFinite(timeMs) || !Number.isFinite(durationMs) || durationMs < 0) continue;
+    const words: LyricWord[] = [];
+    const body = header[3] ?? "";
+    const wordPattern = /\((\d+),(\d+),\d+\)([^(\r\n]*)/g;
+    for (const match of body.matchAll(wordPattern)) {
+      let wordStart = Number(match[1]);
+      const wordDur = Number(match[2]);
+      const text = (match[3] ?? "").replace(/\s+/g, " ");
+      if (!Number.isFinite(wordStart) || !Number.isFinite(wordDur) || wordDur < 0) continue;
+      if (text.trim().length === 0) continue;
+      if (wordStart + 500 < timeMs) wordStart += timeMs;
+      words.push({
+        timeMs: wordStart,
+        durationMs: Math.max(1, Math.trunc(wordDur)),
+        text: text.slice(0, 80),
+      });
+    }
+    const text = words.length > 0
+      ? words.map((word) => word.text).join("")
+      : body.replace(/\((\d+),(\d+),\d+\)/g, "").trim();
+    if (text.length === 0) continue;
+    lines.push({
+      timeMs: Math.trunc(timeMs),
+      durationMs: Math.max(1, Math.trunc(durationMs)),
+      text: text.slice(0, 400),
+      words,
+    });
+  }
+  lines.sort((a, b) => a.timeMs - b.timeMs);
+  return lines;
+}
+
+/** 0 before the word, 1 after it, linear inside. */
+export function wordFill(word: LyricWord, positionMs: number): number {
+  if (!Number.isFinite(positionMs)) return 0;
+  if (positionMs >= word.timeMs + word.durationMs) return 1;
+  if (positionMs <= word.timeMs) return 0;
+  return (positionMs - word.timeMs) / Math.max(1, word.durationMs);
+}
+
+/**
+ * Karaoke sweep across one line, weighted by measured glyph width.
+ * Widths come from the renderer; tests can pass their own measurements.
+ * Progress never leaves the current line.
+ */
+export function sweepProgress(words: readonly LyricWord[], widths: readonly number[], positionMs: number): number {
+  if (words.length === 0) return 0;
+  let total = 0;
+  const spans: number[] = [];
+  for (let index = 0; index < words.length; index += 1) {
+    const width = widths[index];
+    const span = Number.isFinite(width) && width > 0 ? width : Math.max(1, words[index]?.text.length ?? 1);
+    spans.push(span);
+    total += span;
+  }
+  if (total <= 0) return 0;
+  let cursor = 0;
+  let progress = 0;
+  for (let index = 0; index < words.length; index += 1) {
+    const word = words[index];
+    if (!word) continue;
+    const span = spans[index] ?? 1;
+    const fill = wordFill(word, positionMs);
+    progress = (cursor + span * fill) / total;
+    cursor += span;
+    if (fill < 1) break;
+  }
+  return Math.min(1, Math.max(0, progress));
+}
+
+/** Gentle line fill when a row has no word times. Smoothstep across the line. */
+export function lineEase(positionMs: number, startMs: number, endMs: number): number {
+  if (!Number.isFinite(positionMs) || !Number.isFinite(startMs)) return 0;
+  const end = Number.isFinite(endMs) && endMs > startMs ? endMs : startMs + 4000;
+  const raw = (positionMs - startMs) / (end - startMs);
+  const clamped = Math.min(1, Math.max(0, raw));
+  return clamped * clamped * (3 - 2 * clamped);
 }

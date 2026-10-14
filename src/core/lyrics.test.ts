@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { currentLyricIndex, deskLineCue, lyricPosition, nextLyricOffset, pairLyrics, parseLrc } from "./lyrics";
+import { currentLyricIndex, deskLineCue, lineEase, lyricPosition, nextLyricOffset, pairLyrics, parseLrc, parseYrc, sweepProgress } from "./lyrics";
 
 describe("lyrics", () => {
   it("parses stamps and follows the playhead", () => {
@@ -30,6 +30,12 @@ describe("lyrics", () => {
     const pairs = pairLyrics(original, translation);
     assert.equal(pairs[0]?.translation, "译文");
     assert.equal(pairs[1]?.translation, "");
+    const credit = pairLyrics(
+      parseLrc("[00:01.00]作词：潮汐\n[00:05.00]下一句\n"),
+      parseLrc("[00:01.10]Lyricist\n[00:05.10]下一句译文\n"),
+    );
+    assert.equal(credit[0]?.translation, "");
+    assert.equal(credit[1]?.translation, "下一句译文");
     const early = deskLineCue(original, translation, 0, 0, "歌");
     assert.equal(early.current, "");
     assert.equal(early.next, "原文");
@@ -39,5 +45,26 @@ describe("lyrics", () => {
     assert.equal(current.translation, "译文");
     assert.equal(current.next, "下一句");
     assert.equal(deskLineCue([], [], 0, 0, "歌").empty, true);
+  });
+
+  it("parses yrc words and sweeps by measured width", () => {
+    const lines = parseYrc([
+      "{\"t\":0,\"c\":[{\"tx\":\"作词\"}]}",
+      "[16210,3460](16210,670,0)还(16880,410,0)没",
+      "[10000,2000](0,500,0)你",
+      "not a line",
+    ].join("\n"));
+    assert.equal(lines.length, 2);
+    assert.equal(lines[1]?.text, "还没");
+    assert.equal(lines[1]?.words.length, 2);
+    assert.equal(lines[0]?.words[0]?.timeMs, 10000);
+    const words = lines[1]?.words ?? [];
+    assert.equal(sweepProgress(words, [20, 10], 16210), 0);
+    const mid = sweepProgress(words, [20, 10], 16210 + 335);
+    assert.ok(mid > 0.3 && mid < 0.4);
+    assert.equal(sweepProgress(words, [20, 10], 16880 + 410), 1);
+    assert.equal(lineEase(0, 1000, 2000), 0);
+    assert.ok(lineEase(1500, 1000, 2000) > 0.4 && lineEase(1500, 1000, 2000) < 0.6);
+    assert.equal(parseYrc("").length, 0);
   });
 });

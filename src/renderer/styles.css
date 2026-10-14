@@ -17,6 +17,8 @@
   --tide-panel: rgba(7, 16, 24, 0.88);
   --tide-dock-h: 84px;
   --tide-chrome-h: 118px;
+  --lyric-plate: 7, 16, 24;
+  --lyric-plate-alpha: 0.84;
   --tide-font: "Segoe UI", "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
   --tide-phase: 0.35;
   --lens-blur: 18px;
@@ -35,6 +37,7 @@
   --tide-bg-raise: #3a1c24;
   --tide-fg: #f8eee6;
   --tide-muted: #d2aa98;
+  --lyric-plate: 26, 14, 18;
   --tide-accent: #e8a15a;
   --tide-accent-dim: #8a4e28;
   --tide-line: rgba(248, 238, 230, 0.16);
@@ -139,6 +142,26 @@ body {
   font-weight: 560;
 }
 
+.lyrics-block {
+  position: relative;
+  z-index: 1;
+  width: min(760px, 100%);
+  padding: 28px 36px 32px;
+  border-radius: 36px;
+  background: rgba(var(--lyric-plate), var(--lyric-plate-alpha));
+}
+
+.lyrics-kicker,
+.lyrics-line,
+.lyric-list li,
+.lyric-trans,
+.lyric-offset,
+.lyric-offset-menu {
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.9),
+    0 0 10px rgba(0, 0, 0, 0.65);
+}
+
 .lyrics-line {
   margin: 14px 0 0;
   color: var(--tide-muted);
@@ -165,8 +188,22 @@ body {
 
 .lyric-list li.lyric-current {
   color: var(--tide-fg);
-  font-size: 18px;
-  text-shadow: 0 0 18px var(--tide-wash);
+  font-size: 40px;
+  line-height: 1.35;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.9),
+    0 0 18px var(--tide-wash);
+}
+
+.lyric-origin.karaoke {
+  background-image: linear-gradient(
+    90deg,
+    var(--tide-fg) var(--lyric-progress, 0%),
+    var(--tide-muted) var(--lyric-progress, 0%)
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .lyric-trans {
@@ -963,4 +1000,343 @@ input[type="range"] {
   input[type="range"] {
     grid-column: 1 / -1;
   }
+}
+
+#stage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(1.2px 1.2px at 8% 14%, rgba(255, 255, 255, 0.85), transparent),
+    radial-gradient(1px 1px at 18% 32%, rgba(214, 248, 244, 0.7), transparent),
+    radial-gradient(1.4px 1.4px at 28% 12%, rgba(255, 255, 255, 0.55), transparent),
+    radial-gradient(1px 1px at 42% 22%, rgba(255, 255, 255, 0.45), transparent),
+    radial-gradient(1.2px 1.2px at 63% 18%, rgba(214, 248, 244, 0.65), transparent),
+    radial-gradient(1px 1px at 74% 28%, rgba(255, 255, 255, 0.5), transparent),
+    radial-gradient(1.3px 1.3px at 86% 16%, rgba(255, 255, 255, 0.7), transparent),
+    radial-gradient(1px 1px at 12% 58%, rgba(255, 255, 255, 0.35), transparent),
+    radial-gradient(1px 1px at 48% 48%, rgba(214, 248, 244, 0.4), transparent),
+    radial-gradient(1.2px 1.2px at 90% 46%, rgba(255, 255, 255, 0.45), transparent),
+    radial-gradient(ellipse at 50% 115%, rgba(62, 198, 192, 0.16), transparent 58%);
+}
+
+.voxel-field {
+  position: absolute;
+  left: 16%;
+  right: 16%;
+  bottom: 108px;
+  height: 32%;
+  width: auto;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.tide-titlebar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  -webkit-app-region: drag;
+}
+
+html[data-shell="lens"] .tide-titlebar {
+  background: linear-gradient(180deg, rgba(10, 22, 30, 0.78), rgba(10, 22, 30, 0.15));
+  backdrop-filter: blur(16px);
+}
+
+html[data-shell="lattice"] .tide-titlebar,
+html[data-shell="lattice"] .transport {
+  background-color: rgba(7, 16, 24, 0.9);
+  background-image: radial-gradient(rgba(214, 248, 244, 0.7) 1px, transparent 1.3px);
+  background-size: 8px 8px;
+}
+
+.topbar {
+  position: absolute;
+  z-index: 5;
+  top: 44px;
+  left: 300px;
+  right: 72px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  -webkit-app-region: no-drag;
+}
+
+.topbar .search {
+  flex: 1;
+}
+
+.queue-col {
+  position: absolute;
+  z-index: 4;
+  top: 44px;
+  left: 16px;
+  bottom: 118px;
+  width: 268px;
+  overflow: auto;
+  padding: 12px;
+  border-radius: var(--lens-radius);
+}
+
+.glass,
+.home-card,
+.queue-col,
+.browse-sheet,
+.corner-panel {
+  background: rgba(var(--lyric-plate), 0.72);
+  border: 1px solid var(--tide-line);
+  box-shadow:
+    inset 1px 1px 0 var(--lens-specular),
+    0 18px 40px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(var(--lens-blur)) saturate(1.3);
+}
+
+.home-grid {
+  position: absolute;
+  z-index: 3;
+  top: 108px;
+  left: 300px;
+  right: 20px;
+  bottom: 118px;
+  display: grid;
+  grid-template-columns: 200px repeat(3, minmax(0, 1fr));
+  grid-auto-rows: minmax(108px, auto);
+  gap: 12px;
+  overflow: auto;
+}
+
+.home-clock {
+  grid-row: span 2;
+}
+
+.home-card {
+  border-radius: 22px;
+  padding: 16px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.home-card h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.home-kicker,
+.home-body,
+.preset-card span,
+.library-note {
+  color: var(--tide-muted);
+}
+
+.home-time {
+  margin: 8px 0;
+  font-size: 42px;
+  font-weight: 560;
+}
+
+.home-quote {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+html[data-view="playing"] .home-grid,
+html[data-view="playing"] .browse-sheet {
+  display: none;
+}
+
+html[data-view="home"] #lyrics {
+  visibility: hidden;
+}
+
+html[data-view="playing"] #lyrics {
+  padding: 64px 8vw 200px;
+}
+
+.browse-sheet {
+  position: absolute;
+  z-index: 4;
+  top: 108px;
+  left: 300px;
+  right: 20px;
+  bottom: 118px;
+  overflow: auto;
+  padding: 16px;
+  border-radius: var(--lens-radius);
+}
+
+.corner-btn {
+  position: absolute;
+  z-index: 6;
+  opacity: 0.28;
+}
+
+.corner-login {
+  top: 44px;
+  right: 16px;
+}
+
+.corner-settings {
+  right: 18px;
+  bottom: 128px;
+}
+
+#chrome:hover .corner-btn,
+.corner-btn:focus-visible,
+.corner-btn[data-attention="true"] {
+  opacity: 1;
+}
+
+.corner-panel {
+  position: absolute;
+  z-index: 7;
+  width: min(420px, calc(100% - 40px));
+  max-height: min(70vh, 640px);
+  overflow: auto;
+  padding: 14px;
+  border-radius: 22px;
+}
+
+.login-panel {
+  top: 92px;
+  right: 16px;
+}
+
+.settings-pop {
+  right: 16px;
+  bottom: 176px;
+}
+
+.preset-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.preset-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid var(--tide-line);
+  background: rgba(0, 0, 0, 0.2);
+  color: inherit;
+  font: inherit;
+}
+
+.preset-card[aria-pressed="true"],
+.preset-row .text-button[aria-pressed="true"] {
+  border-color: var(--tide-accent);
+  color: var(--tide-fg);
+}
+
+.preset-kicker {
+  margin: 8px 0 4px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+}
+
+.preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: 6px 0;
+}
+
+.transport {
+  left: 50%;
+  right: auto;
+  width: min(880px, calc(100% - 48px));
+  transform: translateX(-50%);
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 16px 12px;
+  border-radius: 28px;
+}
+
+.dock-main {
+  display: grid;
+  grid-template-columns: auto minmax(120px, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.dock-cover {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--cover-tint, var(--tide-accent-dim));
+  color: var(--tide-fg);
+  font-size: 18px;
+}
+
+html[data-preset="vinyl"] .dock-cover {
+  border-radius: 50%;
+  width: 56px;
+  height: 56px;
+  box-shadow: 0 0 0 6px rgba(0, 0, 0, 0.35);
+}
+
+.dock-seek input[type="range"] {
+  width: 100%;
+}
+
+html[data-preset="quiet"] #stage,
+html[data-preset="quiet"] #stage::after {
+  background: var(--tide-bg);
+}
+
+html[data-preset="cover-glow"] #stage::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 70%, var(--cover-tint, transparent), transparent 58%);
+  box-shadow: inset 0 0 160px rgba(0, 0, 0, 0.45);
+}
+
+html[data-preset="stardust"] #stage {
+  background: #071018;
+}
+
+html[data-preset="stardust"] #stage::after {
+  opacity: 1;
+}
+
+html:not([data-preset="stardust"]) #stage::after {
+  opacity: 0.35;
+}
+
+html[data-background="cover"] #stage {
+  background-color: var(--cover-tint, var(--tide-bg));
+}
+
+html[data-background="image"] #stage {
+  background-image: var(--tide-image);
+  background-size: cover;
+  background-position: center;
+}
+
+html[data-background="solid"] #stage {
+  background-color: var(--tide-bg);
+}
+
+.library {
+  display: none;
 }

@@ -2,8 +2,20 @@ import fs from "node:fs";
 import path from "node:path";
 import { isAudioLevel, type AudioLevel } from "../core/audio-level";
 import { deskSettingsFromUnknown, type DeskLyricsSettings } from "../core/desk-lyrics";
-import { EMPTY_MEDIA_SHORTCUTS, mediaShortcutsFromUnknown, type MediaShortcutMap } from "../core/media-keys";
-import { isThemeId, type Appearance, type ThemeId } from "../shared/contract";
+import { mediaShortcutsFromUnknown, type MediaShortcutMap } from "../core/media-keys";
+import {
+  isPerformanceTier,
+  isShellId,
+  isStageBackground,
+  isThemeId,
+  isVisualPresetId,
+  type Appearance,
+  type PerformanceTier,
+  type ShellId,
+  type StageBackground,
+  type ThemeId,
+  type VisualPresetId,
+} from "../shared/contract";
 
 export interface TideSettings extends Appearance {
   volume: number;
@@ -32,11 +44,31 @@ export function settingsFromUnknown(value: unknown): TideSettings {
   const motion = typeof record.motion === "number" && Number.isFinite(record.motion)
     ? clamp(record.motion)
     : 1;
+  const lattice = typeof record.lattice === "boolean" ? record.lattice : false;
+  const shell: ShellId = isShellId(record.shell) ? record.shell : "lens";
+  const preset: VisualPresetId = isVisualPresetId(record.preset) ? record.preset : "tide";
+  const performance: PerformanceTier = isPerformanceTier(record.performance) ? record.performance : "balanced";
+  const background: StageBackground = isStageBackground(record.background) ? record.background : "solid";
   const quality: AudioLevel = isAudioLevel(record.quality) ? record.quality : "standard";
   const mediaShortcuts = mediaShortcutsFromUnknown(record.mediaShortcuts);
   const captureMediaKeys = typeof record.captureMediaKeys === "boolean" ? record.captureMediaKeys : true;
   const deskLyrics = deskSettingsFromUnknown(record.deskLyrics);
-  return { volume, chromeVisible, stageLevel, theme, motion, quality, mediaShortcuts, captureMediaKeys, deskLyrics };
+  return {
+    volume,
+    chromeVisible,
+    stageLevel,
+    theme,
+    motion,
+    lattice,
+    shell,
+    preset,
+    performance,
+    background,
+    quality,
+    mediaShortcuts,
+    captureMediaKeys,
+    deskLyrics,
+  };
 }
 
 function clamp(value: number): number {
@@ -50,7 +82,7 @@ export class SettingsStore {
     try {
       return settingsFromUnknown(JSON.parse(fs.readFileSync(this.filePath, "utf8")));
     } catch {
-      return { volume: DEFAULT_VOLUME, chromeVisible: true, stageLevel: 1, theme: "tide", motion: 1, quality: "standard", mediaShortcuts: { ...EMPTY_MEDIA_SHORTCUTS }, captureMediaKeys: true, deskLyrics: deskSettingsFromUnknown(undefined) };
+      return settingsFromUnknown({});
     }
   }
 

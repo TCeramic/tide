@@ -66,6 +66,11 @@ export const Ipc = {
   media: "tide:media",
   tideToday: "tide:today",
   appearance: "tide:appearance",
+  appearanceSet: "tide:appearance:set",
+  localList: "tide:local:list",
+  localAdd: "tide:local:add",
+  backdropPick: "tide:backdrop:pick",
+  backdropUrl: "tide:backdrop:url",
 } as const;
 
 /** Existing wash themes. `tide` is the default teal night; `dusk` is the warm night. */
@@ -77,13 +82,65 @@ export function isThemeId(value: unknown): value is ThemeId {
   return typeof value === "string" && (THEMES as readonly string[]).includes(value);
 }
 
-/** Local UI knobs on #stage, #lyrics, and #chrome. No wallpaper and no particle system. */
+/** Chrome language. Lens is the default glass shell. Lattice is an optional second look. */
+export const SHELLS = ["lens", "lattice"] as const;
+export type ShellId = (typeof SHELLS)[number];
+
+export function isShellId(value: unknown): value is ShellId {
+  return typeof value === "string" && (SHELLS as readonly string[]).includes(value);
+}
+
+/** Play-scene recipes. Names are Tide's. They are not a visual clone of another player. */
+export const VISUAL_PRESETS = ["tide", "cover-glow", "vinyl", "stardust", "quiet"] as const;
+export type VisualPresetId = (typeof VISUAL_PRESETS)[number];
+
+export function isVisualPresetId(value: unknown): value is VisualPresetId {
+  return typeof value === "string" && (VISUAL_PRESETS as readonly string[]).includes(value);
+}
+
+export const PERFORMANCE_TIERS = ["smooth", "balanced", "vivid"] as const;
+export type PerformanceTier = (typeof PERFORMANCE_TIERS)[number];
+
+export function isPerformanceTier(value: unknown): value is PerformanceTier {
+  return typeof value === "string" && (PERFORMANCE_TIERS as readonly string[]).includes(value);
+}
+
+export const STAGE_BACKGROUNDS = ["solid", "cover", "image"] as const;
+export type StageBackground = (typeof STAGE_BACKGROUNDS)[number];
+
+export function isStageBackground(value: unknown): value is StageBackground {
+  return typeof value === "string" && (STAGE_BACKGROUNDS as readonly string[]).includes(value);
+}
+
+/** Local UI knobs on #stage, #lyrics, and #chrome. No wallpaper engine and no particle clone. */
 export interface Appearance {
   chromeVisible: boolean;
   stageLevel: number;
   theme: ThemeId;
   /** 0 freezes the existing wash phase. 1 is the full phase travel. */
   motion: number;
+  /** Optional playback lattice. Off until asked. Not the window shell. */
+  lattice: boolean;
+  /** Lens glass by default. Lattice restyles the title bar, dock, and progress. */
+  shell: ShellId;
+  /** Overall play-scene style. Details come after this choice. */
+  preset: VisualPresetId;
+  performance: PerformanceTier;
+  /** Solid color, a cover-colored wash, or one local image. */
+  background: StageBackground;
+}
+
+export interface LyricWord {
+  timeMs: number;
+  durationMs: number;
+  text: string;
+}
+
+export interface YrcLine {
+  timeMs: number;
+  durationMs: number;
+  text: string;
+  words: LyricWord[];
 }
 
 export interface SearchHit {
@@ -128,6 +185,8 @@ export interface LyricPayload {
   lines: LyricLine[];
   translation: LyricLine[];
   romaji: LyricLine[];
+  /** Word lines from `/lyric/new`. Empty when the song has no yrc. */
+  yrc: YrcLine[];
 }
 
 export interface DeskCue {
@@ -273,4 +332,9 @@ export interface TideBridge {
   ended(): Promise<PlaybackSnapshot>;
   failPlayback(code: "no_url" | "signed_out"): Promise<PlaybackSnapshot>;
   onAppearance(listener: (appearance: Appearance) => void): () => void;
+  setAppearance(patch: Partial<Appearance>): Promise<Appearance>;
+  localTracks(): Promise<SearchHit[]>;
+  addLocalTracks(): Promise<SearchHit[]>;
+  pickBackdrop(): Promise<string | null>;
+  backdropUrl(): Promise<string | null>;
 }

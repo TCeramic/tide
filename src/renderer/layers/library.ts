@@ -1,14 +1,15 @@
 import { AUDIO_LEVELS, AUDIO_LEVEL_LABEL, type AudioLevel } from "../../core/audio-level";
 import { MEDIA_ACTION_LABEL, MEDIA_CUSTOM_ACTIONS, type MediaShortcutMap } from "../../core/media-keys";
-import type { ApiFailure, PlaybackSnapshot, PlaylistSummary, SearchHit, SearchResult, SessionSnapshot } from "../../shared/contract";
+import type { ApiFailure, Appearance, PlaybackSnapshot, PlaylistSummary, SearchHit, SearchResult, SessionSnapshot } from "../../shared/contract";
 import {
   ChevronDown,
   ChevronLeft,
   ChevronUp,
-  List,
   Compass,
   Heart,
+  House,
   Keyboard,
+  List,
   ListMusic,
   LogIn,
   Radio,
@@ -19,8 +20,10 @@ import {
 } from "lucide";
 import type { IconNode } from "../icons";
 import { ICON_SIZE, iconButton, prependIcon, setIcon } from "../icons";
-import { onLattice, readLattice, writeLattice } from "../lattice-pref";
+import { openNowPlaying, showHome } from "../view";
 import { mountDeskForm } from "./desk-form";
+import { mountHome } from "./home";
+import { mountPresetForm } from "./preset-form";
 import { applyLike, isLiked, onLiked, setLikedIds } from "../liked";
 import { fillTrackList } from "../track-row";
 
@@ -31,6 +34,9 @@ export function mountLibrary(root: HTMLElement): {
   setPlayback: (status: string) => void;
   setQueue: (snapshot: PlaybackSnapshot) => void;
   notify: (message: string) => void;
+  setLattice: (on: boolean) => void;
+  setAppearance: (appearance: Appearance) => void;
+  showHome: () => void;
   destroy: () => void;
 } {
   const panel = document.createElement("aside");
@@ -118,7 +124,7 @@ export function mountLibrary(root: HTMLElement): {
   qualityLabel.append(quality);
   const queueList = document.createElement("ul");
   queueList.className = "queue-list";
-  queueDetails.append(queueSummary, queueTools, qualityLabel, queueList);
+  queueDetails.append(queueSummary, queueTools, queueList);
 
   const keyPanel = document.createElement("details");
   keyPanel.className = "key-panel";
@@ -241,7 +247,7 @@ export function mountLibrary(root: HTMLElement): {
   latticeRow.className = "key-capture";
   const latticeBox = document.createElement("input");
   latticeBox.type = "checkbox";
-  latticeBox.checked = readLattice();
+  latticeBox.checked = false;
   latticeBox.setAttribute("aria-label", "点阵");
   const latticeText = document.createElement("span");
   latticeText.textContent = "点阵";
@@ -250,31 +256,94 @@ export function mountLibrary(root: HTMLElement): {
   latticeHint.textContent = "播放时的环境层，不是窗口外壳";
   latticeRow.append(latticeBox, latticeText, latticeHint);
   latticeBox.addEventListener("change", () => {
-    writeLattice(latticeBox.checked);
+    void window.tide.setAppearance({ lattice: latticeBox.checked });
   });
   const deskForm = mountDeskForm();
-  settingsPanel.append(settingsSummary, latticeRow, keyPanel, deskForm.element);
+  const presets = mountPresetForm();
+  settingsPanel.append(settingsSummary, presets.element, latticeRow, qualityLabel, keyPanel, deskForm.element, bus);
 
-  panel.append(
-    searchHeading,
-    searchForm,
-    searchNote,
-    viewBar,
-    hits,
-    tideHeading,
-    tideActions,
-    queueDetails,
-    settingsPanel,
-    recommendHeading,
-    recommend,
-    bus,
-    loginHeading,
-    note,
-    actions,
-    list,
-    form,
-  );
-  root.append(panel);
+  const topbar = document.createElement("div");
+  topbar.className = "topbar";
+  const homeButton = button("主页");
+  prependIcon(homeButton, "House", House, ICON_SIZE.row);
+  topbar.append(homeButton, searchForm);
+
+  const queueCol = document.createElement("aside");
+  queueCol.className = "queue-col glass";
+  queueCol.setAttribute("aria-label", "播放队列");
+  queueDetails.open = true;
+  queueCol.append(queueDetails);
+
+  const sheet = document.createElement("section");
+  sheet.className = "browse-sheet glass";
+  sheet.hidden = true;
+  sheet.append(viewBar, searchNote, hits, tideHeading, tideActions, recommendHeading, recommend, list);
+
+  const loginButton = iconButton("登录", "LogIn", LogIn, ICON_SIZE.control);
+  loginButton.classList.add("corner-btn", "corner-login");
+  const settingsButton = iconButton("设置", "Settings", Settings, ICON_SIZE.control);
+  settingsButton.classList.add("corner-btn", "corner-settings");
+  const loginPop = document.createElement("section");
+  loginPop.className = "corner-panel login-panel glass";
+  loginPop.hidden = true;
+  loginPop.append(loginHeading, note, actions, form);
+  const settingsPop = document.createElement("section");
+  settingsPop.className = "corner-panel settings-pop glass";
+  settingsPop.hidden = true;
+  settingsPop.append(settingsPanel);
+  settingsPanel.open = true;
+
+  const showSheet = () => {
+    sheet.hidden = false;
+    home.element.hidden = true;
+  };
+  const showHomeCards = () => {
+    sheet.hidden = true;
+    home.element.hidden = false;
+    showHome();
+  };
+  homeButton.addEventListener("click", showHomeCards);
+  loginButton.addEventListener("click", () => {
+    loginPop.hidden = !loginPop.hidden;
+    settingsPop.hidden = true;
+  });
+  settingsButton.addEventListener("click", () => {
+    settingsPop.hidden = !settingsPop.hidden;
+    loginPop.hidden = true;
+  });
+
+  const home = mountHome(root, {
+    onPlaylists: () => showSheet(),
+    onDaily: () => {
+      showSheet();
+      dailyButton.click();
+    },
+    onDiscover: () => {
+      showSheet();
+      tideButton.click();
+    },
+    onLocal: () => {
+      showSheet();
+      void window.tide.localTracks().then((hits) => {
+        showSearchNote(hits.length === 0 ? "还没有本地曲目" : "本地音乐", hits.length === 0);
+        renderHits(hits);
+        if (hits.length === 0) return;
+        // Listed for play. The row handler starts playback.
+      });
+    },
+    onAddLocal: () => {
+      void window.tide.addLocalTracks().then((hits) => {
+        home.setLocal(hits);
+        showSheet();
+        showSearchNote(hits.length === 0 ? "还没有本地曲目" : "本地音乐", hits.length === 0);
+        renderHits(hits);
+      });
+    },
+  });
+
+  root.append(topbar, queueCol, sheet, loginButton, settingsButton, loginPop, settingsPop);
+  void searchHeading;
+  void panel;
 
   let pollTimer = 0;
   let apiReady = false;
@@ -334,6 +403,8 @@ export function mountLibrary(root: HTMLElement): {
       list.append(item);
     }
     const signedIn = session.state === "logged_in";
+    loginButton.dataset.attention = signedIn ? "false" : "true";
+    home.setSession(session);
     recommendHeading.hidden = !signedIn;
     recommend.hidden = !signedIn;
     dailyButton.disabled = !apiReady;
@@ -555,6 +626,7 @@ export function mountLibrary(root: HTMLElement): {
       name.className = "queue-title";
       name.textContent = `${track.title} · ${track.artist}`;
       name.addEventListener("click", () => {
+        openNowPlaying();
         void window.tide.changeTrack(index);
       });
       const up = iconButton("上移", "ChevronUp", ChevronUp, ICON_SIZE.row);
@@ -700,6 +772,7 @@ export function mountLibrary(root: HTMLElement): {
     }
     searching = true;
     searchButton.disabled = true;
+    showSheet();
     void window.tide.search(keywords, searchType).then((result) => {
       searching = false;
       if (disposed) return;
@@ -748,10 +821,6 @@ export function mountLibrary(root: HTMLElement): {
     fillTrackList(hits, shownHits, playlists, showSearchNote);
     if (lastQueue) renderQueue(lastQueue);
   });
-  const stopLattice = onLattice((on) => {
-    latticeBox.checked = on;
-  });
-
   return {
     setBusPort(port) {
       if (typeof port !== "number" || !Number.isInteger(port)) return;
@@ -762,9 +831,20 @@ export function mountLibrary(root: HTMLElement): {
     },
     setQueue(snapshot) {
       renderQueue(snapshot);
+      home.setQueue(snapshot);
+    },
+    setAppearance(appearance) {
+      latticeBox.checked = appearance.lattice;
+      presets.sync(appearance);
+    },
+    showHome() {
+      showHomeCards();
     },
     notify(message) {
       showSearchNote(message, true);
+    },
+    setLattice(on) {
+      latticeBox.checked = on;
     },
     setApiReady(ready) {
       apiReady = ready;
@@ -786,13 +866,20 @@ export function mountLibrary(root: HTMLElement): {
       if (!sawReady) {
         sawReady = true;
         void refreshSession();
+        void window.tide.tideToday().then((result) => {
+          if (!result.ok || disposed) return;
+          const first = result.hits[0];
+          home.setDiscover(result.hits.length, first ? `${first.title} · ${first.artist}` : (result.message ?? ""));
+        });
+        void window.tide.localTracks().then((hits) => {
+          if (!disposed) home.setLocal(hits);
+        });
       }
     },
     destroy() {
       disposed = true;
       stopPoll();
       stopLiked();
-      stopLattice();
       deskForm.destroy();
       panel.remove();
     },

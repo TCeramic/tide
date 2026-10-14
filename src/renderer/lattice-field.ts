@@ -11,25 +11,6 @@ export interface LatticeSpring {
   y: Spring;
 }
 
-const LATTICE_KEY = "tide.lattice";
-
-/** Off unless the user has turned the ambient layer on. Never the window shell. */
-export function latticeEnabled(storage: { getItem(key: string): string | null } | null): boolean {
-  try {
-    return storage?.getItem(LATTICE_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-export function writeLatticeFlag(storage: { setItem(key: string, value: string): void } | null, on: boolean): void {
-  try {
-    storage?.setItem(LATTICE_KEY, on ? "1" : "0");
-  } catch {
-    // The toggle still applies for this session when storage is unavailable.
-  }
-}
-
 /**
  * A bounded point set for the optional playback layer.
  * `energy` is 0 while idle and 1 while audio is playing. Points stay inside the unit square.
