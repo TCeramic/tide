@@ -31,6 +31,7 @@ export interface PlaybackControl {
   setMode(patch: { repeat?: "off" | "all" | "one"; shuffle?: boolean; explore?: boolean }): PlaybackSnapshot;
   next(): Promise<PlaybackSnapshot>;
   previous(): Promise<PlaybackSnapshot>;
+  stop(): PlaybackSnapshot;
   removeAt(index: number): Promise<PlaybackSnapshot>;
   moveTrack(from: number, to: number): PlaybackSnapshot;
   clearQueue(): PlaybackSnapshot;
@@ -222,6 +223,10 @@ export function attachPlayback(
       const index = machine.previousIndex();
       if (index == null) return Promise.resolve(machine.getState());
       return goTo(index);
+    },
+    stop: () => {
+      generation += 1;
+      return publish(machine.stop());
     },
     removeAt: (index) => reloadIfTrackChanged(() => machine.removeAt(index)),
     moveTrack: (from, to) => {

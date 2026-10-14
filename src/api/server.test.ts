@@ -38,7 +38,7 @@ describe("tide api", () => {
     const body = (await response.json()) as { ok: boolean; service: string; version: string };
     assert.equal(body.ok, true);
     assert.equal(body.service, "tide");
-    assert.equal(body.version, "0.8.1");
+    assert.equal(body.version, "0.8.2");
   });
 
   it("returns 404 for other paths", async () => {

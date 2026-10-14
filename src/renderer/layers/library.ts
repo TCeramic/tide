@@ -1,4 +1,5 @@
 import { AUDIO_LEVELS, AUDIO_LEVEL_LABEL, type AudioLevel } from "../../core/audio-level";
+import { MEDIA_ACTION_LABEL, MEDIA_CUSTOM_ACTIONS, type MediaShortcutMap } from "../../core/media-keys";
 import type { ApiFailure, PlaybackSnapshot, PlaylistSummary, SearchHit, SearchResult, SessionSnapshot } from "../../shared/contract";
 import { fillTrackList } from "../track-row";
 
@@ -96,6 +97,57 @@ export function mountLibrary(root: HTMLElement): {
   queueList.className = "queue-list";
   queueDetails.append(queueSummary, queueTools, qualityLabel, queueList);
 
+  const keyPanel = document.createElement("details");
+  keyPanel.className = "key-panel";
+  const keySummary = document.createElement("summary");
+  keySummary.textContent = "可编程按键";
+  const keyHelp = document.createElement("p");
+  keyHelp.className = "library-note";
+  keyHelp.textContent = "罗技 G HUB / Options+ 若只能发普通组合键，填成 Ctrl+Alt+Right 这种形式。系统媒体键不用填。Windows 真机仍需自行确认。";
+  const captureRow = document.createElement("label");
+  captureRow.className = "key-capture";
+  const captureBox = document.createElement("input");
+  captureBox.type = "checkbox";
+  captureBox.checked = true;
+  captureBox.setAttribute("aria-label", "接管系统媒体键");
+  const captureText = document.createElement("span");
+  captureText.textContent = "接管系统媒体键";
+  const captureHint = document.createElement("span");
+  captureHint.className = "key-hint";
+  captureHint.textContent = "会抢占其他播放器的媒体键";
+  captureRow.append(captureBox, captureText, captureHint);
+  const keyForm = document.createElement("div");
+  keyForm.className = "library-form";
+  const keyInputs = {} as Record<(typeof MEDIA_CUSTOM_ACTIONS)[number], HTMLInputElement>;
+  for (const action of MEDIA_CUSTOM_ACTIONS) {
+    const field = document.createElement("label");
+    field.className = "key-row";
+    field.append(MEDIA_ACTION_LABEL[action]);
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "key-input";
+    input.maxLength = 64;
+    input.spellcheck = false;
+    input.placeholder = "Ctrl+Alt+Right";
+    input.setAttribute("aria-label", MEDIA_ACTION_LABEL[action]);
+    keyInputs[action] = input;
+    field.append(input);
+    keyForm.append(field);
+  }
+  const keySave = button("保存按键");
+  const keyNote = document.createElement("p");
+  keyNote.className = "library-note";
+  keyNote.hidden = true;
+  keyForm.append(keySave);
+  keyPanel.append(keySummary, keyHelp, captureRow, keyForm, keyNote);
+
+  const showKeyResult = (shortcuts: MediaShortcutMap, messages: string[]) => {
+    for (const action of MEDIA_CUSTOM_ACTIONS) keyInputs[action].value = shortcuts[action];
+    keyNote.hidden = messages.length === 0;
+    keyNote.textContent = messages.join(" ");
+    keyNote.classList.toggle("warn", messages.length > 0);
+  };
+
   const heading = document.createElement("h2");
   heading.textContent = "登录网易云";
 
@@ -161,6 +213,7 @@ export function mountLibrary(root: HTMLElement): {
     tideHeading,
     tideActions,
     queueDetails,
+    keyPanel,
     recommendHeading,
     recommend,
     bus,
@@ -473,6 +526,32 @@ export function mountLibrary(root: HTMLElement): {
   });
   quality.addEventListener("change", () => {
     void window.tide.setQuality(quality.value as AudioLevel);
+  });
+  captureBox.addEventListener("change", () => {
+    const wanted = captureBox.checked;
+    void window.tide.setCaptureMediaKeys(wanted).then((result) => {
+      captureBox.checked = result.captureMediaKeys;
+    });
+  });
+  keySave.addEventListener("click", () => {
+    const shortcuts: MediaShortcutMap = {
+      toggle: keyInputs.toggle.value,
+      next: keyInputs.next.value,
+      previous: keyInputs.previous.value,
+      stop: keyInputs.stop.value,
+    };
+    void window.tide.setMediaShortcuts(shortcuts).then((result) => {
+      showKeyResult(result.shortcuts, result.messages);
+      if (result.messages.length === 0) {
+        keyNote.hidden = false;
+        keyNote.textContent = "已保存。留空表示不使用额外组合键。";
+        keyNote.classList.remove("warn");
+      }
+    });
+  });
+  void window.tide.getMediaShortcuts().then((result) => {
+    showKeyResult(result.shortcuts, result.messages);
+    captureBox.checked = result.captureMediaKeys;
   });
   void window.tide.getQuality().then((level) => {
     if ((AUDIO_LEVELS as readonly string[]).includes(level)) quality.value = level;

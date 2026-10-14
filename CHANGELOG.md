@@ -1,5 +1,16 @@
 # 更新记录 / Changelog
 
+## 0.8.2
+
+- 硬件媒体键（下一首、上一首、播放/暂停、停止）在窗口失焦、最小化、以及还没播放过时也会生效。Windows 上除了 `navigator.mediaSession`，还可以接管四个系统媒体键；聚焦窗口只走 `app-command` 这一条 `WM_APPCOMMAND`。
+- 「可编程按键」里的「接管系统媒体键」默认打开。关掉后不再用 `globalShortcut` 注册这四个键，Spotify 和浏览器可以继续用它们。Media Session、`WM_APPCOMMAND` 和自定义组合键仍然有效。开关立刻注册或注销。旁边注明「会抢占其他播放器的媒体键」。
+- 同一次按键若从另一个来源在约 300 毫秒内再到达，只执行一次。同一个来源连按两次都会执行。
+- 「可编程按键」可保存额外组合键（例如 `Ctrl+Alt+Right`，也接受 `F13`–`F24`），给只能发普通按键的罗技 G HUB / Options+。注册失败时退回上一个还能用的组合，并写明原因。
+- **Windows 真机验证仍待完成。** 本环境不能按下 `VK_MEDIA_*` 或罗技驱动发出的 `WM_APPCOMMAND`。
+- 健康检查版本为 `0.8.2`。
+
+Hardware media keys keep working when the window is unfocused, minimized, or idle. One press runs one action. Custom shortcuts can stand in for drivers that only send ordinary combos. A real Windows machine still has to confirm the keys.
+
 ## 0.8.1
 
 - 播放队列可以查看、移除、拖动或上下移动、清空。

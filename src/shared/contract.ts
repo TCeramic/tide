@@ -3,7 +3,7 @@ import type { PlaybackEvents, PlaybackSnapshot, Track } from "../core/playback/t
 
 export type { PlaybackErrorCode, PlaybackEvents, PlaybackSnapshot, PlaybackStatus, Track } from "../core/playback/types";
 
-export const TIDE_VERSION = "0.8.1";
+export const TIDE_VERSION = "0.8.2";
 export const DEFAULT_API_PORT = 39271;
 export const DEFAULT_BUS_PORT = 39272;
 export const API_READY_PREFIX = "TIDE_API_READY ";
@@ -43,6 +43,10 @@ export const Ipc = {
   fmTrash: "tide:fm:trash",
   qualityGet: "tide:quality:get",
   qualitySet: "tide:quality:set",
+  mediaShortcutsGet: "tide:keys:get",
+  mediaShortcutsSet: "tide:keys:set",
+  captureMediaKeysSet: "tide:keys:capture",
+  hardwareKey: "tide:keys:hardware",
   playlistTracks: "tide:playlist:tracks",
   daily: "tide:recommend:daily",
   radar: "tide:recommend:radar",
@@ -219,6 +223,10 @@ export interface TideBridge {
   fmTrash(id: string): Promise<ApiFailure | { ok: true; message: string }>;
   getQuality(): Promise<AudioLevel>;
   setQuality(level: AudioLevel): Promise<AudioLevel>;
+  getMediaShortcuts(): Promise<{ shortcuts: { toggle: string; next: string; previous: string; stop: string }; messages: string[]; captureMediaKeys: boolean }>;
+  setMediaShortcuts(shortcuts: { toggle: string; next: string; previous: string; stop: string }): Promise<{ shortcuts: { toggle: string; next: string; previous: string; stop: string }; messages: string[] }>;
+  setCaptureMediaKeys(capture: boolean): Promise<{ captureMediaKeys: boolean }>;
+  hardwareKey(action: "play" | "pause" | "next" | "previous" | "stop"): Promise<PlaybackSnapshot>;
   likeSong(id: string, like: boolean): Promise<ApiFailure | { ok: true; message: string }>;
   collectSong(playlistId: string, trackId: string): Promise<ApiFailure | { ok: true; message: string }>;
   playNext(hit: SearchHit): Promise<PlaybackSnapshot>;

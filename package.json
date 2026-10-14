@@ -1,6 +1,6 @@
 {
   "name": "tide",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "private": true,
   "description": "潮汐 Tide — a personal, unofficial desktop music player",
   "main": "dist/main.js",

@@ -416,6 +416,45 @@ body {
   margin: 8px 0 12px;
 }
 
+.key-panel {
+  margin: 0 0 12px;
+}
+
+.key-capture {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  color: var(--tide-fg);
+  font-size: 13px;
+}
+
+.key-hint {
+  color: var(--tide-muted);
+  font-size: 12px;
+}
+
+.key-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 0 100%;
+  color: var(--tide-muted);
+  font-size: 13px;
+}
+
+.key-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--tide-line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--tide-fg);
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 8px;
+}
+
 .queue-panel summary {
   cursor: pointer;
   font-size: 14px;

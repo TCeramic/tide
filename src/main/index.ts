@@ -1,7 +1,18 @@
 import { app, BrowserWindow, globalShortcut, ipcMain } from "electron";
 import path from "node:path";
 import { isAudioLevel } from "../core/audio-level";
-import { MEDIA_SHORTCUTS, mediaKeyMode, shortcutAction } from "../core/media-keys";
+import {
+  applyShortcutPlan,
+  appCommandName,
+  createMediaDeduper,
+  isMediaAction,
+  mediaShortcutsFromUnknown,
+  planCustomShortcuts,
+  shortcutAction,
+  syncSystemMediaKeys,
+  type MediaAction,
+  type MediaSource,
+} from "../core/media-keys";
 import { PlaybackMachine } from "../core/playback/machine";
 import { DEFAULT_API_PORT, DEFAULT_BUS_PORT, Ipc, type Appearance, type HealthStatus } from "../shared/contract";
 import { checkHealth, serverBundlePath, startApiProcess, type ApiProcess } from "./api-host";
@@ -26,8 +37,19 @@ let commandServer: RunningCommandServer | null = null;
 let settingsStore: SettingsStore | null = null;
 let healthTimer: ReturnType<typeof setInterval> | null = null;
 let quitting = false;
+let runHardware: (source: MediaSource, action: unknown) => void = () => undefined;
+let mediaNotice: string | null = null;
 
 const machine = new PlaybackMachine();
+
+function bindHardwareWindow(win: BrowserWindow): void {
+  win.on("app-command", (event, command) => {
+    const action = appCommandName(command);
+    if (!action) return;
+    event.preventDefault();
+    runHardware("app-command", action);
+  });
+}
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -56,8 +78,10 @@ function createWindow(): BrowserWindow {
     win.webContents.send(Ipc.playback, machine.getState());
     const current = settingsStore?.read();
     if (current) win.webContents.send(Ipc.appearance, appearanceOf(current));
+    if (mediaNotice) win.webContents.send(Ipc.notice, mediaNotice);
     void publishHealth();
   });
+  bindHardwareWindow(win);
 
   void win.loadFile(path.join(__dirname, "index.html"));
   return win;
@@ -134,25 +158,116 @@ app.whenReady().then(async () => {
     if (!isAudioLevel(level)) return settings.read().quality;
     return settings.write({ quality: level }).quality;
   });
-  if (mediaKeyMode(process.platform) === "shortcut") {
-    for (const accelerator of MEDIA_SHORTCUTS) {
-      const action = shortcutAction(accelerator);
-      if (!action) continue;
+  const mediaDeduper = createMediaDeduper();
+  const registeredCustom = new Set<string>();
+  let shortcutMessages: string[] = [];
+
+  const performHardware = (action: MediaAction) => {
+    if (action === "toggle") {
+      if (machine.getState().status === "playing") playback.control.pause();
+      else void playback.control.play();
+      return;
+    }
+    if (action === "play") {
+      void playback.control.play();
+      return;
+    }
+    if (action === "pause") {
+      playback.control.pause();
+      return;
+    }
+    if (action === "next") {
+      void playback.control.next();
+      return;
+    }
+    if (action === "previous") {
+      void playback.control.previous();
+      return;
+    }
+    playback.control.stop();
+  };
+
+  runHardware = (source, action) => {
+    if (!isMediaAction(action)) return;
+    if (!mediaDeduper.accept(action, source, Date.now())) return;
+    performHardware(action);
+  };
+
+  const registeredSystem: string[] = [];
+  const syncCapture = (capture: boolean) => {
+    const result = syncSystemMediaKeys(
+      capture,
+      registeredSystem,
+      (accelerator) => {
+        const action = shortcutAction(accelerator);
+        if (!action) return false;
+        return globalShortcut.register(accelerator, () => {
+          runHardware("shortcut", action);
+        });
+      },
+      (accelerator) => {
+        globalShortcut.unregister(accelerator);
+      },
+    );
+    registeredSystem.splice(0, registeredSystem.length, ...result.active);
+    return result.missed;
+  };
+  const missed = syncCapture(settings.read().captureMediaKeys);
+  const builtinMediaWarning = missed.length > 0
+    ? "系统媒体键没有注册成功，可能已被占用。可在「可编程按键」里改用 Ctrl+Alt+方向键。"
+    : null;
+
+  const applyCustomShortcuts = (desired: ReturnType<typeof mediaShortcutsFromUnknown>) => {
+    const previous = settings.read().mediaShortcuts;
+    for (const accelerator of registeredCustom) globalShortcut.unregister(accelerator);
+    registeredCustom.clear();
+    const plan = planCustomShortcuts(desired);
+    const outcome = applyShortcutPlan(plan, previous, (accelerator, action) => {
+      let ok = false;
       try {
-        globalShortcut.register(accelerator, () => {
-          if (action === "toggle") {
-            if (machine.getState().status === "playing") playback.control.pause();
-            else void playback.control.play();
-            return;
-          }
-          if (action === "next") void playback.control.next();
-          else void playback.control.previous();
+        ok = globalShortcut.register(accelerator, () => {
+          runHardware("shortcut", action);
         });
       } catch {
-        // This OS may not expose the media key. The in-window bar still works.
+        ok = false;
       }
+      if (ok) registeredCustom.add(accelerator);
+      return ok;
+    });
+    shortcutMessages = outcome.messages;
+    return outcome;
+  };
+  applyCustomShortcuts(settings.read().mediaShortcuts);
+  const startupKeyNotice = [builtinMediaWarning, shortcutMessages.join(" ")].filter((item): item is string => typeof item === "string" && item.length > 0).join(" ");
+  mediaNotice = startupKeyNotice.length > 0 ? startupKeyNotice : null;
+  ipcMain.handle(Ipc.mediaShortcutsGet, () => ({
+    shortcuts: settings.read().mediaShortcuts,
+    messages: shortcutMessages,
+    captureMediaKeys: settings.read().captureMediaKeys,
+  }));
+  ipcMain.handle(Ipc.captureMediaKeysSet, (_event, value: unknown) => {
+    const capture = value !== false;
+    settings.write({ captureMediaKeys: capture });
+    const failed = syncCapture(capture);
+    const win = mainWindow;
+    if (failed.length > 0 && win && !win.isDestroyed()) {
+      win.webContents.send(Ipc.notice, "系统媒体键没有注册成功，可能已被占用。可在「可编程按键」里改用 Ctrl+Alt+方向键。");
     }
-  }
+    return { captureMediaKeys: settings.read().captureMediaKeys };
+  });
+  ipcMain.handle(Ipc.mediaShortcutsSet, (_event, value: unknown) => {
+    const outcome = applyCustomShortcuts(mediaShortcutsFromUnknown(value));
+    settings.write({ mediaShortcuts: outcome.saved });
+    const win = mainWindow;
+    if (outcome.messages.length > 0 && win && !win.isDestroyed()) {
+      win.webContents.send(Ipc.notice, outcome.messages.join(" "));
+    }
+    return { shortcuts: outcome.saved, messages: outcome.messages };
+  });
+  ipcMain.handle(Ipc.hardwareKey, (_event, action: unknown) => {
+    runHardware("session", action);
+    return playback.control.get();
+  });
   detachPlayback = playback.detach;
   detachSession = attachSession(() => apiPort);
   for (const type of ["play", "pause", "seek", "volume", "queue", "track-change"] as const) {
@@ -247,6 +362,10 @@ app.on("before-quit", () => {
   globalShortcut.unregisterAll();
   ipcMain.removeHandler(Ipc.qualityGet);
   ipcMain.removeHandler(Ipc.qualitySet);
+  ipcMain.removeHandler(Ipc.mediaShortcutsGet);
+  ipcMain.removeHandler(Ipc.mediaShortcutsSet);
+  ipcMain.removeHandler(Ipc.captureMediaKeysSet);
+  ipcMain.removeHandler(Ipc.hardwareKey);
   stopApi();
   const bus = commandServer;
   commandServer = null;

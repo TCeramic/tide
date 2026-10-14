@@ -102,6 +102,17 @@ export class PlaybackMachine {
     return snapshot;
   }
 
+  /** Pause and return to the start of the current track. One stop, not a toggle. */
+  stop(): PlaybackSnapshot {
+    if (!this.currentTrack()) return this.getState();
+    const playing = this.snapshot.status === "playing";
+    this.snapshot = { ...this.snapshot, status: "paused", positionMs: 0, error: null };
+    const snapshot = this.getState();
+    if (playing) this.events.emit("pause", { snapshot });
+    this.events.emit("seek", { positionMs: 0, snapshot });
+    return snapshot;
+  }
+
   seek(positionMs: number): PlaybackSnapshot {
     const track = this.currentTrack();
     if (!track || !Number.isFinite(positionMs)) return this.getState();
