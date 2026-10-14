@@ -6,7 +6,7 @@ export type { DeskLyricsSettings } from "../core/desk-lyrics";
 
 export type { PlaybackErrorCode, PlaybackEvents, PlaybackSnapshot, PlaybackStatus, Track } from "../core/playback/types";
 
-export const TIDE_VERSION = "0.8.3";
+export const TIDE_VERSION = "0.9.0";
 export const DEFAULT_API_PORT = 39271;
 export const DEFAULT_BUS_PORT = 39272;
 export const API_READY_PREFIX = "TIDE_API_READY ";
