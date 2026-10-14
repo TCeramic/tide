@@ -60,12 +60,44 @@ export function mediaSessionReceivesHardwareKey(state: HardwareKeyState): boolea
   return state.focused && !state.minimized && state.playbackStarted;
 }
 
-/** Paths that can deliver one hardware press in this window state. Shortcut is always armed. */
-export function hardwareKeyPaths(state: HardwareKeyState): HardwarePath[] {
-  const paths: HardwarePath[] = ["shortcut"];
+/**
+ * Paths that can deliver one hardware press. The four system media keys are
+ * registered only when `capture` is on; Media Session and WM_APPCOMMAND stay.
+ */
+export function hardwareKeyPaths(state: HardwareKeyState, capture = true): HardwarePath[] {
+  const paths: HardwarePath[] = [];
+  if (capture) paths.push("shortcut");
   if (state.focused && !state.minimized) paths.push("app-command");
   if (mediaSessionReceivesHardwareKey(state)) paths.push("session");
   return paths;
+}
+
+/** Accelerators to hold with globalShortcut. Off leaves them for Spotify and browsers. */
+export function systemMediaAccelerators(capture: boolean): readonly MediaShortcut[] {
+  return capture ? MEDIA_SHORTCUTS : [];
+}
+
+export function syncSystemMediaKeys(
+  capture: boolean,
+  currently: readonly string[],
+  register: (accelerator: string) => boolean,
+  unregister: (accelerator: string) => void,
+): { active: string[]; missed: string[] } {
+  for (const accelerator of currently) unregister(accelerator);
+  if (!capture) return { active: [], missed: [] };
+  const active: string[] = [];
+  const missed: string[] = [];
+  for (const accelerator of MEDIA_SHORTCUTS) {
+    let ok = false;
+    try {
+      ok = register(accelerator);
+    } catch {
+      ok = false;
+    }
+    if (ok) active.push(accelerator);
+    else missed.push(accelerator);
+  }
+  return { active, missed };
 }
 
 /**
@@ -125,17 +157,21 @@ export function isMediaAction(value: unknown): value is MediaAction {
   return value === "toggle" || value === "play" || value === "pause" || value === "next" || value === "previous" || value === "stop";
 }
 
-/** Collapse every source of one press onto a single slot. A later different slot still runs. */
+/**
+ * Drop the same slot only when a different source repeats it inside the window.
+ * Two presses from one source both run, even inside 300ms.
+ */
 export function createMediaDeduper(windowMs = MEDIA_DEDUPE_MS): {
-  accept(action: string, at: number): boolean;
+  accept(action: string, source: string, at: number): boolean;
 } {
-  let last: { slot: string; at: number } | null = null;
+  const last = new Map<string, { source: string; at: number }>();
   return {
-    accept(action, at) {
+    accept(action, source, at) {
       const slot = mediaSlot(action);
-      if (!slot || !Number.isFinite(at)) return false;
-      if (last && last.slot === slot && at >= last.at && at - last.at < windowMs) return false;
-      last = { slot, at };
+      if (!slot || source.length === 0 || !Number.isFinite(at)) return false;
+      const prior = last.get(slot);
+      if (prior && prior.source !== source && at >= prior.at && at - prior.at < windowMs) return false;
+      last.set(slot, { source, at });
       return true;
     },
   };
@@ -178,7 +214,7 @@ const MODIFIER_ORDER = ["CommandOrControl", "Ctrl", "Alt", "Shift", "Meta"];
 function canonicalKey(token: string): string | null {
   const lower = token.toLowerCase();
   if (KEY_ALIAS[lower]) return KEY_ALIAS[lower];
-  if (/^f([1-9]|1[0-2])$/.test(lower)) return `F${lower.slice(1)}`;
+  if (/^f(?:[1-9]|1[0-9]|2[0-4])$/.test(lower)) return `F${lower.slice(1)}`;
   if (/^[a-z]$/.test(lower)) return lower.toUpperCase();
   if (/^[0-9]$/.test(lower)) return lower;
   return null;
@@ -266,19 +302,30 @@ export function planCustomShortcuts(desired: MediaShortcutMap): {
 
 export function applyShortcutPlan(
   plan: { register: ShortcutRegistration[]; messages: string[] },
-  register: (accelerator: string) => boolean,
+  previous: MediaShortcutMap,
+  register: (accelerator: string, action: MediaCustomAction) => boolean,
 ): { saved: MediaShortcutMap; messages: string[] } {
   const saved: MediaShortcutMap = { ...EMPTY_MEDIA_SHORTCUTS };
   const messages = [...plan.messages];
   for (const item of plan.register) {
     let ok = false;
     try {
-      ok = register(item.accelerator);
+      ok = register(item.accelerator, item.action);
     } catch {
       ok = false;
     }
     if (!ok) {
       messages.push(`${item.accelerator} 已被占用，${MEDIA_ACTION_LABEL[item.action]}没有生效。`);
+      const prior = previous[item.action];
+      if (prior.length > 0 && prior !== item.accelerator) {
+        let restored = false;
+        try {
+          restored = register(prior, item.action);
+        } catch {
+          restored = false;
+        }
+        if (restored) saved[item.action] = prior;
+      }
       continue;
     }
     saved[item.action] = item.accelerator;

@@ -2,9 +2,10 @@
 
 ## 0.8.2
 
-- 硬件媒体键（下一首、上一首、播放/暂停、停止）在窗口失焦、最小化、以及还没播放过时也会生效。Windows 上不再只靠 `navigator.mediaSession`：全局快捷键一直注册，聚焦窗口再收 `WM_APPCOMMAND`（`app-command` 与 `hookWindowMessage`）。
-- 同一次按键若同时到达快捷键、`WM_APPCOMMAND` 和 Media Session，只执行一次，避免播放/暂停被连点两次。
-- 「可编程按键」可保存额外组合键（例如 `Ctrl+Alt+Right`），给只能发普通按键的罗技 G HUB / Options+。注册失败或组合已被占用时，界面会写明原因，该组合不会假装生效。
+- 硬件媒体键（下一首、上一首、播放/暂停、停止）在窗口失焦、最小化、以及还没播放过时也会生效。Windows 上除了 `navigator.mediaSession`，还可以接管四个系统媒体键；聚焦窗口只走 `app-command` 这一条 `WM_APPCOMMAND`。
+- 「可编程按键」里的「接管系统媒体键」默认打开。关掉后不再用 `globalShortcut` 注册这四个键，Spotify 和浏览器可以继续用它们。Media Session、`WM_APPCOMMAND` 和自定义组合键仍然有效。开关立刻注册或注销。旁边注明「会抢占其他播放器的媒体键」。
+- 同一次按键若从另一个来源在约 300 毫秒内再到达，只执行一次。同一个来源连按两次都会执行。
+- 「可编程按键」可保存额外组合键（例如 `Ctrl+Alt+Right`，也接受 `F13`–`F24`），给只能发普通按键的罗技 G HUB / Options+。注册失败时退回上一个还能用的组合，并写明原因。
 - **Windows 真机验证仍待完成。** 本环境不能按下 `VK_MEDIA_*` 或罗技驱动发出的 `WM_APPCOMMAND`。
 - 健康检查版本为 `0.8.2`。
 

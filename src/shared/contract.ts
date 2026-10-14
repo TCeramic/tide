@@ -45,6 +45,7 @@ export const Ipc = {
   qualitySet: "tide:quality:set",
   mediaShortcutsGet: "tide:keys:get",
   mediaShortcutsSet: "tide:keys:set",
+  captureMediaKeysSet: "tide:keys:capture",
   hardwareKey: "tide:keys:hardware",
   playlistTracks: "tide:playlist:tracks",
   daily: "tide:recommend:daily",
@@ -222,8 +223,9 @@ export interface TideBridge {
   fmTrash(id: string): Promise<ApiFailure | { ok: true; message: string }>;
   getQuality(): Promise<AudioLevel>;
   setQuality(level: AudioLevel): Promise<AudioLevel>;
-  getMediaShortcuts(): Promise<{ shortcuts: { toggle: string; next: string; previous: string; stop: string }; messages: string[] }>;
+  getMediaShortcuts(): Promise<{ shortcuts: { toggle: string; next: string; previous: string; stop: string }; messages: string[]; captureMediaKeys: boolean }>;
   setMediaShortcuts(shortcuts: { toggle: string; next: string; previous: string; stop: string }): Promise<{ shortcuts: { toggle: string; next: string; previous: string; stop: string }; messages: string[] }>;
+  setCaptureMediaKeys(capture: boolean): Promise<{ captureMediaKeys: boolean }>;
   hardwareKey(action: "play" | "pause" | "next" | "previous" | "stop"): Promise<PlaybackSnapshot>;
   likeSong(id: string, like: boolean): Promise<ApiFailure | { ok: true; message: string }>;
   collectSong(playlistId: string, trackId: string): Promise<ApiFailure | { ok: true; message: string }>;

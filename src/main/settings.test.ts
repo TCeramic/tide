@@ -16,6 +16,7 @@ describe("settings", () => {
       motion: 1,
       quality: "standard",
       mediaShortcuts: { ...EMPTY_MEDIA_SHORTCUTS },
+      captureMediaKeys: true,
     });
     assert.deepEqual(settingsFromUnknown({ volume: -1, stageLevel: 2, chromeVisible: false, theme: "dusk", motion: 2, quality: "hires" }), {
       volume: 0,
@@ -25,6 +26,7 @@ describe("settings", () => {
       motion: 1,
       quality: "hires",
       mediaShortcuts: { ...EMPTY_MEDIA_SHORTCUTS },
+      captureMediaKeys: true,
     });
     assert.deepEqual(settingsFromUnknown({ volume: "0.2", motion: 0, quality: "surround" }), {
       volume: 0.8,
@@ -34,8 +36,11 @@ describe("settings", () => {
       motion: 0,
       quality: "standard",
       mediaShortcuts: { ...EMPTY_MEDIA_SHORTCUTS },
+      captureMediaKeys: true,
     });
     assert.equal("cookie" in settingsFromUnknown({ volume: 0.5, cookie: "MUSIC_U=secret" }), false);
+    assert.equal(settingsFromUnknown({}).captureMediaKeys, true);
+    assert.equal(settingsFromUnknown({ captureMediaKeys: false }).captureMediaKeys, false);
   });
 
   it("restores volume from disk and drops anything else", () => {
@@ -54,7 +59,10 @@ describe("settings", () => {
       motion: 1,
       quality: "standard",
       mediaShortcuts: { ...EMPTY_MEDIA_SHORTCUTS },
+      captureMediaKeys: true,
     });
+    store.write({ captureMediaKeys: false });
+    assert.equal(store.read().captureMediaKeys, false);
     store.write({ theme: "dusk", motion: 0 });
     const themed = JSON.parse(fs.readFileSync(file, "utf8")) as Record<string, unknown>;
     assert.equal(themed.theme, "dusk");

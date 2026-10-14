@@ -2,16 +2,14 @@ import { app, BrowserWindow, globalShortcut, ipcMain } from "electron";
 import path from "node:path";
 import { isAudioLevel } from "../core/audio-level";
 import {
-  MEDIA_SHORTCUTS,
-  WM_APPCOMMAND,
   applyShortcutPlan,
-  appCommandFromLParam,
   appCommandName,
   createMediaDeduper,
   isMediaAction,
   mediaShortcutsFromUnknown,
   planCustomShortcuts,
   shortcutAction,
+  syncSystemMediaKeys,
   type MediaAction,
   type MediaSource,
 } from "../core/media-keys";
@@ -51,16 +49,6 @@ function bindHardwareWindow(win: BrowserWindow): void {
     event.preventDefault();
     runHardware("app-command", action);
   });
-  if (process.platform !== "win32") return;
-  try {
-    win.hookWindowMessage(WM_APPCOMMAND, (_wParam, lParam) => {
-      const value = lParam.length >= 4 ? lParam.readUInt32LE(0) : 0;
-      const action = appCommandFromLParam(value);
-      if (action) runHardware("app-command", action);
-    });
-  } catch {
-    // This window cannot hook WM_APPCOMMAND. The global media shortcut still runs.
-  }
 }
 
 function createWindow(): BrowserWindow {
@@ -201,38 +189,44 @@ app.whenReady().then(async () => {
 
   runHardware = (source, action) => {
     if (!isMediaAction(action)) return;
-    if (!mediaDeduper.accept(action, Date.now())) return;
-    void source;
+    if (!mediaDeduper.accept(action, source, Date.now())) return;
     performHardware(action);
   };
 
-  const missed: string[] = [];
-  for (const accelerator of MEDIA_SHORTCUTS) {
-    const action = shortcutAction(accelerator);
-    if (!action) continue;
-    try {
-      const ok = globalShortcut.register(accelerator, () => {
-        runHardware("shortcut", action);
-      });
-      if (!ok) missed.push(accelerator);
-    } catch {
-      missed.push(accelerator);
-    }
-  }
+  const registeredSystem: string[] = [];
+  const syncCapture = (capture: boolean) => {
+    const result = syncSystemMediaKeys(
+      capture,
+      registeredSystem,
+      (accelerator) => {
+        const action = shortcutAction(accelerator);
+        if (!action) return false;
+        return globalShortcut.register(accelerator, () => {
+          runHardware("shortcut", action);
+        });
+      },
+      (accelerator) => {
+        globalShortcut.unregister(accelerator);
+      },
+    );
+    registeredSystem.splice(0, registeredSystem.length, ...result.active);
+    return result.missed;
+  };
+  const missed = syncCapture(settings.read().captureMediaKeys);
   const builtinMediaWarning = missed.length > 0
     ? "系统媒体键没有注册成功，可能已被占用。可在「可编程按键」里改用 Ctrl+Alt+方向键。"
     : null;
 
   const applyCustomShortcuts = (desired: ReturnType<typeof mediaShortcutsFromUnknown>) => {
+    const previous = settings.read().mediaShortcuts;
     for (const accelerator of registeredCustom) globalShortcut.unregister(accelerator);
     registeredCustom.clear();
     const plan = planCustomShortcuts(desired);
-    const outcome = applyShortcutPlan(plan, (accelerator) => {
-      const item = plan.register.find((entry) => entry.accelerator === accelerator);
+    const outcome = applyShortcutPlan(plan, previous, (accelerator, action) => {
       let ok = false;
       try {
         ok = globalShortcut.register(accelerator, () => {
-          if (item) runHardware("shortcut", item.action);
+          runHardware("shortcut", action);
         });
       } catch {
         ok = false;
@@ -249,7 +243,18 @@ app.whenReady().then(async () => {
   ipcMain.handle(Ipc.mediaShortcutsGet, () => ({
     shortcuts: settings.read().mediaShortcuts,
     messages: shortcutMessages,
+    captureMediaKeys: settings.read().captureMediaKeys,
   }));
+  ipcMain.handle(Ipc.captureMediaKeysSet, (_event, value: unknown) => {
+    const capture = value !== false;
+    settings.write({ captureMediaKeys: capture });
+    const failed = syncCapture(capture);
+    const win = mainWindow;
+    if (failed.length > 0 && win && !win.isDestroyed()) {
+      win.webContents.send(Ipc.notice, "系统媒体键没有注册成功，可能已被占用。可在「可编程按键」里改用 Ctrl+Alt+方向键。");
+    }
+    return { captureMediaKeys: settings.read().captureMediaKeys };
+  });
   ipcMain.handle(Ipc.mediaShortcutsSet, (_event, value: unknown) => {
     const outcome = applyCustomShortcuts(mediaShortcutsFromUnknown(value));
     settings.write({ mediaShortcuts: outcome.saved });
@@ -359,6 +364,7 @@ app.on("before-quit", () => {
   ipcMain.removeHandler(Ipc.qualitySet);
   ipcMain.removeHandler(Ipc.mediaShortcutsGet);
   ipcMain.removeHandler(Ipc.mediaShortcutsSet);
+  ipcMain.removeHandler(Ipc.captureMediaKeysSet);
   ipcMain.removeHandler(Ipc.hardwareKey);
   stopApi();
   const bus = commandServer;

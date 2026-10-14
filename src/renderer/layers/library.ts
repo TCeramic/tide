@@ -104,6 +104,18 @@ export function mountLibrary(root: HTMLElement): {
   const keyHelp = document.createElement("p");
   keyHelp.className = "library-note";
   keyHelp.textContent = "罗技 G HUB / Options+ 若只能发普通组合键，填成 Ctrl+Alt+Right 这种形式。系统媒体键不用填。Windows 真机仍需自行确认。";
+  const captureRow = document.createElement("label");
+  captureRow.className = "key-capture";
+  const captureBox = document.createElement("input");
+  captureBox.type = "checkbox";
+  captureBox.checked = true;
+  captureBox.setAttribute("aria-label", "接管系统媒体键");
+  const captureText = document.createElement("span");
+  captureText.textContent = "接管系统媒体键";
+  const captureHint = document.createElement("span");
+  captureHint.className = "key-hint";
+  captureHint.textContent = "会抢占其他播放器的媒体键";
+  captureRow.append(captureBox, captureText, captureHint);
   const keyForm = document.createElement("div");
   keyForm.className = "library-form";
   const keyInputs = {} as Record<(typeof MEDIA_CUSTOM_ACTIONS)[number], HTMLInputElement>;
@@ -127,7 +139,7 @@ export function mountLibrary(root: HTMLElement): {
   keyNote.className = "library-note";
   keyNote.hidden = true;
   keyForm.append(keySave);
-  keyPanel.append(keySummary, keyHelp, keyForm, keyNote);
+  keyPanel.append(keySummary, keyHelp, captureRow, keyForm, keyNote);
 
   const showKeyResult = (shortcuts: MediaShortcutMap, messages: string[]) => {
     for (const action of MEDIA_CUSTOM_ACTIONS) keyInputs[action].value = shortcuts[action];
@@ -515,6 +527,12 @@ export function mountLibrary(root: HTMLElement): {
   quality.addEventListener("change", () => {
     void window.tide.setQuality(quality.value as AudioLevel);
   });
+  captureBox.addEventListener("change", () => {
+    const wanted = captureBox.checked;
+    void window.tide.setCaptureMediaKeys(wanted).then((result) => {
+      captureBox.checked = result.captureMediaKeys;
+    });
+  });
   keySave.addEventListener("click", () => {
     const shortcuts: MediaShortcutMap = {
       toggle: keyInputs.toggle.value,
@@ -533,6 +551,7 @@ export function mountLibrary(root: HTMLElement): {
   });
   void window.tide.getMediaShortcuts().then((result) => {
     showKeyResult(result.shortcuts, result.messages);
+    captureBox.checked = result.captureMediaKeys;
   });
   void window.tide.getQuality().then((level) => {
     if ((AUDIO_LEVELS as readonly string[]).includes(level)) quality.value = level;

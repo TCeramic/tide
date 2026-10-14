@@ -91,17 +91,17 @@ src/main/command-server.ts 127.0.0.1 上的指令 HTTP / WebSocket
 
 罗技 G HUB、Options+ 一类驱动通常发出系统媒体键（`VK_MEDIA_NEXT_TRACK`、`VK_MEDIA_PREV_TRACK`、`VK_MEDIA_PLAY_PAUSE`、`VK_MEDIA_STOP`）或 `WM_APPCOMMAND`。潮汐对这四件事各做一次：下一首、上一首、播放/暂停、停止。
 
-0.8.1 在 Windows 上只靠 `navigator.mediaSession`。Electron 里这条通道在窗口失焦、最小化、或还没有任何曲目开始播放时收不到硬件键（还没有系统媒体会话，Chromium 也只在聚焦窗口里看到这些消息）。0.8.2 因此始终注册全局媒体快捷键，覆盖这三种状态。窗口聚焦时另外监听 `app-command`，并在 Windows 上用 `hookWindowMessage(WM_APPCOMMAND)` 兜底。若同一次按键又进了 Media Session，大约 300 毫秒内的重复会被丢掉，播放/暂停不会连切两次。
+0.8.1 在 Windows 上只靠 `navigator.mediaSession`。Electron 里这条通道在窗口失焦、最小化、或还没有任何曲目开始播放时收不到硬件键（还没有系统媒体会话，Chromium 也只在聚焦窗口里看到这些消息）。0.8.2 在「可编程按键」里加了「接管系统媒体键」，默认打开。打开时注册四个全局媒体键，覆盖这三种状态；关掉后不再注册，其它播放器可以继续接收这些键。旁边写着「会抢占其他播放器的媒体键」。开关会立刻注册或注销。Media Session 和自定义组合键不受这个开关影响。窗口聚焦时另外只监听 `app-command`（不再同时挂钩 `hookWindowMessage`）。同一个动作若在约 300 毫秒内从另一个来源再来一次，会被丢掉；同一个来源连按两次都会执行。
 
 在 G HUB 或 Options+ 里：
 
-1. 把可编程键设成媒体功能：下一首、上一首、播放/暂停、停止。同一个物理键不要再绑第二条宏。
-2. 驱动如果只能发普通组合键，就设成例如 `Ctrl+Alt+Right`（下一首）、`Ctrl+Alt+Left`（上一首）、`Ctrl+Alt+Space`（播放/暂停）、`Ctrl+Alt+Down`（停止）。然后在潮汐左侧打开「可编程按键」，填入同一组组合并保存。组合无效、和另一项重复、或 `globalShortcut.register` 失败（已被占用）时，红色说明会出现，该项不会假装已生效。
+1. 把可编程键设成媒体功能：下一首、上一首、播放/暂停、停止。同一个物理键不要再绑第二条宏。若这些键还要留给 Spotify 或浏览器，把「接管系统媒体键」关掉。
+2. 驱动如果只能发普通组合键，就设成例如 `Ctrl+Alt+Right`（下一首）、`Ctrl+Alt+Left`（上一首）、`Ctrl+Alt+Space`（播放/暂停）、`Ctrl+Alt+Down`（停止），或 `Ctrl+Shift+F13` 这种 F13–F24。然后在潮汐左侧打开「可编程按键」，填入同一组组合并保存。组合无效或和另一项重复时会有红色说明。`globalShortcut.register` 失败时退回上一个已经生效的组合，并写明「已被占用」。
 3. 一个物理键只对应一个动作。不要把系统媒体键和自定义组合同时绑在同一个键上。
 
 **Windows 真机验证仍待完成。** 开发环境不能替一台 Windows 机器按下罗技键或 `VK_MEDIA_*`。
 
-Logitech G HUB and Options+ usually send a media virtual key or `WM_APPCOMMAND`. Tide maps next, previous, play/pause, and stop, and keeps a single action when the same press also reaches Media Session. `navigator.mediaSession` alone misses keys while the window is unfocused, minimized, or before the first playback; a global media shortcut covers those states, with `WM_APPCOMMAND` as the focused-window fallback. If the driver can only send an ordinary combo, put that combo in 可编程按键. A failed or taken registration is shown and is not stored as active. **A real Windows machine still has to confirm this.**
+Logitech G HUB and Options+ usually send a media virtual key or `WM_APPCOMMAND`. Tide maps next, previous, play/pause, and stop. **接管系统媒体键** defaults to on and registers the four media keys; turn it off to leave them for other players. Media Session, the focused-window `app-command` path, and custom combos stay either way. A second delivery of the same action from another source inside about 300ms is dropped; two presses from one source both run. Custom combos accept F13–F24. If a new combo cannot be registered, Tide puts the previous working combo back. **A real Windows machine still has to confirm this.**
 
 ## 歌单和推荐 / Playlists and recommendations
 

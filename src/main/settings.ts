@@ -10,6 +10,8 @@ export interface TideSettings extends Appearance {
   quality: AudioLevel;
   /** Optional accelerators for drivers that cannot send media keys. Empty means unset. */
   mediaShortcuts: MediaShortcutMap;
+  /** When on, Tide registers the four system media keys and other players lose them. */
+  captureMediaKeys: boolean;
 }
 
 const DEFAULT_VOLUME = 0.8;
@@ -30,7 +32,8 @@ export function settingsFromUnknown(value: unknown): TideSettings {
     : 1;
   const quality: AudioLevel = isAudioLevel(record.quality) ? record.quality : "standard";
   const mediaShortcuts = mediaShortcutsFromUnknown(record.mediaShortcuts);
-  return { volume, chromeVisible, stageLevel, theme, motion, quality, mediaShortcuts };
+  const captureMediaKeys = typeof record.captureMediaKeys === "boolean" ? record.captureMediaKeys : true;
+  return { volume, chromeVisible, stageLevel, theme, motion, quality, mediaShortcuts, captureMediaKeys };
 }
 
 function clamp(value: number): number {
@@ -44,7 +47,7 @@ export class SettingsStore {
     try {
       return settingsFromUnknown(JSON.parse(fs.readFileSync(this.filePath, "utf8")));
     } catch {
-      return { volume: DEFAULT_VOLUME, chromeVisible: true, stageLevel: 1, theme: "tide", motion: 1, quality: "standard", mediaShortcuts: { ...EMPTY_MEDIA_SHORTCUTS } };
+      return { volume: DEFAULT_VOLUME, chromeVisible: true, stageLevel: 1, theme: "tide", motion: 1, quality: "standard", mediaShortcuts: { ...EMPTY_MEDIA_SHORTCUTS }, captureMediaKeys: true };
     }
   }
 
