@@ -53,3 +53,69 @@ export function currentLyricIndex(lines: readonly LyricLine[], positionMs: numbe
   }
   return index;
 }
+
+export interface LyricPair {
+  timeMs: number;
+  original: string;
+  translation: string;
+}
+
+const PAIR_WINDOW_MS = 1_500;
+
+/** Stack a translation under the original line when their stamps are close. */
+export function pairLyrics(original: readonly LyricLine[], translation: readonly LyricLine[]): LyricPair[] {
+  return original.map((line) => {
+    let best = "";
+    let bestDelta = PAIR_WINDOW_MS + 1;
+    for (const row of translation) {
+      const delta = Math.abs(row.timeMs - line.timeMs);
+      if (delta < bestDelta) {
+        bestDelta = delta;
+        best = row.text;
+      }
+    }
+    return {
+      timeMs: line.timeMs,
+      original: line.text,
+      translation: bestDelta <= PAIR_WINDOW_MS ? best : "",
+    };
+  });
+}
+
+export interface DeskLineCue {
+  title: string;
+  previous: string;
+  current: string;
+  translation: string;
+  next: string;
+  empty: boolean;
+}
+
+/** Current desktop-lyric frame. An empty lyric keeps the title and no blank translation row. */
+export function deskLineCue(
+  original: readonly LyricLine[],
+  translation: readonly LyricLine[],
+  positionMs: number,
+  offsetMs: number,
+  title: string,
+): DeskLineCue {
+  const pairs = pairLyrics(original, translation);
+  const safeTitle = title.trim().slice(0, 200);
+  if (pairs.length === 0) {
+    return { title: safeTitle, previous: "", current: "", translation: "", next: "", empty: true };
+  }
+  const index = currentLyricIndex(
+    pairs.map((row) => ({ timeMs: row.timeMs, text: row.original })),
+    lyricPosition(positionMs, offsetMs),
+  );
+  const at = (cursor: number) => (cursor >= 0 && cursor < pairs.length ? pairs[cursor] : undefined);
+  const current = at(index);
+  return {
+    title: safeTitle,
+    previous: at(index - 1)?.original ?? "",
+    current: current?.original ?? "",
+    translation: current?.translation ?? "",
+    next: at(index + 1)?.original ?? "",
+    empty: false,
+  };
+}

@@ -1,4 +1,5 @@
 import type { PlaylistSummary, SearchHit } from "../shared/contract";
+import { applyLike, isLiked } from "./liked";
 
 export function songPageUrl(id: string): string {
   return `https://music.163.com/song?id=${encodeURIComponent(id)}`;
@@ -40,15 +41,17 @@ export function fillTrackList(
       });
     }
 
-    const like = iconButton("喜欢", "♡");
+    const likedNow = isLiked(hit.id, hit.liked);
+    const like = iconButton(likedNow ? "取消喜欢" : "喜欢", likedNow ? "♥" : "♡");
+    like.classList.toggle("on", likedNow);
     like.addEventListener("click", () => {
-      void window.tide.likeSong(hit.id, !like.classList.contains("on")).then((result) => {
+      const wanted = !isLiked(hit.id, hit.liked);
+      void window.tide.likeSong(hit.id, wanted).then((result) => {
         if (!result.ok) {
           note(result.message, true);
           return;
         }
-        like.classList.toggle("on");
-        like.textContent = like.classList.contains("on") ? "♥" : "♡";
+        applyLike(hit.id, result.liked);
         note(result.message, false);
       });
     });

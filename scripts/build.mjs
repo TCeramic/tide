@@ -48,5 +48,20 @@ await build({
   logLevel: "info",
 });
 
+await build({
+  entryPoints: [path.join(root, "src/renderer/desk.ts")],
+  bundle: true,
+  platform: "browser",
+  format: "iife",
+  target: "es2022",
+  sourcemap: true,
+  outfile: path.join(dist, "desk.js"),
+  logLevel: "info",
+});
+
 await cp(path.join(root, "src/renderer/index.html"), path.join(dist, "index.html"));
 await cp(path.join(root, "src/renderer/styles.css"), path.join(dist, "styles.css"));
+await cp(path.join(root, "src/renderer/desk.html"), path.join(dist, "desk.html"));
+await cp(path.join(root, "src/renderer/desk.css"), path.join(dist, "desk.css"));
+await cp(path.join(root, "build/icon.ico"), path.join(dist, "icon.ico"));
+await cp(path.join(root, "build/icon.png"), path.join(dist, "icon.png"));

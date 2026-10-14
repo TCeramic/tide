@@ -1,5 +1,17 @@
 # 更新记录 / Changelog
 
+## 0.8.3
+
+- 底栏上一首、播放/暂停、下一首和音量改成看得见的图标按钮。底栏不再显示「本地 API」。
+- 歌词默认原文和翻译叠在一起。还可以只看原文、只看翻译或罗马音。「偏移量」收进折叠区。
+- 喜欢状态读取网易云 `likelist`。列表、队列和当前曲的心形按真实 id 点亮。取消喜欢仍传字符串 `"false"`。
+- 「可编程按键」改名为「热键」，放进「设置」。系统媒体键接管开关也在这里。
+- 桌面歌词：独立透明置顶窗口，关掉即销毁。解锁可拖，锁定后点击穿透，`Ctrl+Alt+L` 锁定或解锁。可调字号、字色、透明度。当前行高亮。有翻译时双行显示。主窗口最小化时仍刷新。不默认磁吸。
+- Windows 图标换成官方深海波浪标，含 256、128、64、48、32、16。小尺寸加粗了高光。
+- 健康检查版本为 `0.8.3`。
+
+Bottom-bar icons stay visible. Lyrics default to original plus translation. Liked hearts follow `likelist`. Hotkeys live under Settings. Desktop lyrics are an optional always-on-top overlay. The Windows icon is the official wave mark. Health is `0.8.3`.
+
 ## 0.8.2
 
 - 硬件媒体键（下一首、上一首、播放/暂停、停止）在窗口失焦、最小化、以及还没播放过时也会生效。Windows 上除了 `navigator.mediaSession`，还可以接管四个系统媒体键；聚焦窗口只走 `app-command` 这一条 `WM_APPCOMMAND`。

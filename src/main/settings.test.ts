@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
+import { DEFAULT_DESK_LYRICS } from "../core/desk-lyrics";
 import { EMPTY_MEDIA_SHORTCUTS } from "../core/media-keys";
 import { SettingsStore, settingsFromUnknown } from "./settings";
 
@@ -17,6 +18,7 @@ describe("settings", () => {
       quality: "standard",
       mediaShortcuts: { ...EMPTY_MEDIA_SHORTCUTS },
       captureMediaKeys: true,
+      deskLyrics: { ...DEFAULT_DESK_LYRICS },
     });
     assert.deepEqual(settingsFromUnknown({ volume: -1, stageLevel: 2, chromeVisible: false, theme: "dusk", motion: 2, quality: "hires" }), {
       volume: 0,
@@ -27,6 +29,7 @@ describe("settings", () => {
       quality: "hires",
       mediaShortcuts: { ...EMPTY_MEDIA_SHORTCUTS },
       captureMediaKeys: true,
+      deskLyrics: { ...DEFAULT_DESK_LYRICS },
     });
     assert.deepEqual(settingsFromUnknown({ volume: "0.2", motion: 0, quality: "surround" }), {
       volume: 0.8,
@@ -37,6 +40,7 @@ describe("settings", () => {
       quality: "standard",
       mediaShortcuts: { ...EMPTY_MEDIA_SHORTCUTS },
       captureMediaKeys: true,
+      deskLyrics: { ...DEFAULT_DESK_LYRICS },
     });
     assert.equal("cookie" in settingsFromUnknown({ volume: 0.5, cookie: "MUSIC_U=secret" }), false);
     assert.equal(settingsFromUnknown({}).captureMediaKeys, true);
@@ -60,6 +64,7 @@ describe("settings", () => {
       quality: "standard",
       mediaShortcuts: { ...EMPTY_MEDIA_SHORTCUTS },
       captureMediaKeys: true,
+      deskLyrics: { ...DEFAULT_DESK_LYRICS },
     });
     store.write({ captureMediaKeys: false });
     assert.equal(store.read().captureMediaKeys, false);

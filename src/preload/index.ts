@@ -1,7 +1,8 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 import type { AudioLevel } from "../core/audio-level";
+import type { DeskLyricsSettings } from "../core/desk-lyrics";
 import { mediaKeyMode, type MediaShortcutMap } from "../core/media-keys";
-import { Ipc, type ApiFailure, type Appearance, type HealthStatus, type LyricPayload, type MediaCue, type PlaybackBusEvent, type PlaybackSnapshot, type QrCheck, type QrTicket, type QueueRequest, type SearchHit, type SearchResult, type SessionSnapshot, type TideBridge, type TideToday, type Track } from "../shared/contract";
+import { Ipc, type ApiFailure, type Appearance, type DeskCue, type HealthStatus, type LyricLine, type LyricPayload, type MediaCue, type PlaybackBusEvent, type PlaybackSnapshot, type QrCheck, type QrTicket, type QueueRequest, type SearchHit, type SearchResult, type SessionSnapshot, type TideBridge, type TideToday, type Track } from "../shared/contract";
 
 function listen<T>(channel: string, listener: (payload: T) => void): () => void {
   const wrapped = (_event: IpcRendererEvent, payload: T) => listener(payload);
@@ -47,7 +48,15 @@ const tide: TideBridge = {
   setMediaShortcuts: (shortcuts) => ipcRenderer.invoke(Ipc.mediaShortcutsSet, shortcuts) as Promise<{ shortcuts: MediaShortcutMap; messages: string[] }>,
   setCaptureMediaKeys: (capture) => ipcRenderer.invoke(Ipc.captureMediaKeysSet, capture) as Promise<{ captureMediaKeys: boolean }>,
   hardwareKey: (action) => ipcRenderer.invoke(Ipc.hardwareKey, action) as Promise<PlaybackSnapshot>,
-  likeSong: (id, like) => ipcRenderer.invoke(Ipc.likeSong, id, like) as Promise<ApiFailure | { ok: true; message: string }>,
+  likeSong: (id, like) => ipcRenderer.invoke(Ipc.likeSong, id, like) as Promise<ApiFailure | { ok: true; message: string; liked: boolean }>,
+  likedIds: () => ipcRenderer.invoke(Ipc.likedIds) as Promise<ApiFailure | { ok: true; known: boolean; ids: string[] }>,
+  getDeskLyrics: () => ipcRenderer.invoke(Ipc.deskGet) as Promise<DeskLyricsSettings>,
+  setDeskLyrics: (patch) => ipcRenderer.invoke(Ipc.deskSet, patch) as Promise<DeskLyricsSettings>,
+  onDeskState: (listener) => listen<DeskLyricsSettings>(Ipc.deskState, listener),
+  pushDeskLines: (payload: { trackId: string; title: string; original: LyricLine[]; translation: LyricLine[]; offsetMs: number }) => {
+    ipcRenderer.send(Ipc.deskLines, payload);
+  },
+  onDeskCue: (listener) => listen<DeskCue>(Ipc.deskCue, listener),
   collectSong: (playlistId, trackId) => ipcRenderer.invoke(Ipc.collectSong, playlistId, trackId) as Promise<ApiFailure | { ok: true; message: string }>,
   playNext: (hit: SearchHit) => ipcRenderer.invoke(Ipc.playNext, hit) as Promise<PlaybackSnapshot>,
   next: () => ipcRenderer.invoke(Ipc.next) as Promise<PlaybackSnapshot>,

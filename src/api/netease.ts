@@ -49,6 +49,7 @@ interface NcmModule {
   simi_song(query: { id: string; limit?: number; cookie?: string }): Promise<unknown>;
   lyric(query: { id: string; cookie?: string }): Promise<unknown>;
   like(query: { id: string; like: "true" | "false"; cookie?: string }): Promise<unknown>;
+  likelist(query: { uid: string; cookie?: string }): Promise<unknown>;
   playlist_tracks(query: { op: "add" | "del"; pid: string; tracks: string; cookie?: string }): Promise<unknown>;
   artist_songs(query: { id: string; limit?: number; cookie?: string }): Promise<unknown>;
   album(query: { id: string; cookie?: string }): Promise<unknown>;
@@ -102,6 +103,8 @@ export interface NeteaseClient {
   fmTrash(id: string, cookie: string): Promise<void>;
   refreshLogin(cookie: string): Promise<LoginRefresh>;
   likeSong(id: string, like: boolean, cookie: string): Promise<void>;
+  /** Liked song ids from `likelist` (`/api/song/like/get`). */
+  likedIds(uid: string, cookie: string): Promise<string[]>;
   collectSong(playlistId: string, trackId: string, cookie: string): Promise<void>;
 }
 
@@ -196,6 +199,13 @@ export function createNeteaseClient(module: NcmModule = loadNeteaseModule()): Ne
         // NeteaseCloudMusicApi 4.32.0 treats anything other than the string "false" as a like.
         const flag = like ? "true" : "false";
         readMutation(await module.like(withCookie({ id, like: flag }, cookie)), "like_failed");
+      } catch (error) {
+        rethrowSignedOut(error);
+      }
+    },
+    async likedIds(uid, cookie) {
+      try {
+        return readLikeIds(await module.likelist(withCookie({ uid }, cookie)));
       } catch (error) {
         rethrowSignedOut(error);
       }
@@ -360,6 +370,28 @@ export function readCatalog(result: unknown, type: number): CatalogPage {
   return { hits: collectHits(record?.songs, null, MAX_HITS), artists: [], albums: [] };
 }
 
+/** `likelist` body is `{ code: 200, ids: number[] }`. Signed-out and other failures throw. */
+export function readLikeIds(result: unknown): string[] {
+  const body = bodyOf(result);
+  const code = asNumber(body?.code);
+  if (code === 301) throw new Error("signed_out");
+  if (code !== 200 || !body) throw new Error("likelist_failed");
+  const ids = body.ids;
+  if (!Array.isArray(ids)) return [];
+  const parsed: string[] = [];
+  for (const id of ids) {
+    const text = typeof id === "number" || typeof id === "string" ? String(id) : "";
+    if (/^\d{1,20}$/.test(text)) parsed.push(text);
+  }
+  return parsed;
+}
+
+/** Mark each row from the liked-id list. Ids absent from the list are explicitly not liked. */
+export function markLiked<T extends { id: string }>(hits: readonly T[], ids: readonly string[]): Array<T & { liked: boolean }> {
+  const liked = new Set(ids);
+  return hits.map((hit) => ({ ...hit, liked: liked.has(hit.id) }));
+}
+
 export function readMutation(result: unknown, failed: string): void {
   const code = mutationCode(result);
   if (code === 301) throw new Error("signed_out");
@@ -454,13 +486,15 @@ function toHit(
   const name = typeof song.name === "string" ? song.name.trim() : "";
   if (!/^\d{1,20}$/.test(id) || name.length === 0) return null;
   const duration = asNumber(song.dt) ?? asNumber(song.duration);
-  return {
+  const hit: SearchHit = {
     id,
     title: name.slice(0, 200),
     artist: readArtists(song.ar ?? song.artists ?? song.ar),
     durationMs: duration == null ? 0 : Math.min(MAX_DURATION_MS, Math.max(0, Math.trunc(duration))),
     playable: playableOf(song, privilege, unknownPlayable),
   };
+  if (song.liked === true) hit.liked = true;
+  return hit;
 }
 
 function playableOf(

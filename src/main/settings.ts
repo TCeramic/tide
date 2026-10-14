@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { isAudioLevel, type AudioLevel } from "../core/audio-level";
+import { deskSettingsFromUnknown, type DeskLyricsSettings } from "../core/desk-lyrics";
 import { EMPTY_MEDIA_SHORTCUTS, mediaShortcutsFromUnknown, type MediaShortcutMap } from "../core/media-keys";
 import { isThemeId, type Appearance, type ThemeId } from "../shared/contract";
 
@@ -12,6 +13,7 @@ export interface TideSettings extends Appearance {
   mediaShortcuts: MediaShortcutMap;
   /** When on, Tide registers the four system media keys and other players lose them. */
   captureMediaKeys: boolean;
+  deskLyrics: DeskLyricsSettings;
 }
 
 const DEFAULT_VOLUME = 0.8;
@@ -33,7 +35,8 @@ export function settingsFromUnknown(value: unknown): TideSettings {
   const quality: AudioLevel = isAudioLevel(record.quality) ? record.quality : "standard";
   const mediaShortcuts = mediaShortcutsFromUnknown(record.mediaShortcuts);
   const captureMediaKeys = typeof record.captureMediaKeys === "boolean" ? record.captureMediaKeys : true;
-  return { volume, chromeVisible, stageLevel, theme, motion, quality, mediaShortcuts, captureMediaKeys };
+  const deskLyrics = deskSettingsFromUnknown(record.deskLyrics);
+  return { volume, chromeVisible, stageLevel, theme, motion, quality, mediaShortcuts, captureMediaKeys, deskLyrics };
 }
 
 function clamp(value: number): number {
@@ -47,7 +50,7 @@ export class SettingsStore {
     try {
       return settingsFromUnknown(JSON.parse(fs.readFileSync(this.filePath, "utf8")));
     } catch {
-      return { volume: DEFAULT_VOLUME, chromeVisible: true, stageLevel: 1, theme: "tide", motion: 1, quality: "standard", mediaShortcuts: { ...EMPTY_MEDIA_SHORTCUTS }, captureMediaKeys: true };
+      return { volume: DEFAULT_VOLUME, chromeVisible: true, stageLevel: 1, theme: "tide", motion: 1, quality: "standard", mediaShortcuts: { ...EMPTY_MEDIA_SHORTCUTS }, captureMediaKeys: true, deskLyrics: deskSettingsFromUnknown(undefined) };
     }
   }
 

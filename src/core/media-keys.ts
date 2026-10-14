@@ -1,5 +1,7 @@
 /** OS media keys, WM_APPCOMMAND, and optional custom accelerators. */
 
+import { DESK_LOCK_ACCELERATOR } from "./desk-lyrics";
+
 export const MEDIA_SHORTCUTS = ["MediaPlayPause", "MediaNextTrack", "MediaPreviousTrack", "MediaStop"] as const;
 
 export type MediaShortcut = (typeof MEDIA_SHORTCUTS)[number];
@@ -287,6 +289,10 @@ export function planCustomShortcuts(desired: MediaShortcutMap): {
     }
     if (isBuiltinMediaAccelerator(accelerator)) {
       messages.push(`${label}不用再设媒体键，系统媒体键已经可用。`);
+      continue;
+    }
+    if (accelerator === DESK_LOCK_ACCELERATOR || accelerator === "Ctrl+Alt+L") {
+      messages.push(`${label}的 ${accelerator} 留给桌面歌词锁定。`);
       continue;
     }
     const owner = used.get(accelerator);

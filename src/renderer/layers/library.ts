@@ -1,6 +1,8 @@
 import { AUDIO_LEVELS, AUDIO_LEVEL_LABEL, type AudioLevel } from "../../core/audio-level";
 import { MEDIA_ACTION_LABEL, MEDIA_CUSTOM_ACTIONS, type MediaShortcutMap } from "../../core/media-keys";
 import type { ApiFailure, PlaybackSnapshot, PlaylistSummary, SearchHit, SearchResult, SessionSnapshot } from "../../shared/contract";
+import { mountDeskForm } from "./desk-form";
+import { applyLike, isLiked, onLiked, setLikedIds } from "../liked";
 import { fillTrackList } from "../track-row";
 
 /** Search, login, and playlist list inside #chrome. */
@@ -100,10 +102,10 @@ export function mountLibrary(root: HTMLElement): {
   const keyPanel = document.createElement("details");
   keyPanel.className = "key-panel";
   const keySummary = document.createElement("summary");
-  keySummary.textContent = "可编程按键";
+  keySummary.textContent = "热键";
   const keyHelp = document.createElement("p");
   keyHelp.className = "library-note";
-  keyHelp.textContent = "罗技 G HUB / Options+ 若只能发普通组合键，填成 Ctrl+Alt+Right 这种形式。系统媒体键不用填。Windows 真机仍需自行确认。";
+  keyHelp.textContent = "罗技 G HUB / Options+ 若只能发普通组合键，填成 Ctrl+Alt+Right 这种形式。系统媒体键不用填。";
   const captureRow = document.createElement("label");
   captureRow.className = "key-capture";
   const captureBox = document.createElement("input");
@@ -201,8 +203,14 @@ export function mountLibrary(root: HTMLElement): {
   const busStatus = document.createElement("p");
   busStatus.className = "library-note";
   busStatus.textContent = "状态：空闲";
-  const busPort = button("在底栏显示端口");
-  bus.append(busSummary, busBody, busPlay, busPause, busStatus, busPort);
+  bus.append(busSummary, busBody, busPlay, busPause, busStatus);
+
+  const settingsPanel = document.createElement("details");
+  settingsPanel.className = "settings-panel";
+  const settingsSummary = document.createElement("summary");
+  settingsSummary.textContent = "设置";
+  const deskForm = mountDeskForm();
+  settingsPanel.append(settingsSummary, keyPanel, deskForm.element);
 
   panel.append(
     searchHeading,
@@ -213,7 +221,7 @@ export function mountLibrary(root: HTMLElement): {
     tideHeading,
     tideActions,
     queueDetails,
-    keyPanel,
+    settingsPanel,
     recommendHeading,
     recommend,
     bus,
@@ -250,7 +258,15 @@ export function mountLibrary(root: HTMLElement): {
     note.classList.add("warn");
   };
 
+  const refreshLiked = () => {
+    void window.tide.likedIds().then((result) => {
+      if (!result.ok || disposed) return;
+      setLikedIds(result.ids, result.known);
+    });
+  };
+
   const render = (session: SessionSnapshot) => {
+    refreshLiked();
     heading.textContent = session.user?.nickname
       ?? (session.state === "invalid" ? "需要重新登录" : "登录网易云");
     note.textContent = session.message ?? "";
@@ -373,7 +389,9 @@ export function mountLibrary(root: HTMLElement): {
     void refreshSession();
   });
 
+  let shownHits: SearchHit[] = [];
   const renderHits = (rows: SearchHit[]) => {
+    shownHits = rows;
     fillTrackList(hits, rows, playlists, showSearchNote);
   };
 
@@ -452,7 +470,9 @@ export function mountLibrary(root: HTMLElement): {
   });
 
   let dragging = -1;
+  let lastQueue: PlaybackSnapshot | null = null;
   const renderQueue = (snapshot: PlaybackSnapshot) => {
+    lastQueue = snapshot;
     queueSummary.textContent = snapshot.queue.length === 0 ? "播放队列" : `播放队列 · ${snapshot.queue.length}`;
     queueList.replaceChildren();
     snapshot.queue.forEach((track, index) => {
@@ -470,6 +490,24 @@ export function mountLibrary(root: HTMLElement): {
         dragging = -1;
         if (from < 0 || from === index) return;
         void window.tide.queueMove(from, index);
+      });
+      const like = document.createElement("button");
+      like.type = "button";
+      like.className = "icon-button queue-like";
+      const liked = isLiked(track.id);
+      like.classList.toggle("on", liked);
+      like.textContent = liked ? "♥" : "♡";
+      like.setAttribute("aria-label", liked ? "取消喜欢" : "喜欢");
+      like.addEventListener("click", () => {
+        const wanted = !isLiked(track.id);
+        void window.tide.likeSong(track.id, wanted).then((result) => {
+          if (!result.ok) {
+            showSearchNote(result.message, true);
+            return;
+          }
+          applyLike(track.id, result.liked);
+          showSearchNote(result.message, false);
+        });
       });
       const name = document.createElement("button");
       name.type = "button";
@@ -492,7 +530,7 @@ export function mountLibrary(root: HTMLElement): {
       remove.addEventListener("click", () => {
         void window.tide.queueRemove(index);
       });
-      item.append(name, up, down, remove);
+      item.append(like, name, up, down, remove);
       queueList.append(item);
     });
   };
@@ -610,12 +648,6 @@ export function mountLibrary(root: HTMLElement): {
   busPause.addEventListener("click", () => {
     void window.tide.pause();
   });
-  busPort.addEventListener("click", () => {
-    const next = localStorage.getItem("tide.debug.port") === "1" ? "0" : "1";
-    localStorage.setItem("tide.debug.port", next);
-    busPort.textContent = next === "1" ? "隐藏底栏端口" : "在底栏显示端口";
-    window.dispatchEvent(new Event("tide-debug-port"));
-  });
 
   searchForm.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -671,7 +703,10 @@ export function mountLibrary(root: HTMLElement): {
     }
   };
 
-  if (localStorage.getItem("tide.debug.port") === "1") busPort.textContent = "隐藏底栏端口";
+  const stopLiked = onLiked(() => {
+    fillTrackList(hits, shownHits, playlists, showSearchNote);
+    if (lastQueue) renderQueue(lastQueue);
+  });
 
   return {
     setBusPort(port) {
@@ -712,6 +747,8 @@ export function mountLibrary(root: HTMLElement): {
     destroy() {
       disposed = true;
       stopPoll();
+      stopLiked();
+      deskForm.destroy();
       panel.remove();
     },
   };

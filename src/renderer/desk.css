@@ -1,0 +1,67 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+  -webkit-app-region: drag;
+}
+
+.stack {
+  box-sizing: border-box;
+  height: 100%;
+  padding: 8px 28px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.prev,
+.current,
+.trans,
+.next {
+  margin: 0;
+  max-width: 100%;
+  line-height: 1.25;
+  word-break: break-word;
+  color: var(--desk-color, #f7fbfc);
+  text-shadow:
+    0 0 1px rgba(255, 255, 255, 0.92),
+    0 1px 0 rgba(0, 0, 0, 0.28),
+    0 -1px 0 rgba(0, 0, 0, 0.28),
+    1px 0 0 rgba(0, 0, 0, 0.22),
+    -1px 0 0 rgba(0, 0, 0, 0.22),
+    0 2px 10px rgba(0, 0, 0, 0.42);
+}
+
+.prev,
+.next {
+  font-size: calc(var(--desk-size, 32px) * 0.62);
+  opacity: calc(var(--desk-opacity, 1) * 0.42);
+}
+
+.current {
+  font-size: var(--desk-size, 32px);
+  font-weight: 650;
+  opacity: var(--desk-opacity, 1);
+}
+
+.current.tick {
+  animation: desk-rise 0.42s cubic-bezier(0.22, 0.8, 0.24, 1);
+}
+
+.trans {
+  margin-top: 2px;
+  font-size: calc(var(--desk-size, 32px) * 0.58);
+  font-weight: 500;
+  opacity: calc(var(--desk-opacity, 1) * 0.9);
+}
+
+@keyframes desk-rise {
+  from { transform: translateY(12px); }
+  to { transform: translateY(0); }
+}

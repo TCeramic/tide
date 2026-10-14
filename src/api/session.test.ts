@@ -104,6 +104,9 @@ function fakeNetease(): NeteaseClient & { checks: number; expired: boolean } {
     async likeSong() {
       return undefined;
     },
+    async likedIds() {
+      return ["1"];
+    },
     async collectSong() {
       return undefined;
     },
@@ -134,7 +137,7 @@ interface Payload {
   user?: { nickname?: string } | null;
   playlists?: { name?: string }[];
   session?: { state?: string } | null;
-  hits?: { id?: string; title?: string; playable?: boolean }[];
+  hits?: { id?: string; title?: string; playable?: boolean; liked?: boolean }[];
   url?: string | null;
   signedOut?: boolean;
   level?: string;
@@ -285,7 +288,9 @@ describe("session routes", { concurrency: 1 }, () => {
     const playlist = await call(port, "GET", "/playlist/tracks?id=9");
     assert.equal(playlist.status, 200);
     assert.equal(playlist.json.hits?.[0]?.playable, true);
+    assert.equal(playlist.json.hits?.[0]?.liked, true);
     assert.equal(playlist.json.hits?.[1]?.playable, false);
+    assert.equal(playlist.json.hits?.[1]?.liked, false);
     assert.equal(JSON.stringify(playlist.json).includes("MUSIC_U"), false);
     const daily = await call(port, "GET", "/recommend/daily");
     assert.equal(daily.json.hits?.[0]?.title, "日推");
