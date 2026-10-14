@@ -141,15 +141,27 @@ export class SessionService {
   }
 
   async lyric(id: string): Promise<LyricBundle> {
-    const empty: LyricBundle = { lyric: "", translation: "", romaji: "" };
+    const empty: LyricBundle = { lyric: "", translation: "", romaji: "", yrc: "", ytlrc: "" };
     if (!/^\d{1,20}$/.test(id)) throw new SessionError(400, "bad_id", "曲目编号无效");
-    try {
-      return await this.netease.lyric(id, this.optionalCookie());
-    } catch (error) {
-      if (error instanceof Error && error.message === "signed_out") return empty;
-      if (error instanceof Error && error.message === "lyric_failed") return empty;
-      throw new SessionError(502, "upstream", "歌词暂时没有拉到");
-    }
+    const pull = async (load: () => Promise<LyricBundle>): Promise<LyricBundle> => {
+      try {
+        return await load();
+      } catch (error) {
+        if (error instanceof Error && (error.message === "signed_out" || error.message === "lyric_failed")) return empty;
+        throw new SessionError(502, "upstream", "歌词暂时没有拉到");
+      }
+    };
+    const cookie = this.optionalCookie();
+    const fresh = await pull(() => this.netease.lyricNew(id, cookie));
+    const needsLegacy = fresh.yrc.length === 0 || fresh.lyric.length === 0 || fresh.translation.length === 0;
+    const legacy = needsLegacy ? await pull(() => this.netease.lyric(id, cookie)) : empty;
+    return {
+      lyric: fresh.lyric || legacy.lyric,
+      translation: fresh.translation || legacy.translation,
+      romaji: fresh.romaji || legacy.romaji,
+      yrc: fresh.yrc || legacy.yrc,
+      ytlrc: fresh.ytlrc || legacy.ytlrc,
+    };
   }
 
   async personalFm(): Promise<SearchHit[]> {
@@ -261,7 +273,7 @@ export class SessionService {
 
   private async sessionFromStore(): Promise<SessionSnapshot> {
     const cookie = this.store.read();
-    if (cookie == null) return snapshot("signed_out", "登录后可以查看你的歌单。", null, []);
+    if (cookie == null) return snapshot("signed_out", "未登录。本地曲目可以直接播放；云歌单和每日推荐需要登录。", null, []);
     if (!hasMusicU(cookie)) {
       return snapshot("invalid", "保存的 Cookie 里没有 MUSIC_U，请重新登录", null, []);
     }

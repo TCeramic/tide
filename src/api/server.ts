@@ -1,8 +1,11 @@
+import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { CookieStore } from "./cookie";
 import { createNeteaseClient, type NeteaseClient } from "./netease";
-import { parseLrc } from "../core/lyrics";
+import { parseLrc, parseYrc } from "../core/lyrics";
+import { isLocalId } from "../core/local-library";
+import { LocalLibrary } from "./local-library";
 import { asFailure, SessionError, SessionService } from "./session";
 import { API_READY_PREFIX, DEFAULT_API_PORT, TIDE_VERSION } from "../shared/contract";
 
@@ -36,6 +39,7 @@ export function createTideApiServer(options: TideApiOptions = {}): http.Server {
     artistSongs: (id, cookie) => client().artistSongs(id, cookie),
     albumTracks: (id, cookie) => client().albumTracks(id, cookie),
     lyric: (id, cookie) => client().lyric(id, cookie),
+    lyricNew: (id, cookie) => client().lyricNew(id, cookie),
     personalFm: (cookie) => client().personalFm(cookie),
     fmTrash: (id, cookie) => client().fmTrash(id, cookie),
     refreshLogin: (cookie) => client().refreshLogin(cookie),
@@ -48,9 +52,10 @@ export function createTideApiServer(options: TideApiOptions = {}): http.Server {
     if (!netease) netease = createNeteaseClient();
     return netease;
   }
+  const library = new LocalLibrary(process.env.TIDE_LIBRARY_FILE ?? "");
 
   return http.createServer((req, res) => {
-    void route(req, res, session).catch((error: unknown) => {
+    void route(req, res, session, library).catch((error: unknown) => {
       if (res.headersSent) return;
       if (error instanceof SessionError) {
         writeJson(res, error.status, asFailure(error));
@@ -65,7 +70,12 @@ export function createTideApiServer(options: TideApiOptions = {}): http.Server {
   });
 }
 
-async function route(req: http.IncomingMessage, res: http.ServerResponse, session: SessionService): Promise<void> {
+async function route(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  session: SessionService,
+  library: LocalLibrary,
+): Promise<void> {
   const url = new URL(req.url ?? "/", "http://127.0.0.1");
   const pathname = url.pathname;
 
@@ -99,10 +109,41 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse, sessio
     writeJson(res, 200, await session.checkQr(url.searchParams.get("key") ?? ""));
     return;
   }
+  if (req.method === "GET" && pathname === "/local/tracks") {
+    writeJson(res, 200, { ok: true, hits: library.list() });
+    return;
+  }
+  if (req.method === "GET" && pathname === "/local/audio") {
+    const track = library.find(url.searchParams.get("id") ?? "");
+    if (!track) {
+      writeJson(res, 404, { ok: false, error: "missing", message: "本地曲目不在库里" });
+      return;
+    }
+    streamFile(req, res, track.file);
+    return;
+  }
   if (req.method === "GET" && pathname === "/search") {
     const type = Number(url.searchParams.get("type") ?? "1");
-    const page = await session.searchCatalog(url.searchParams.get("keywords") ?? "", type);
-    writeJson(res, 200, { ok: true, ...page });
+    const keywords = url.searchParams.get("keywords") ?? "";
+    const local = type === 1 ? library.search(keywords) : [];
+    try {
+      const page = await session.searchCatalog(keywords, type);
+      const hits = type === 1 ? [...local, ...page.hits] : page.hits;
+      writeJson(res, 200, { ok: true, ...page, hits, cloud: true });
+    } catch (error) {
+      if (error instanceof SessionError && (error.error === "signed_out" || error.error === "upstream")) {
+        writeJson(res, 200, {
+          ok: true,
+          kind: "songs",
+          hits: local,
+          artists: [],
+          albums: [],
+          cloud: false,
+        });
+        return;
+      }
+      throw error;
+    }
     return;
   }
   if (req.method === "GET" && pathname === "/similar") {
@@ -123,12 +164,16 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse, sessio
   if (req.method === "GET" && pathname === "/lyric") {
     const trackId = url.searchParams.get("id") ?? "";
     const bundle = await session.lyric(trackId);
+    const ytlrc = parseYrc(bundle.ytlrc);
     writeJson(res, 200, {
       ok: true,
       trackId,
       lines: parseLrc(bundle.lyric),
-      translation: parseLrc(bundle.translation),
+      translation: ytlrc.length > 0
+        ? ytlrc.map((row) => ({ timeMs: row.timeMs, text: row.text }))
+        : parseLrc(bundle.translation),
       romaji: parseLrc(bundle.romaji),
+      yrc: parseYrc(bundle.yrc),
     });
     return;
   }
@@ -170,7 +215,20 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse, sessio
     return;
   }
   if (req.method === "GET" && pathname === "/song/url") {
-    const media = await session.mediaUrl(url.searchParams.get("id") ?? "", url.searchParams.get("level"));
+    const songId = url.searchParams.get("id") ?? "";
+    if (isLocalId(songId)) {
+      const track = library.find(songId);
+      const port = req.socket.localPort;
+      writeJson(res, track ? 200 : 404, track ? {
+        ok: true,
+        url: `http://127.0.0.1:${port}/local/audio?id=${encodeURIComponent(songId)}`,
+        signedOut: false,
+        level: "standard",
+        requested: "standard",
+      } : { ok: false, error: "missing", message: "本地曲目不在库里" });
+      return;
+    }
+    const media = await session.mediaUrl(songId, url.searchParams.get("level"));
     writeJson(res, 200, {
       ok: true,
       url: media.url,
@@ -228,6 +286,53 @@ function readJson(req: http.IncomingMessage): Promise<unknown> {
     });
     req.on("error", () => reject(new Error("bad_json")));
   });
+}
+
+function streamFile(req: http.IncomingMessage, res: http.ServerResponse, filePath: string): void {
+  let stat: fs.Stats;
+  try {
+    stat = fs.statSync(filePath);
+  } catch {
+    writeJson(res, 404, { ok: false, error: "missing", message: "本地文件找不到了" });
+    return;
+  }
+  const mime = filePath.toLowerCase().endsWith(".flac")
+    ? "audio/flac"
+    : filePath.toLowerCase().endsWith(".wav")
+      ? "audio/wav"
+      : filePath.toLowerCase().endsWith(".ogg")
+        ? "audio/ogg"
+        : filePath.toLowerCase().endsWith(".m4a") || filePath.toLowerCase().endsWith(".aac")
+          ? "audio/mp4"
+          : "audio/mpeg";
+  const size = stat.size;
+  const range = req.headers.range;
+  if (range && /^bytes=\d+-\d*$/.test(range)) {
+    const [startText, endText] = range.replace("bytes=", "").split("-");
+    const start = Number(startText);
+    const end = endText ? Number(endText) : size - 1;
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end >= size || start > end) {
+      res.writeHead(416, { "Content-Range": `bytes */${size}` });
+      res.end();
+      return;
+    }
+    res.writeHead(206, {
+      "Content-Type": mime,
+      "Content-Length": end - start + 1,
+      "Content-Range": `bytes ${start}-${end}/${size}`,
+      "Accept-Ranges": "bytes",
+      "Cache-Control": "no-store",
+    });
+    fs.createReadStream(filePath, { start, end }).pipe(res);
+    return;
+  }
+  res.writeHead(200, {
+    "Content-Type": mime,
+    "Content-Length": size,
+    "Accept-Ranges": "bytes",
+    "Cache-Control": "no-store",
+  });
+  fs.createReadStream(filePath).pipe(res);
 }
 
 function writeJson(res: http.ServerResponse, status: number, body: unknown): void {

@@ -1,4 +1,13 @@
-import { isThemeId, type Appearance, type SearchHit, type Track } from "../shared/contract";
+import {
+  isPerformanceTier,
+  isShellId,
+  isStageBackground,
+  isThemeId,
+  isVisualPresetId,
+  type Appearance,
+  type SearchHit,
+  type Track,
+} from "../shared/contract";
 import {
   commandPermitted,
   failure,
@@ -160,7 +169,9 @@ function readMode(record: Record<string, unknown>, host: CommandHost): Promise<u
   return host.playbackMode(patch);
 }
 
-function readAppearance(record: Record<string, unknown>, host: CommandHost): Promise<unknown> | unknown | null {
+/** Shared parser for appearance.write and the in-app appearance IPC. */
+export function appearancePatchFromArgs(args: unknown): Partial<Appearance> | null {
+  const record = args && typeof args === "object" && !Array.isArray(args) ? args as Record<string, unknown> : {};
   const patch: Partial<Appearance> = {};
   if ("chromeVisible" in record) {
     if (typeof record.chromeVisible !== "boolean") return null;
@@ -178,12 +189,43 @@ function readAppearance(record: Record<string, unknown>, host: CommandHost): Pro
     if (typeof record.motion !== "number" || !Number.isFinite(record.motion)) return null;
     patch.motion = record.motion;
   }
+  if ("lattice" in record) {
+    if (typeof record.lattice !== "boolean") return null;
+    patch.lattice = record.lattice;
+  }
+  if ("shell" in record) {
+    if (!isShellId(record.shell)) return null;
+    patch.shell = record.shell;
+  }
+  if ("preset" in record) {
+    if (!isVisualPresetId(record.preset)) return null;
+    patch.preset = record.preset;
+  }
+  if ("performance" in record) {
+    if (!isPerformanceTier(record.performance)) return null;
+    patch.performance = record.performance;
+  }
+  if ("background" in record) {
+    if (!isStageBackground(record.background)) return null;
+    patch.background = record.background;
+  }
   if (
     patch.chromeVisible === undefined
     && patch.stageLevel === undefined
     && patch.theme === undefined
     && patch.motion === undefined
+    && patch.lattice === undefined
+    && patch.shell === undefined
+    && patch.preset === undefined
+    && patch.performance === undefined
+    && patch.background === undefined
   ) return null;
+  return patch;
+}
+
+function readAppearance(record: Record<string, unknown>, host: CommandHost): Promise<unknown> | unknown | null {
+  const patch = appearancePatchFromArgs(record);
+  if (!patch) return null;
   return host.appearanceWrite(patch);
 }
 

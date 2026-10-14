@@ -68,7 +68,7 @@ describe("command server", { concurrency: 1 }, () => {
     const healthBody = (await health.json()) as { ok: boolean; service: string; version: string };
     assert.equal(health.status, 200);
     assert.equal(healthBody.service, "tide-bus");
-    assert.equal(healthBody.version, "0.8.3");
+    assert.equal(healthBody.version, "0.9.0");
 
     const naked = await fetch(`http://127.0.0.1:${server.port}/command`, {
       method: "POST",

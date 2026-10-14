@@ -1,8 +1,8 @@
 # 潮汐 Tide
 
-潮汐是一个 **Windows 优先** 的个人桌面音乐播放器（Electron）。当前是 **0.8.3**。点歌单名称会载入曲目，不会自动开播；今日潮汐 · 探索用听过的歌去找相似歌曲；播放队列可以列表循环、单曲循环、随机，并在探索打开时用相似歌曲续上。搜索分成单曲、歌手、专辑、歌词。每首歌有播放、下一首、喜欢、收藏和分享。歌词层默认把原文和翻译叠在一起。底栏是图标。设置里有热键和桌面歌词。指令总线可以在窗口里找到。写设置仍要明确允许。
+潮汐是一个 **Windows 优先** 的个人桌面音乐播放器（Electron）。当前是 **0.9.0**。窗口外壳是透镜风格的玻璃：侧栏和底栏透出液体舞台，播放状态用光表示，按钮松手回弹。点阵是可选的播放环境层，默认关闭，不是外壳。图标来自 Lucide。点歌单名称会载入曲目，不会自动开播；今日潮汐 · 探索用听过的歌去找相似歌曲；播放队列可以列表循环、单曲循环、随机，并在探索打开时用相似歌曲续上。搜索分成单曲、歌手、专辑、歌词。每首歌有播放、下一首、喜欢、收藏和分享。歌词层默认把原文和翻译叠在一起。设置里有热键、桌面歌词和点阵开关。指令总线可以在窗口里找到。写设置仍要明确允许。
 
-Tide is a **Windows-first** personal desktop music player. This revision is **0.8.3**. Opening a playlist loads tracks and does not start playback. 今日潮汐 · 探索 finds similar songs from what you have heard. The queue can repeat, shuffle, and keep going from similar songs. Search has song, artist, album, and lyric tabs. Each song row can play, queue next, like, collect, and share. Lyrics default to original plus translation. The bottom bar uses icons. Settings hold hotkeys and desktop lyrics. The command bus is reachable from the window. Settings writes still need an explicit allow.
+Tide is a **Windows-first** personal desktop music player. This revision is **0.9.0**. The shell is Lens glass over a liquid stage, light marks playback state, and controls spring back. Lattice is an optional playback layer, off by default, and is not the shell. Icons are Lucide. Opening a playlist loads tracks and does not start playback. 今日潮汐 · 探索 finds similar songs from what you have heard. The queue can repeat, shuffle, and keep going from similar songs. Search has song, artist, album, and lyric tabs. Each song row can play, queue next, like, collect, and share. Lyrics default to original plus translation. Settings hold hotkeys, desktop lyrics, and the lattice switch. The command bus is reachable from the window. Settings writes still need an explicit allow.
 
 ## 风险声明 / Risk
 
@@ -34,7 +34,7 @@ curl http://127.0.0.1:39271/health
 ```
 
 ```json
-{ "ok": true, "service": "tide", "version": "0.8.3" }
+{ "ok": true, "service": "tide", "version": "0.9.0" }
 ```
 
 `npm test` 跑状态机、搜索结果整理、今日潮汐排序、收听日志、指令总线、Cookie 判断和登录 / 搜索路由。`npm run typecheck` 只做类型检查。
@@ -153,7 +153,7 @@ The loopback API asks NetEase for a URL and accepts only `http` / `https`. If th
 
 `settings.write`、`appearance.write`、`session.logout`、`session.clearCookie` 默认拒绝，错误码 `denied`。单次请求带 `"allow": true`，或把指令名写进 `userData/bus-allow.json` 的 `allow` 数组，才会执行。这个文件不保存 Cookie。`playlist.organize` 同样默认拒绝；即使允许，也返回 `unsupported`，因为当前没有改网易云歌单的接口。
 
-`appearance.write` 只动已有的 `#stage`、`#lyrics`、`#chrome`。`theme` 取 `tide`（默认的青夜）或 `dusk`（暖夜）。`motion` 从 0 到 1，0 停住现有洗色相位，1 是完整摆动。`chromeVisible` 隐藏或显示控件层，`stageLevel` 从 0 到 1 调整洗色不透明度。不会加壁纸或粒子。未知主题名会被拒绝。
+`appearance.write` 只动已有的 `#stage`、`#lyrics`、`#chrome`。`theme` 取 `tide`（默认的青夜）或 `dusk`（暖夜）。`motion` 从 0 到 1。`lattice` 是可选点阵。`shell` 取 `lens`（默认）或 `lattice`。`preset` 取 `tide`、`cover-glow`、`vinyl`、`stardust`、`quiet`。`performance` 取 `smooth`、`balanced`、`vivid`。`background` 取 `solid`、`cover`、`image`。未知名字会被拒绝。
 
 ```bash
 curl -X POST http://127.0.0.1:39272/command \
@@ -172,7 +172,7 @@ Playback commands cover get, play, pause, seek, volume, next, previous, queue, p
 
 `settings.write`, `appearance.write`, `session.logout`, and `session.clearCookie` return `denied` unless the request sets `"allow": true` or `userData/bus-allow.json` lists the command. That file stores no cookie. `playlist.organize` is denied the same way. If it is allowed, the result is `unsupported`, because this app cannot edit a NetEase playlist.
 
-`appearance.write` only changes the existing `#stage`, `#lyrics`, and `#chrome` layers. `theme` is `tide` (the default teal night) or `dusk` (a warm night). `motion` runs from 0 to 1: 0 freezes the existing wash phase, and 1 is the full travel. `chromeVisible` hides the controls. `stageLevel` sets the wash opacity from 0 to 1. There is no wallpaper and no particle system. An unknown theme name is rejected.
+`appearance.write` only changes the existing `#stage`, `#lyrics`, and `#chrome` layers. `theme` is `tide` or `dusk`. `shell` is `lens` (default) or `lattice`. `preset` is `tide`, `cover-glow`, `vinyl`, `stardust`, or `quiet`. `performance` is `smooth`, `balanced`, or `vivid`. `background` is `solid`, `cover`, or `image`. `lattice` toggles the optional dot field. An unknown name is rejected.
 
 ## Windows 包 / Windows package
 
@@ -182,8 +182,18 @@ Playback commands cover get, play, pause, seek, volume, next, previous, queue, p
 
 The zip is a portable folder, not an installer. Unzip it and run `Tide.exe`. The command bus token is created in `%APPDATA%\tide\bus-token` on first launch. `npm run dist:setup` builds the NSIS installer and needs Windows or Wine.
 
+## 外壳 / Shell
+
+0.9.0 把 `#stage`、`#lyrics`、`#chrome` 画成透镜：玻璃承载侧栏、免责声明和底栏，液体是舞台上的连续洗色，光标出正在播放和当前歌词。WebGL2 折射可选；打不开或太慢就只留 CSS。点阵在底栏和「设置」里开关，默认关，只在播放时轻轻动，不代替窗口本身。序曲没有用在这里。
+
+玻璃与弹簧的想法来自 [Lens](https://github.com/ruiqichenbiec/design-systems)（Copyright (c) 2026 DayDreamInAReverie，MIT，仓库已不再维护）。潮汐只改编了这个想法，没有复制该仓库。图标是 [Lucide](https://lucide.dev)（ISC），和 lucide-react 同一套字形；壳层不是 React，所以用 vanilla `lucide`。
+
+`appearance.write` 可以改主题、动效、控件显隐、舞台强度、点阵开关、外壳（`lens` / `lattice`）、视觉预设、性能档和背景。点阵默认关。写盘仍要 `allow`。
+
+0.9.0 redraws the three layers as Lens glass. Liquid is the stage wash. Light marks the playing state. WebGL2 refraction is optional and falls back to CSS. Lattice toggles from Settings, stays off until asked, and is not the shell. `appearance.write` persists `lattice`, `shell` (`lens` or `lattice`), `preset`, `performance`, and `background`. Overture is not used. The glass and spring ideas are adapted from Lens (Copyright (c) 2026 DayDreamInAReverie, MIT); this repo does not copy that project. Icons are Lucide.
+
 ## 下一步 / Next
 
-0.8 到此。歌词只做全文和当前句，不做沉浸动效。不要接 Spotify、QQ，不要加壁纸或粒子，也不要把 Grok 嵌进窗口。
+不要接 Spotify、QQ，不要把点阵做成外壳，也不要把 Grok 嵌进窗口。
 
-0.8 stops here. Lyrics are the full text and the current line, not an immersive stage. Spotify, QQ, wallpaper, particles, and an embedded Grok client stay out.
+Spotify, QQ, a lattice shell, and an embedded Grok client stay out.

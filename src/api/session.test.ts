@@ -90,7 +90,10 @@ function fakeNetease(): NeteaseClient & { checks: number; expired: boolean } {
       return [{ id, title: "专辑曲", artist: "歌手", durationMs: 1000, playable: true }];
     },
     async lyric() {
-      return { lyric: "[00:01.00]一句", translation: "[00:01.00]a line", romaji: "" };
+      return { lyric: "[00:01.00]一句", translation: "[00:01.00]a line", romaji: "", yrc: "", ytlrc: "" };
+    },
+    async lyricNew() {
+      return { lyric: "", translation: "", romaji: "", yrc: "", ytlrc: "" };
     },
     async personalFm() {
       return [{ id: "4", title: "FM", artist: "潮汐", durationMs: 1000, playable: true }];
@@ -142,6 +145,7 @@ interface Payload {
   signedOut?: boolean;
   level?: string;
   requested?: string;
+  cloud?: boolean;
 }
 
 async function call(port: number, method: string, pathname: string, body?: unknown): Promise<{ status: number; json: Payload }> {
@@ -244,10 +248,12 @@ describe("session routes", { concurrency: 1 }, () => {
     assert.equal(json.error, "empty_query");
   });
 
-  it("asks for login when search is rejected", async () => {
+  it("keeps search usable when the cloud asks for login", async () => {
     const { status, json } = await call(port, "GET", "/search?keywords=locked");
-    assert.equal(status, 401);
-    assert.equal(json.error, "signed_out");
+    assert.equal(status, 200);
+    assert.equal(json.ok, true);
+    assert.deepEqual(json.hits, []);
+    assert.equal(json.cloud, false);
   });
 
   it("returns a song url or a clear refusal", async () => {

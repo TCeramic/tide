@@ -75,6 +75,11 @@ const tide: TideBridge = {
   ended: () => ipcRenderer.invoke(Ipc.ended) as Promise<PlaybackSnapshot>,
   failPlayback: (code) => ipcRenderer.invoke(Ipc.fail, code) as Promise<PlaybackSnapshot>,
   onAppearance: (listener) => listen<Appearance>(Ipc.appearance, listener),
+  setAppearance: (patch) => ipcRenderer.invoke(Ipc.appearanceSet, patch) as Promise<Appearance>,
+  localTracks: () => ipcRenderer.invoke(Ipc.localList) as Promise<SearchHit[]>,
+  addLocalTracks: () => ipcRenderer.invoke(Ipc.localAdd) as Promise<SearchHit[]>,
+  pickBackdrop: () => ipcRenderer.invoke(Ipc.backdropPick) as Promise<string | null>,
+  backdropUrl: () => ipcRenderer.invoke(Ipc.backdropUrl) as Promise<string | null>,
 };
 
 contextBridge.exposeInMainWorld("tide", tide);

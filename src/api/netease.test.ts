@@ -219,6 +219,8 @@ describe("netease adapters", () => {
       lyric: "[00:01.00]一句",
       translation: "[00:01.00]a line",
       romaji: "[00:01.00]yi ju",
+      yrc: "",
+      ytlrc: "",
     });
     assert.equal(readPersonalFm({
       body: { code: 200, data: [{ id: 4, name: "FM", duration: 1000, artists: [{ name: "甲" }] }] },
