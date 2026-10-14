@@ -21,6 +21,7 @@ import { startCommandServer, type RunningCommandServer } from "./command-server"
 import { ListenLog } from "./listen-log";
 import { attachPlayback } from "./playback-host";
 import { attachSession, loopbackJson } from "./session-host";
+import { attachDeskLyrics } from "./desk-host";
 import { SettingsStore } from "./settings";
 import { loadTideToday } from "./tide-today";
 
@@ -39,6 +40,11 @@ let healthTimer: ReturnType<typeof setInterval> | null = null;
 let quitting = false;
 let runHardware: (source: MediaSource, action: unknown) => void = () => undefined;
 let mediaNotice: string | null = null;
+let closeDesk: () => void = () => undefined;
+
+function windowIcon(): string {
+  return path.join(__dirname, process.platform === "win32" ? "icon.ico" : "icon.png");
+}
 
 const machine = new PlaybackMachine();
 
@@ -60,6 +66,7 @@ function createWindow(): BrowserWindow {
     show: false,
     backgroundColor: "#071018",
     title: "潮汐 Tide",
+    icon: windowIcon(),
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -71,6 +78,9 @@ function createWindow(): BrowserWindow {
   });
 
   win.once("ready-to-show", () => win.show());
+  win.on("close", () => {
+    closeDesk();
+  });
   win.on("closed", () => {
     if (mainWindow === win) mainWindow = null;
   });
@@ -148,6 +158,16 @@ app.whenReady().then(async () => {
 
   const settings = new SettingsStore(path.join(app.getPath("userData"), "settings.json"));
   settingsStore = settings;
+  const desk = attachDeskLyrics({
+    settings,
+    machine,
+    getMainWindow: () => mainWindow,
+    notify: (message) => {
+      const win = mainWindow;
+      if (win && !win.isDestroyed()) win.webContents.send(Ipc.notice, message);
+    },
+  });
+  closeDesk = desk.close;
   const listenLog = new ListenLog(path.join(app.getPath("userData"), "listen-log.json"));
   machine.setVolume(settings.read().volume);
   const playback = attachPlayback(() => mainWindow, machine, () => apiPort, (volume) => {
@@ -214,7 +234,7 @@ app.whenReady().then(async () => {
   };
   const missed = syncCapture(settings.read().captureMediaKeys);
   const builtinMediaWarning = missed.length > 0
-    ? "系统媒体键没有注册成功，可能已被占用。可在「可编程按键」里改用 Ctrl+Alt+方向键。"
+    ? "系统媒体键没有注册成功，可能已被占用。可在「热键」里改用 Ctrl+Alt+方向键。"
     : null;
 
   const applyCustomShortcuts = (desired: ReturnType<typeof mediaShortcutsFromUnknown>) => {
@@ -251,7 +271,7 @@ app.whenReady().then(async () => {
     const failed = syncCapture(capture);
     const win = mainWindow;
     if (failed.length > 0 && win && !win.isDestroyed()) {
-      win.webContents.send(Ipc.notice, "系统媒体键没有注册成功，可能已被占用。可在「可编程按键」里改用 Ctrl+Alt+方向键。");
+      win.webContents.send(Ipc.notice, "系统媒体键没有注册成功，可能已被占用。可在「热键」里改用 Ctrl+Alt+方向键。");
     }
     return { captureMediaKeys: settings.read().captureMediaKeys };
   });
@@ -359,6 +379,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  closeDesk();
   globalShortcut.unregisterAll();
   ipcMain.removeHandler(Ipc.qualityGet);
   ipcMain.removeHandler(Ipc.qualitySet);

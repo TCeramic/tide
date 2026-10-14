@@ -1,9 +1,12 @@
 import type { AudioLevel } from "../core/audio-level";
+import type { DeskLyricsSettings } from "../core/desk-lyrics";
 import type { PlaybackEvents, PlaybackSnapshot, Track } from "../core/playback/types";
+
+export type { DeskLyricsSettings } from "../core/desk-lyrics";
 
 export type { PlaybackErrorCode, PlaybackEvents, PlaybackSnapshot, PlaybackStatus, Track } from "../core/playback/types";
 
-export const TIDE_VERSION = "0.8.2";
+export const TIDE_VERSION = "0.8.3";
 export const DEFAULT_API_PORT = 39271;
 export const DEFAULT_BUS_PORT = 39272;
 export const API_READY_PREFIX = "TIDE_API_READY ";
@@ -47,6 +50,12 @@ export const Ipc = {
   mediaShortcutsSet: "tide:keys:set",
   captureMediaKeysSet: "tide:keys:capture",
   hardwareKey: "tide:keys:hardware",
+  likedIds: "tide:liked:ids",
+  deskGet: "tide:desk:get",
+  deskSet: "tide:desk:set",
+  deskState: "tide:desk:state",
+  deskLines: "tide:desk:lines",
+  deskCue: "tide:desk:cue",
   playlistTracks: "tide:playlist:tracks",
   daily: "tide:recommend:daily",
   radar: "tide:recommend:radar",
@@ -83,6 +92,8 @@ export interface SearchHit {
   artist: string;
   durationMs: number;
   playable: boolean;
+  /** Present after a liked-id read. Omitted when the account's like list is unknown. */
+  liked?: boolean;
 }
 
 export interface ArtistSummary {
@@ -117,6 +128,18 @@ export interface LyricPayload {
   lines: LyricLine[];
   translation: LyricLine[];
   romaji: LyricLine[];
+}
+
+export interface DeskCue {
+  title: string;
+  previous: string;
+  current: string;
+  translation: string;
+  next: string;
+  empty: boolean;
+  fontSize: number;
+  color: string;
+  opacity: number;
 }
 
 /** First-party daily list. Built from the local listen log, not NetEase recommend APIs. */
@@ -227,7 +250,13 @@ export interface TideBridge {
   setMediaShortcuts(shortcuts: { toggle: string; next: string; previous: string; stop: string }): Promise<{ shortcuts: { toggle: string; next: string; previous: string; stop: string }; messages: string[] }>;
   setCaptureMediaKeys(capture: boolean): Promise<{ captureMediaKeys: boolean }>;
   hardwareKey(action: "play" | "pause" | "next" | "previous" | "stop"): Promise<PlaybackSnapshot>;
-  likeSong(id: string, like: boolean): Promise<ApiFailure | { ok: true; message: string }>;
+  likeSong(id: string, like: boolean): Promise<ApiFailure | { ok: true; message: string; liked: boolean }>;
+  likedIds(): Promise<ApiFailure | { ok: true; known: boolean; ids: string[] }>;
+  getDeskLyrics(): Promise<DeskLyricsSettings>;
+  setDeskLyrics(patch: Partial<DeskLyricsSettings>): Promise<DeskLyricsSettings>;
+  onDeskState(listener: (settings: DeskLyricsSettings) => void): () => void;
+  pushDeskLines(payload: { trackId: string; title: string; original: LyricLine[]; translation: LyricLine[]; offsetMs: number }): void;
+  onDeskCue(listener: (cue: DeskCue) => void): () => void;
   collectSong(playlistId: string, trackId: string): Promise<ApiFailure | { ok: true; message: string }>;
   playNext(hit: SearchHit): Promise<PlaybackSnapshot>;
   next(): Promise<PlaybackSnapshot>;

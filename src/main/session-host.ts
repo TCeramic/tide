@@ -46,6 +46,7 @@ export function attachSession(getPort: () => number | null): () => void {
   ipcMain.handle(Ipc.artistSongs, (_event, id: unknown) => trackList(getPort(), "/artist/songs", id));
   ipcMain.handle(Ipc.albumTracks, (_event, id: unknown) => trackList(getPort(), "/album/tracks", id));
   ipcMain.handle(Ipc.lyric, (_event, id: unknown) => trackList(getPort(), "/lyric", id));
+  ipcMain.handle(Ipc.likedIds, () => loopbackJson(getPort(), "GET", "/liked"));
   ipcMain.handle(Ipc.likeSong, (_event, id: unknown, like: unknown) => {
     if (typeof id !== "string" || !/^\d{1,20}$/.test(id)) {
       return { ok: false, error: "bad_id", message: "曲目编号无效" } satisfies ApiFailure;
@@ -70,6 +71,7 @@ export function attachSession(getPort: () => number | null): () => void {
     ipcMain.removeHandler(Ipc.albumTracks);
     ipcMain.removeHandler(Ipc.lyric);
     ipcMain.removeHandler(Ipc.likeSong);
+    ipcMain.removeHandler(Ipc.likedIds);
     ipcMain.removeHandler(Ipc.collectSong);
     ipcMain.removeHandler(Ipc.playlistTracks);
     ipcMain.removeHandler(Ipc.daily);

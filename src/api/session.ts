@@ -1,6 +1,6 @@
 import { isAudioLevel, resolveSongLevel, type AudioLevel } from "../core/audio-level";
 import { hasMusicU, normalizeCookie, type CookieStore } from "./cookie";
-import type { CatalogPage, LyricBundle, NeteaseClient, SongMedia } from "./netease";
+import { markLiked, type CatalogPage, type LyricBundle, type NeteaseClient, type SongMedia } from "./netease";
 import type { ApiFailure, QrCheck, QrTicket, SearchHit, SearchKind, SessionSnapshot, SessionUser } from "../shared/contract";
 
 const QR_MESSAGE: Record<number, string> = {
@@ -24,6 +24,8 @@ export class SessionError extends Error {
 }
 
 export class SessionService {
+  private likedCache: { at: number; ids: string[] } | null = null;
+
   constructor(
     private readonly store: CookieStore,
     private readonly netease: NeteaseClient,
@@ -117,7 +119,7 @@ export class SessionService {
     const apiType = type === 1006 ? 1006 : searchTypeOf(kind);
     try {
       const page = await this.netease.searchKind(query, apiType, this.optionalCookie());
-      return { kind, hits: page.hits, artists: page.artists, albums: page.albums };
+      return { kind, hits: await this.withLiked(page.hits), artists: page.artists, albums: page.albums };
     } catch (error) {
       if (error instanceof Error && error.message === "signed_out") {
         throw new SessionError(401, "signed_out", "请先登录");
@@ -153,7 +155,7 @@ export class SessionService {
   async personalFm(): Promise<SearchHit[]> {
     const cookie = this.requireCookie();
     try {
-      return await this.netease.personalFm(cookie);
+      return await this.withLiked(await this.netease.personalFm(cookie));
     } catch (error) {
       throw catalogFailure(error, "私人 FM 暂时没有拉到");
     }
@@ -170,15 +172,22 @@ export class SessionService {
     }
   }
 
-  async likeSong(id: string, like: boolean): Promise<string> {
+  async likeSong(id: string, like: boolean): Promise<{ message: string; liked: boolean }> {
     if (!/^\d{1,20}$/.test(id)) throw new SessionError(400, "bad_id", "曲目编号无效");
     const cookie = this.requireCookie();
     try {
       await this.netease.likeSong(id, like, cookie);
-      return like ? "已添加到喜欢" : "已取消喜欢";
+      this.likedCache = null;
+      return { message: like ? "已添加到喜欢" : "已取消喜欢", liked: like };
     } catch (error) {
       throw catalogFailure(error, "喜欢没有成功，请确认已经登录");
     }
+  }
+
+  async likedSnapshot(): Promise<{ known: boolean; ids: string[] }> {
+    const ids = await this.knownLikedIds();
+    if (!ids) return { known: false, ids: [] };
+    return { known: true, ids };
   }
 
   async collectSong(playlistId: string, trackId: string): Promise<string> {
@@ -201,7 +210,7 @@ export class SessionService {
   ): Promise<SearchHit[]> {
     if (!/^\d{1,20}$/.test(id)) throw new SessionError(400, "bad_id", "编号无效");
     try {
-      return await load(this.optionalCookie());
+      return await this.withLiked(await load(this.optionalCookie()));
     } catch (error) {
       throw catalogFailure(error, unavailable);
     }
@@ -213,7 +222,7 @@ export class SessionService {
     }
     const cookie = this.requireCookie();
     try {
-      return await this.netease.playlistTracks(id, cookie);
+      return await this.withLiked(await this.netease.playlistTracks(id, cookie));
     } catch (error) {
       throw catalogFailure(error, "歌单暂时没有拉到");
     }
@@ -222,7 +231,7 @@ export class SessionService {
   async dailySongs(): Promise<SearchHit[]> {
     const cookie = this.requireCookie();
     try {
-      return await this.netease.dailySongs(cookie);
+      return await this.withLiked(await this.netease.dailySongs(cookie));
     } catch (error) {
       throw catalogFailure(error, "每日推荐暂时没有拉到");
     }
@@ -232,7 +241,7 @@ export class SessionService {
     const cookie = this.requireCookie();
     try {
       const id = await this.netease.radarId(cookie);
-      return await this.netease.playlistTracks(id, cookie);
+      return await this.withLiked(await this.netease.playlistTracks(id, cookie));
     } catch (error) {
       throw catalogFailure(error, "私人雷达暂时没有拉到");
     }
@@ -286,6 +295,27 @@ export class SessionService {
     const cookie = this.optionalCookie();
     if (cookie == null) throw new SessionError(401, "signed_out", "请先登录");
     return cookie;
+  }
+
+  private async knownLikedIds(): Promise<string[] | null> {
+    const cookie = this.optionalCookie();
+    if (!cookie) return null;
+    if (this.likedCache && Date.now() - this.likedCache.at < 15_000) return this.likedCache.ids;
+    try {
+      const user = await this.netease.loginStatus(cookie);
+      if (!user) return null;
+      const ids = await this.netease.likedIds(user.id, cookie);
+      this.likedCache = { at: Date.now(), ids };
+      return ids;
+    } catch {
+      return this.likedCache?.ids ?? null;
+    }
+  }
+
+  private async withLiked(hits: SearchHit[]): Promise<SearchHit[]> {
+    const ids = await this.knownLikedIds();
+    if (!ids) return hits;
+    return markLiked(hits, ids);
   }
 
   private optionalCookie(): string | null {

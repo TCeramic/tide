@@ -40,6 +40,7 @@ export function createTideApiServer(options: TideApiOptions = {}): http.Server {
     fmTrash: (id, cookie) => client().fmTrash(id, cookie),
     refreshLogin: (cookie) => client().refreshLogin(cookie),
     likeSong: (id, like, cookie) => client().likeSong(id, like, cookie),
+    likedIds: (uid, cookie) => client().likedIds(uid, cookie),
     collectSong: (playlistId, trackId, cookie) => client().collectSong(playlistId, trackId, cookie),
   });
 
@@ -146,11 +147,16 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse, sessio
   if (req.method === "POST" && pathname === "/song/like") {
     const body = await readJson(req);
     const record = body && typeof body === "object" ? body as { id?: unknown; like?: unknown } : {};
-    const message = await session.likeSong(
+    const outcome = await session.likeSong(
       typeof record.id === "string" ? record.id : "",
       record.like !== false,
     );
-    writeJson(res, 200, { ok: true, message });
+    writeJson(res, 200, { ok: true, message: outcome.message, liked: outcome.liked });
+    return;
+  }
+  if (req.method === "GET" && pathname === "/liked") {
+    const liked = await session.likedSnapshot();
+    writeJson(res, 200, { ok: true, ...liked });
     return;
   }
   if (req.method === "POST" && pathname === "/song/collect") {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { currentLyricIndex, lyricPosition, nextLyricOffset, parseLrc } from "./lyrics";
+import { currentLyricIndex, deskLineCue, lyricPosition, nextLyricOffset, pairLyrics, parseLrc } from "./lyrics";
 
 describe("lyrics", () => {
   it("parses stamps and follows the playhead", () => {
@@ -22,5 +22,22 @@ describe("lyrics", () => {
   it("accepts a missing lyric", () => {
     assert.deepEqual(parseLrc(""), []);
     assert.deepEqual(parseLrc(null), []);
+  });
+
+  it("stacks a nearby translation and leaves a far one off the line", () => {
+    const original = parseLrc("[00:01.00]原文\n[00:05.00]下一句\n");
+    const translation = parseLrc("[00:01.20]译文\n[00:09.00]太远\n");
+    const pairs = pairLyrics(original, translation);
+    assert.equal(pairs[0]?.translation, "译文");
+    assert.equal(pairs[1]?.translation, "");
+    const early = deskLineCue(original, translation, 0, 0, "歌");
+    assert.equal(early.current, "");
+    assert.equal(early.next, "原文");
+    assert.equal(early.translation, "");
+    const current = deskLineCue(original, translation, 1100, 0, "歌");
+    assert.equal(current.current, "原文");
+    assert.equal(current.translation, "译文");
+    assert.equal(current.next, "下一句");
+    assert.equal(deskLineCue([], [], 0, 0, "歌").empty, true);
   });
 });

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { describe, it } from "node:test";
-import { createNeteaseClient, readCatalog, readCollect, readDailySongs, readLoginRefresh, readLyricBundle, readLyricText, readPersonalFm, readPlaylistTracks, readPlaylists, readQrCheck, readQrImage, readQrKey, readRadarId, readSearch, readSimilar, readSongUrl, readUser } from "./netease";
+import { createNeteaseClient, markLiked, readCatalog, readCollect, readDailySongs, readLikeIds, readLoginRefresh, readLyricBundle, readLyricText, readPersonalFm, readPlaylistTracks, readPlaylists, readQrCheck, readQrImage, readQrKey, readRadarId, readSearch, readSimilar, readSongUrl, readUser } from "./netease";
 
 describe("netease adapters", () => {
   it("reads a logged-in account and ignores anonymous sessions", () => {
@@ -225,6 +225,24 @@ describe("netease adapters", () => {
     })[0]?.title, "FM");
     assert.deepEqual(readLoginRefresh({ body: { code: 301 } }), { cookie: null, expired: true });
     assert.equal(readLoginRefresh({ body: { code: 200, cookie: "MUSIC_U=1" } }).expired, false);
+  });
+
+  it("reads liked ids and marks only those songs", () => {
+    assert.deepEqual(readLikeIds({ body: { code: 200, ids: [347230, "186016", "nope"] } }), ["347230", "186016"]);
+    assert.throws(() => readLikeIds({ body: { code: 301 } }), /signed_out/);
+    const marked = markLiked([
+      { id: "347230", title: "已知喜欢" },
+      { id: "2", title: "未喜欢" },
+    ], ["347230"]);
+    assert.equal(marked[0]?.liked, true);
+    assert.equal(marked[1]?.liked, false);
+    const hinted = readSearch({
+      body: {
+        code: 200,
+        result: { songs: [{ id: 9, name: "已喜欢", dt: 1000, ar: [{ name: "甲" }], liked: true, privilege: { st: 0, pl: 1 } }] },
+      },
+    });
+    assert.equal(hinted[0]?.liked, true);
   });
 
   it("passes unlike as the string false so NeteaseCloudMusicApi does not treat it as a like", async () => {

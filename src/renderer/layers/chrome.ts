@@ -1,7 +1,7 @@
 import type { HealthStatus, PlaybackSnapshot } from "../../shared/contract";
+import { applyLike, isLiked, onLiked } from "../liked";
 
 const DISCLAIMER_KEY = "tide.risk.ack";
-const PORT_KEY = "tide.debug.port";
 
 const STATUS_LABEL: Record<PlaybackSnapshot["status"], string> = {
   idle: "空闲",
@@ -94,11 +94,24 @@ export function mountChrome(root: HTMLElement): {
 
   const meta = document.createElement("div");
   meta.className = "meta";
+  const titleRow = document.createElement("div");
+  titleRow.className = "title-row";
+  const like = iconButton("喜欢", HEART, () => {
+    const track = latest && latest.index >= 0 ? latest.queue[latest.index] : undefined;
+    if (!track) return;
+    const wanted = !isLiked(track.id);
+    void window.tide.likeSong(track.id, wanted).then((result) => {
+      if (!result.ok) return;
+      applyLike(track.id, result.liked);
+    });
+  });
+  like.classList.add("like");
   const title = document.createElement("span");
   title.className = "track-title";
+  titleRow.append(like, title);
   const detail = document.createElement("span");
   detail.className = "track-detail";
-  meta.append(title, detail);
+  meta.append(titleRow, detail);
 
   const seek = document.createElement("input");
   seek.type = "range";
@@ -145,17 +158,7 @@ export function mountChrome(root: HTMLElement): {
   volumeWrap.className = "volume";
   volumeWrap.append(volumeIcon, volume);
 
-  const health = document.createElement("span");
-  health.className = "health";
-  health.textContent = "本地 API · 检查中";
-
-  const showPort = () => {
-    health.hidden = !readPort();
-  };
-  window.addEventListener("tide-debug-port", showPort);
-  showPort();
-
-  transport.append(wordmark, controls, meta, seek, volumeWrap, health);
+  transport.append(wordmark, controls, meta, seek, volumeWrap);
   root.append(disclaimer, transport);
 
   const setPlayback = (snapshot: PlaybackSnapshot) => {
@@ -169,6 +172,12 @@ export function mountChrome(root: HTMLElement): {
     detail.textContent = error
       ? `${status} · ${error}`
       : `${track?.artist ?? "潮汐"} · ${status} · ${position} / ${duration}`;
+
+    like.hidden = !track;
+    const liked = track ? isLiked(track.id) : false;
+    like.classList.toggle("on", liked);
+    like.setAttribute("aria-label", liked ? "取消喜欢" : "喜欢");
+    like.innerHTML = liked ? HEART_ON : HEART;
 
     const playing = snapshot.status === "playing";
     play.setAttribute("aria-label", playing ? "暂停" : "播放");
@@ -192,16 +201,18 @@ export function mountChrome(root: HTMLElement): {
   };
 
   const setHealth = (status: HealthStatus) => {
-    health.dataset.ok = status.ok ? "true" : "false";
-    health.textContent = status.ok ? `本地 API · ${status.port ?? ""}` : "本地 API · 未就绪";
-    showPort();
+    root.dataset.api = status.ok ? "ready" : "down";
   };
+
+  const stopLiked = onLiked(() => {
+    if (latest) setPlayback(latest);
+  });
 
   return {
     setPlayback,
     setHealth,
     destroy: () => {
-      window.removeEventListener("tide-debug-port", showPort);
+      stopLiked();
       root.replaceChildren();
     },
   };
@@ -209,6 +220,8 @@ export function mountChrome(root: HTMLElement): {
 
 const PLAY_PATH = svg("M8 5v14l11-7z", true);
 const PAUSE_PATH = svg("M7 5h4v14H7zm6 0h4v14h-4z", true);
+const HEART = svg("M12 19s-7-4.4-7-8.5A3.5 3.5 0 0 1 12 8a3.5 3.5 0 0 1 7 2.5C19 14.6 12 19 12 19z");
+const HEART_ON = svg("M12 19s-7-4.4-7-8.5A3.5 3.5 0 0 1 12 8a3.5 3.5 0 0 1 7 2.5C19 14.6 12 19 12 19z", true);
 
 function svg(body: string, filled = false): string {
   const paint = filled
@@ -250,10 +263,3 @@ function writeAck(): void {
   }
 }
 
-function readPort(): boolean {
-  try {
-    return localStorage.getItem(PORT_KEY) === "1";
-  } catch {
-    return false;
-  }
-}

@@ -1,8 +1,8 @@
 # 潮汐 Tide
 
-潮汐是一个 **Windows 优先** 的个人桌面音乐播放器（Electron）。当前是 **0.8.2**。点歌单名称会载入曲目，不会自动开播；今日潮汐 · 探索用听过的歌去找相似歌曲；播放队列可以列表循环、单曲循环、随机，并在探索打开时用相似歌曲续上。搜索分成单曲、歌手、专辑、歌词。每首歌有播放、下一首、喜欢、收藏和分享。歌词层显示全文，并标出当前句。底栏是图标。指令总线可以在窗口里找到。写设置仍要明确允许。
+潮汐是一个 **Windows 优先** 的个人桌面音乐播放器（Electron）。当前是 **0.8.3**。点歌单名称会载入曲目，不会自动开播；今日潮汐 · 探索用听过的歌去找相似歌曲；播放队列可以列表循环、单曲循环、随机，并在探索打开时用相似歌曲续上。搜索分成单曲、歌手、专辑、歌词。每首歌有播放、下一首、喜欢、收藏和分享。歌词层默认把原文和翻译叠在一起。底栏是图标。设置里有热键和桌面歌词。指令总线可以在窗口里找到。写设置仍要明确允许。
 
-Tide is a **Windows-first** personal desktop music player. This revision is **0.8.2**. Opening a playlist loads tracks and does not start playback. 今日潮汐 · 探索 finds similar songs from what you have heard. The queue can repeat, shuffle, and keep going from similar songs. Search has song, artist, album, and lyric tabs. Each song row can play, queue next, like, collect, and share. The lyric layer shows the full text and the current line. The bottom bar uses icons. The command bus is reachable from the window. Settings writes still need an explicit allow.
+Tide is a **Windows-first** personal desktop music player. This revision is **0.8.3**. Opening a playlist loads tracks and does not start playback. 今日潮汐 · 探索 finds similar songs from what you have heard. The queue can repeat, shuffle, and keep going from similar songs. Search has song, artist, album, and lyric tabs. Each song row can play, queue next, like, collect, and share. Lyrics default to original plus translation. The bottom bar uses icons. Settings hold hotkeys and desktop lyrics. The command bus is reachable from the window. Settings writes still need an explicit allow.
 
 ## 风险声明 / Risk
 
@@ -34,7 +34,7 @@ curl http://127.0.0.1:39271/health
 ```
 
 ```json
-{ "ok": true, "service": "tide", "version": "0.8.2" }
+{ "ok": true, "service": "tide", "version": "0.8.3" }
 ```
 
 `npm test` 跑状态机、搜索结果整理、今日潮汐排序、收听日志、指令总线、Cookie 判断和登录 / 搜索路由。`npm run typecheck` 只做类型检查。
@@ -83,20 +83,32 @@ src/main/command-server.ts 127.0.0.1 上的指令 HTTP / WebSocket
 
 底部上一首、播放 / 暂停、下一首和音量是图标，带中文 `aria-label`。旁边留着列表循环、随机和探索。默认是列表循环。探索打开后，剩下不多于 3 首时会用当前和最近几首去要相似歌曲（`simi_song`），接到队列后面。关掉探索就不再追加。相似歌曲没拉到时会有提示。默认不显示「本地 API · 端口」；「指令总线」里可以打开。
 
-地址由本地 API 向网易云申请，只接受 `http` / `https`。申请失败时播放器停住，并写明「没有可播放的地址」或「请先登录」。Cookie 只留在主进程的 userData 里，不会进播放器快照，也不会交给页面保存。同目录的 `settings.json` 存音量、主题、动效、控件显隐、舞台强度和可编程按键，不存 Cookie。
+地址由本地 API 向网易云申请，只接受 `http` / `https`。申请失败时播放器停住，并写明「没有可播放的地址」或「请先登录」。Cookie 只留在主进程的 userData 里，不会进播放器快照，也不会交给页面保存。同目录的 `settings.json` 存音量、主题、动效、控件显隐、舞台强度、热键和桌面歌词，不存 Cookie。
 
 歌单按 `playlist_track_all` 的 offset 翻页，到空页或大约 2000 首为止。灰色曲目留在列表里，但不会进入队列。列表循环会回到第一首；顺序播放停在最后一首；单曲循环重复当前这一首。
 
-## 可编程按键 / Programmable keys
+## 喜欢 / Liked songs
+
+列表、播放队列和底栏当前曲的心形来自网易云 `likelist`（`/api/song/like/get` 返回的歌曲 id）。登录后潮汐拉这份 id 列表，再标到每一行上。没有 Cookie 时没有这份列表，心形保持空心，不会把所有歌假装成未喜欢以外的状态；接口返回里若单曲自己带了 `liked: true`，会先按那个提示显示。点喜欢或取消喜欢成功后，界面改成接口确认的结果。取消喜欢传给 `like` 的仍是字符串 `"false"`。
+
+Hearts on the list, the queue, and the current track follow NetEase `likelist`. Without a cookie there is no list, so hearts stay hollow unless a song payload already says `liked: true`. A successful toggle updates the heart to the value the API confirmed. Unlike still sends the string `"false"`.
+
+## 桌面歌词 / Desktop lyrics
+
+设置里的「桌面歌词」打开一个独立的透明置顶窗口，关掉就销毁，不留常驻窗口。解锁时可以拖，位置会记住，默认不吸附屏幕边缘。锁定后点击穿透到下层，用 `Ctrl+Alt+L` 锁定或解锁（不靠中键，避免把点击抢回来）。字号、字色和透明度可以改。当前行用整行高亮和一段上移动效。有翻译时在原文下面加一行，没有翻译就不留空行。主窗口最小化时，主进程仍按播放进度刷新这扇窗口。窗口落在已经拔掉的屏幕上时，会回到主屏可见区域。字边只用很细的浅色阴影，不把字心涂脏。
+
+Desktop lyrics are a separate transparent always-on-top window. Turning them off destroys that window. Unlocked, the window can be dragged and the point is saved, with no magnetic snap. Locked, clicks pass through; `Ctrl+Alt+L` locks or unlocks. Font size, color, and opacity are adjustable. The current line is highlighted. A translation sits under the original when one exists. The overlay keeps moving while the main window is minimized.
+
+## 热键 / Hotkeys
 
 罗技 G HUB、Options+ 一类驱动通常发出系统媒体键（`VK_MEDIA_NEXT_TRACK`、`VK_MEDIA_PREV_TRACK`、`VK_MEDIA_PLAY_PAUSE`、`VK_MEDIA_STOP`）或 `WM_APPCOMMAND`。潮汐对这四件事各做一次：下一首、上一首、播放/暂停、停止。
 
-0.8.1 在 Windows 上只靠 `navigator.mediaSession`。Electron 里这条通道在窗口失焦、最小化、或还没有任何曲目开始播放时收不到硬件键（还没有系统媒体会话，Chromium 也只在聚焦窗口里看到这些消息）。0.8.2 在「可编程按键」里加了「接管系统媒体键」，默认打开。打开时注册四个全局媒体键，覆盖这三种状态；关掉后不再注册，其它播放器可以继续接收这些键。旁边写着「会抢占其他播放器的媒体键」。开关会立刻注册或注销。Media Session 和自定义组合键不受这个开关影响。窗口聚焦时另外只监听 `app-command`（不再同时挂钩 `hookWindowMessage`）。同一个动作若在约 300 毫秒内从另一个来源再来一次，会被丢掉；同一个来源连按两次都会执行。
+0.8.1 在 Windows 上只靠 `navigator.mediaSession`。Electron 里这条通道在窗口失焦、最小化、或还没有任何曲目开始播放时收不到硬件键（还没有系统媒体会话，Chromium 也只在聚焦窗口里看到这些消息）。0.8.2 在「热键」里加了「接管系统媒体键」，默认打开。0.8.3 起这一组放在左侧「设置」里。打开时注册四个全局媒体键，覆盖这三种状态；关掉后不再注册，其它播放器可以继续接收这些键。旁边写着「会抢占其他播放器的媒体键」。开关会立刻注册或注销。Media Session 和自定义组合键不受这个开关影响。窗口聚焦时另外只监听 `app-command`（不再同时挂钩 `hookWindowMessage`）。同一个动作若在约 300 毫秒内从另一个来源再来一次，会被丢掉；同一个来源连按两次都会执行。
 
 在 G HUB 或 Options+ 里：
 
 1. 把可编程键设成媒体功能：下一首、上一首、播放/暂停、停止。同一个物理键不要再绑第二条宏。若这些键还要留给 Spotify 或浏览器，把「接管系统媒体键」关掉。
-2. 驱动如果只能发普通组合键，就设成例如 `Ctrl+Alt+Right`（下一首）、`Ctrl+Alt+Left`（上一首）、`Ctrl+Alt+Space`（播放/暂停）、`Ctrl+Alt+Down`（停止），或 `Ctrl+Shift+F13` 这种 F13–F24。然后在潮汐左侧打开「可编程按键」，填入同一组组合并保存。组合无效或和另一项重复时会有红色说明。`globalShortcut.register` 失败时退回上一个已经生效的组合，并写明「已被占用」。
+2. 驱动如果只能发普通组合键，就设成例如 `Ctrl+Alt+Right`（下一首）、`Ctrl+Alt+Left`（上一首）、`Ctrl+Alt+Space`（播放/暂停）、`Ctrl+Alt+Down`（停止），或 `Ctrl+Shift+F13` 这种 F13–F24。然后在潮汐左侧打开「设置」里的「热键」，填入同一组组合并保存。组合无效或和另一项重复时会有红色说明。`globalShortcut.register` 失败时退回上一个已经生效的组合，并写明「已被占用」。
 3. 一个物理键只对应一个动作。不要把系统媒体键和自定义组合同时绑在同一个键上。
 
 **Windows 真机验证仍待完成。** 开发环境不能替一台 Windows 机器按下罗技键或 `VK_MEDIA_*`。
