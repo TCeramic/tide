@@ -176,6 +176,8 @@ Playback commands cover get, play, pause, seek, volume, next, previous, queue, p
 
 ## Windows 包 / Windows package
 
+`0.9.2-test.1` 修正点阵卡片文字边界，统一面板与占位封面背景；「添加本地音乐」移动到主页「本地音乐」子菜单。歌曲缺失封面时批量查询详情补齐，专辑搜索和专辑曲目保留封面，网易云 HTTP 图片升级为 HTTPS；图片失败后短暂回退占位，避免永久屏蔽。
+
 `npm run dist` 用 electron-builder 打一个 Windows x64 zip，里面是 `Tide.exe` 和依赖。不签名。产物在 `release/`，已忽略，不要提交。
 
 `npm run dist:setup` 打 NSIS 安装包。这需要 Windows，或装了 Wine 的机器。这台 Linux 云主机只验证 zip。
@@ -193,6 +195,8 @@ The zip is a portable folder, not an installer. Unzip it and run `Tide.exe`. The
 两颗「完整组件」按钮打开上游原版完整互动展示，含透镜 18 类和点阵 14 类组件；展示页在独立沙箱 iframe 中运行，没有 Electron bridge。序曲尚未加入预设。播放层点阵开关仍是独立选项。
 
 `npm run test:ui` 用 Playwright + IPC fixture 验证渲染器和两套组件展示。需要可用的 `playwright` 模块（或通过 `TIDE_PLAYWRIGHT_MODULE` 指向现有模块），Windows 默认使用已安装的 Edge。截图在 `artifacts/ui-smoke/`，不写入 Git。此检查不替代 Electron 原生窗口、真实登录与音频验收。
+
+`npm run test:native` 启动真实 Electron，使用独立临时 userData、随机端口和软件 WebGL，检查窗口、API、点阵、本地音乐导入和静音 WAV 播放。文件选择器用确定性返回值替代，文件索引、IPC、API 和音频播放链路均实际运行。可设置 `TIDE_TEST_EXE` 为打包后的 `Tide.exe`；截图在 `artifacts/native-smoke/`。该检查不覆盖真实账号登录、云端音频权限或硬件媒体键。
 
 The Lens and Lattice presets use the actual MIT upstream renderers and components, not approximate recreations. The original showcase sources are retained intact and accessible from Settings. The packaged Lattice page replaces blocking Google Fonts requests with embedded original Latin faces; both pages are isolated from Electron IPC.
 

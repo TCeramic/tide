@@ -7,7 +7,6 @@ export interface HomeHooks {
   onDaily: () => void;
   onTide: () => void;
   onLocal: () => void;
-  onAddLocal: () => void;
   onProof: () => void;
 }
 
@@ -34,15 +33,6 @@ export function mountHome(root: HTMLElement, hooks: HomeHooks): {
   const dailyCard = card("每日推荐", "登录后解锁", hooks.onDaily, "daily");
   const localCard = card("本地音乐", "不登录也能播", hooks.onLocal, "local");
   const proofCard = card("证明树", "歌单、歌手、曲", hooks.onProof, "proof");
-  const addLocal = document.createElement("button");
-  addLocal.type = "button";
-  addLocal.className = "text-button";
-  addLocal.textContent = "添加";
-  addLocal.addEventListener("click", (event) => {
-    event.stopPropagation();
-    hooks.onAddLocal();
-  });
-  localCard.append(addLocal);
 
   grid.append(continueCard, libraryCard, tideCard, dailyCard, localCard, proofCard);
   root.append(grid);

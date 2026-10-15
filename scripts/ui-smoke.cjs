@@ -9,7 +9,7 @@ const output = path.resolve(process.env.TIDE_UI_OUTPUT || path.join(__dirname,'.
 fs.mkdirSync(output,{recursive:true});
 const mime = {'.html':'text/html','.css':'text/css','.js':'text/javascript','.json':'application/json'};
 let browser;
-const server = http.createServer((req,res)=>{const file=path.resolve(root,'.'+decodeURIComponent(req.url.split('?')[0]==='/'?'/index.html':req.url.split('?')[0]));if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return;}fs.readFile(file,(e,b)=>{if(e){res.writeHead(404).end();return;}res.setHeader('Content-Type',mime[path.extname(file)]||'application/octet-stream');res.end(b);});});
+const server = http.createServer((req,res)=>{if(req.url==='/fixture-cover.svg'){res.setHeader('Content-Type','image/svg+xml');res.end('<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><rect width="96" height="96" fill="#d5ee7a"/><circle cx="48" cy="48" r="24" fill="#182018"/></svg>');return;}const file=path.resolve(root,'.'+decodeURIComponent(req.url.split('?')[0]==='/'?'/index.html':req.url.split('?')[0]));if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return;}fs.readFile(file,(e,b)=>{if(e){res.writeHead(404).end();return;}res.setHeader('Content-Type',mime[path.extname(file)]||'application/octet-stream');res.end(b);});});
 (async()=>{
  await new Promise(r=>server.listen(4179,'127.0.0.1',r));
  browser=await chromium.launch({channel:process.env.TIDE_BROWSER_CHANNEL || (process.platform === 'win32' ? 'msedge' : undefined),headless:true,args:['--enable-webgl','--ignore-gpu-blocklist']});
@@ -23,7 +23,15 @@ const server = http.createServer((req,res)=>{const file=path.resolve(root,'.'+de
   const snapshot={status:'idle',queue:[],index:-1,positionMs:0,volume:.8,error:null,repeat:'all',shuffle:false,explore:false};
   const desk={open:false,locked:false,x:null,y:null,fontSize:48,color:'#f7fbfc',opacity:1,highlightFollow:true,motion:true,glow:.72,pair:false,wave:false,orientation:'horizontal',motionLevel:1,backdrop:0};
   const data={getPlayback:snapshot,getHealth:{ok:true,service:'tide',version:'0.9.1',busPort:39272},getSession:{ok:true,state:'signed_out',playlists:[]},getMediaShortcuts:{shortcuts:{},messages:[],captureMediaKeys:true},getQuality:'standard',getDeskLyrics:desk,localTracks:[],likedIds:{ok:true,known:false,ids:[]},backdropUrl:null,fontFace:null,getAppearance:appearance};
-  window.tide=new Proxy({mediaKeys:{},setAppearance:async patch=>{Object.assign(appearance,patch);listeners.onAppearance?.forEach(f=>f({...appearance}));return {...appearance};}}, {get(target,key){if(key in target)return target[key];if(String(key).startsWith('on'))return f=>{(listeners[key]||=[]).push(f);return ()=>{};};return async()=>data[key]??{ok:false,message:'preview fixture'};}});
+  const cover='http://127.0.0.1:4179/fixture-cover.svg';
+  const tracks=[{id:'1',title:'长歌曲标题用于检查边框'.repeat(8),artist:'歌手名字'.repeat(6),album:'测试专辑',durationMs:200000,playable:true,cover}];
+  snapshot.queue=tracks; snapshot.index=0;
+  window.fixtureAdds=0;
+  window.tide=new Proxy({mediaKeys:{},
+    search:async(keywords,type)=>type===10?{ok:true,kind:'albums',albums:[{id:'2',name:'专辑名称'.repeat(12),artist:'测试歌手',cover}]}:{ok:true,kind:'songs',hits:tracks},
+    albumTracks:async()=>({ok:true,kind:'songs',hits:tracks}),
+    addLocalTracks:async()=>{window.fixtureAdds++;data.localTracks=tracks;return tracks;},
+setAppearance:async patch=>{Object.assign(appearance,patch);listeners.onAppearance?.forEach(f=>f({...appearance}));return {...appearance};}}, {get(target,key){if(key in target)return target[key];if(String(key).startsWith('on'))return f=>{(listeners[key]||=[]).push(f);return ()=>{};};return async()=>data[key]??{ok:false,message:'preview fixture'};}});
  });
  await page.goto('http://127.0.0.1:4179/');
  await page.waitForTimeout(1800);
@@ -41,6 +49,48 @@ const server = http.createServer((req,res)=>{const file=path.resolve(root,'.'+de
  await page.getByRole('button',{name:'设置',exact:true}).click();
  await page.waitForTimeout(1500);
  await page.screenshot({path:path.join(output,'lattice-home.png')});
+ assert.equal(await page.locator('.home-grid button').count(),0);
+ await page.evaluate(()=>window.tide.setAppearance({motion:0}));
+ for(const size of [{width:1440,height:960},{width:1100,height:720},{width:800,height:560}]) {
+  await page.setViewportSize(size);
+  await page.waitForTimeout(400);
+  const overflow=await page.locator('.home-card').evaluateAll(cards=>cards.flatMap(card=>{
+    const box=card.getBoundingClientRect();
+    return [...card.querySelectorAll('h2,.home-body,.home-glyph,.home-cover')].filter(el=>{
+      const b=el.getBoundingClientRect();return b.width>0&&b.height>0&&(b.left<box.left-1||b.right>box.right+1||b.top<box.top-1||b.bottom>box.bottom+1);
+    }).map(el=>el.textContent||el.className.baseVal||el.className);
+  }));
+  assert.deepEqual(overflow,[],JSON.stringify(size));
+  const overlaps=await page.evaluate(()=>{
+    const hero=document.querySelector('.native-point-hero').getBoundingClientRect();
+    return [...document.querySelectorAll('.home-grid,.topbar,.transport,.queue-col,.native-set-control')].filter(el=>{
+      const b=el.getBoundingClientRect();return b.width>0&&b.height>0&&hero.left<b.right&&hero.right>b.left&&hero.top<b.bottom&&hero.bottom>b.top;
+    }).map(el=>el.className);
+  });
+  assert.deepEqual(overlaps,[],`TIDE display zone ${JSON.stringify(size)}`);
+  await page.screenshot({path:path.join(output,`lattice-home-${size.width}.png`)});
+ }
+ await page.setViewportSize({width:1440,height:960});
+ await page.evaluate(()=>window.tide.setAppearance({motion:1}));
+ await page.locator('.home-card').filter({has:page.locator('h2',{hasText:'本地音乐'})}).click();
+ assert.equal(await page.getByRole('button',{name:'添加本地音乐',exact:true}).isVisible(),true);
+ await page.getByRole('button',{name:'添加本地音乐',exact:true}).click();
+ await page.waitForFunction(()=>window.fixtureAdds===1);
+ await page.waitForFunction(()=>document.querySelector('.hits img')?.naturalWidth>0);
+ await page.screenshot({path:path.join(output,'lattice-local.png')});
+ await page.getByRole('button',{name:'主页',exact:true}).click();
+ assert.equal(await page.getByRole('button',{name:'添加本地音乐',exact:true}).isVisible(),false);
+ await page.getByRole('searchbox',{name:'搜索',exact:true}).fill('封面测试');
+ await page.locator('form.search').evaluate(form=>form.requestSubmit());
+ await page.waitForFunction(()=>document.querySelector('.hits img')?.naturalWidth>0);
+ await page.getByRole('button',{name:'专辑',exact:true}).click();
+ await page.locator('form.search').evaluate(form=>form.requestSubmit());
+ await page.waitForFunction(()=>document.querySelector('.catalog-cover img')?.naturalWidth>0);
+ await page.screenshot({path:path.join(output,'lattice-albums.png')});
+ await page.locator('.catalog-entry').first().click();
+ await page.waitForFunction(()=>document.querySelector('.hit-cover img')?.naturalWidth>0);
+ await page.getByRole('button',{name:'主页',exact:true}).click();
+ console.log('HOME_BOUNDS_LOCAL_MENU_SONG_ALBUM_COVERS','passed');
  await page.getByRole('button',{name:'下一点集',exact:true}).click();
  await page.waitForTimeout(1200);
  await page.screenshot({path:path.join(output,'lattice-lorenz.png')});
@@ -94,6 +144,22 @@ const server = http.createServer((req,res)=>{const file=path.resolve(root,'.'+de
  await page.evaluate(()=>window.tide.setAppearance({lattice:false}));
  assert.equal(await page.locator('.native-point-field').isVisible(),false);
  console.log('REPEATED_SWITCH_AND_SMALL_WINDOW','passed');
+ await page.getByRole('button',{name:'设置',exact:true}).click();
+ await page.getByRole('button',{name:'主页',exact:true}).click();
+ for(const size of [{width:1440,height:960},{width:1100,height:720},{width:800,height:560}]) {
+  await page.setViewportSize(size);
+  await page.waitForTimeout(400);
+
+  const overflow=await page.locator('.home-card').evaluateAll(cards=>cards.flatMap(card=>{
+    const box=card.getBoundingClientRect();
+    return [...card.querySelectorAll('h2,.home-body,.home-cover')].filter(el=>{const b=el.getBoundingClientRect();return b.width>0&&b.height>0&&(b.left<box.left-1||b.right>box.right+1||b.top<box.top-1||b.bottom>box.bottom+1);}).map(el=>el.className);
+  }));
+  assert.deepEqual(overflow,[],`Lens ${JSON.stringify(size)}`);
+  const grid=await page.locator('.home-grid').boundingBox(), bar=await page.locator('.topbar').boundingBox();
+  assert.ok(grid.y>=bar.y+bar.height,`Lens search/home overlap ${JSON.stringify(size)}`);
+  await page.screenshot({path:path.join(output,`lens-home-${size.width}.png`)});
+ }
+ console.log('LENS_TEXT_BOUNDS','passed');
  console.log('ERRORS',JSON.stringify(errors));
  assert.deepEqual(errors,[]);
  console.log('UI_SMOKE_PASS');

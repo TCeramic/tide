@@ -27,6 +27,7 @@ import { mountPresetForm } from "./preset-form";
 import { applyLike, isLiked, onLiked, setLikedIds } from "../liked";
 import { fillTrackList } from "../track-row";
 import { mountProof } from "./proof-view";
+import { paintCover } from "../cover";
 
 const RISK_ACK = "tide.risk.ack";
 
@@ -280,7 +281,14 @@ export function mountLibrary(root: HTMLElement): {
   const sheet = document.createElement("section");
   sheet.className = "browse-sheet glass";
   sheet.hidden = true;
-  sheet.append(viewBar, searchNote, hits, tideHeading, tideActions, recommendHeading, recommend, list);
+  const localActions = document.createElement("div");
+  localActions.className = "local-actions";
+  localActions.hidden = true;
+  const localHeading = document.createElement("h2");
+  localHeading.textContent = "本地音乐";
+  const addLocal = button("添加本地音乐");
+  localActions.append(localHeading, addLocal);
+  sheet.append(viewBar, localActions, searchNote, hits, tideHeading, tideActions, recommendHeading, recommend, list);
 
   const loginPeek = document.createElement("div");
   loginPeek.className = "peek peek-login";
@@ -303,6 +311,8 @@ export function mountLibrary(root: HTMLElement): {
   settingsPanel.open = true;
 
   const showSheet = () => {
+    localActions.hidden = true;
+    sheet.dataset.section = "browse";
     sheet.hidden = false;
     home.element.hidden = true;
   };
@@ -360,6 +370,9 @@ export function mountLibrary(root: HTMLElement): {
     },
     onLocal: () => {
       showSheet();
+      localActions.hidden = false;
+      sheet.dataset.section = "local";
+      viewBar.hidden = true;
       void window.tide.localTracks().then((hits) => {
         showSearchNote(hits.length === 0 ? "还没有本地曲目" : "本地音乐", hits.length === 0);
         renderHits(hits);
@@ -367,14 +380,20 @@ export function mountLibrary(root: HTMLElement): {
         // Listed for play. The row handler starts playback.
       });
     },
-    onAddLocal: () => {
-      void window.tide.addLocalTracks().then((hits) => {
-        home.setLocal(hits);
-        showSheet();
-        showSearchNote(hits.length === 0 ? "还没有本地曲目" : "本地音乐", hits.length === 0);
-        renderHits(hits);
-      });
-    },
+  });
+  addLocal.addEventListener("click", async () => {
+    addLocal.disabled = true;
+    try {
+      const rows = await window.tide.addLocalTracks();
+      if (disposed) return;
+      home.setLocal(rows);
+      localActions.hidden = false;
+      sheet.dataset.section = "local";
+      showSearchNote(rows.length === 0 ? "还没有本地曲目，点添加选择音乐文件" : `已载入 ${rows.length} 首本地音乐`, false);
+      renderHits(rows);
+    } catch {
+      showSearchNote("添加失败，请重新选择音乐文件", true);
+    } finally { addLocal.disabled = false; }
   });
 
   root.append(topbar, queueCol, sheet, proofHost, loginPeek, settingsPeek, loginPop, settingsPop);
@@ -823,7 +842,7 @@ export function mountLibrary(root: HTMLElement): {
         return;
       }
       if (result.kind === "albums") {
-        renderNamed(result.albums.map((row) => ({ id: row.id, name: `${row.name} · ${row.artist}` })), "没有找到专辑", (row) => {
+        renderNamed(result.albums.map((row) => ({ id: row.id, name: `${row.name} · ${row.artist}`, cover: row.cover })), "没有找到专辑", (row) => {
           void showDetail(row.name, () => window.tide.albumTracks(row.id));
         });
         return;
@@ -835,7 +854,7 @@ export function mountLibrary(root: HTMLElement): {
   });
 
   const renderNamed = (
-    rows: { id: string; name: string }[],
+    rows: { id: string; name: string; cover?: string }[],
     empty: string,
     open: (row: { id: string; name: string }) => void,
   ) => {
@@ -843,9 +862,14 @@ export function mountLibrary(root: HTMLElement): {
     showSearchNote(rows.length === 0 ? empty : "", rows.length === 0);
     for (const row of rows) {
       const item = document.createElement("li");
+      item.className = "catalog-row";
+      const art = document.createElement("span");
+      art.className = "catalog-cover";
+      paintCover(art, row.cover, { lazy: true });
       const buttonRow = button(row.name);
+      buttonRow.className = "catalog-entry";
       buttonRow.addEventListener("click", () => open(row));
-      item.append(buttonRow);
+      item.append(art, buttonRow);
       hits.append(item);
     }
   };

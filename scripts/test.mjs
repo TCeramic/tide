@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outdir = path.join(root, "dist-test");
 const entryPoints = [
+  "src/core/artwork.test.ts",
   "src/core/playback/machine.test.ts",
   "src/core/playback/order.test.ts",
   "src/core/playback/queue-edit.test.ts",

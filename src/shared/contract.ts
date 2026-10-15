@@ -171,12 +171,14 @@ export interface SearchHit {
 export interface ArtistSummary {
   id: string;
   name: string;
+  cover?: string;
 }
 
 export interface AlbumSummary {
   id: string;
   name: string;
   artist: string;
+  cover?: string;
 }
 
 export type SearchKind = "songs" | "artists" | "albums";

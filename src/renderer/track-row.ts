@@ -49,7 +49,7 @@ export function fillTrackList(
 
     const art = document.createElement("span");
     art.className = "hit-cover";
-    paintCover(art, hit.cover);
+    paintCover(art, hit.cover, { lazy: true });
     const main = document.createElement("button");
     main.type = "button";
     main.className = hit.playable ? "hit" : "hit unavailable";

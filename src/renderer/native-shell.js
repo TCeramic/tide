@@ -245,7 +245,7 @@ function mountPointField(root) {
   canvas.className = "native-point-field";
   canvas.setAttribute("aria-hidden", "true");
   root.prepend(canvas);
-  let renderer, field, frame = 0, paused = false, active = true, dead = false, last = 0, time = 0, idle = 0, setIndex = -1;
+  let renderer, field, frame = 0, paused = false, active = true, dead = false, last = 0, time = 0, setIndex = -1;
   const abort = new AbortController();
   const signal = abort.signal;
   const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 400);
@@ -279,10 +279,30 @@ function mountPointField(root) {
   const next = document.createElement("button"); next.type = "button"; next.className = "lx-btn lx-btn--ghost"; next.textContent = "下一点集";
   badge.append(counter, caption, next); root.append(badge);
   const number = mountDotText(counter, { pitch: 3 });
+  // A reserved, empty layout slot for the actual upstream GPU word. Business
+  // panels sit below this rectangle; no duplicate text is painted over it.
+  const hero = document.createElement("div");
+  hero.className = "native-point-hero";
+  hero.setAttribute("role", "img"); hero.setAttribute("aria-label", "TIDE 点阵展示区");
+  root.append(hero);
   const formations = [
     { caption: "POINT SETS", build: lattice => {
-      const map = sets.matrixText("TIDE", 2);
-      return lattice.lit([{ map, col: Math.floor((lattice.cols - map.w) / 2), row: Math.floor(lattice.rows * 0.18) }]);
+      const map = sets.matrixText("TIDE", 1);
+      const data = lattice.lit([{ map, col: 0, row: 0 }], { lift: 0, swarm: 0.24 });
+      const box = hero.getBoundingClientRect(), host = root.getBoundingClientRect();
+      const pitch = Math.min(12, (box.width - 24) / map.w, (box.height - 24) / map.h);
+      const left = box.left - host.left + (box.width - (map.w - 1) * pitch) / 2;
+      const top = box.top - host.top + (box.height - (map.h - 1) * pitch) / 2;
+      const frustum = stage.frustumAt(field.distance);
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] < 0.5) continue;
+        const x = left + (data[i] - lattice.x0) / lattice.pitch * pitch;
+        const y = top + (lattice.y0 - data[i + 1]) / lattice.pitch * pitch;
+        data[i] = (x / stage.w - 0.5) * frustum.w;
+        data[i + 1] = (0.5 - y / stage.h) * frustum.h;
+        data[i + 2] = 0;
+      }
+      return data;
     }, options: { sweep: [1, 0, 0], span: 9, dur: 1.5, lit: 1.6, flow: 2.4, alpha: 0.42 } },
     ...[
       ["LORENZ ATTRACTOR", n => sets.lorenz(n, 1.95)],
@@ -299,8 +319,24 @@ function mountPointField(root) {
     setIndex = (index + formations.length) % formations.length;
     const set = formations[setIndex];
     field.keep(set.build, set.options); caption.textContent = set.caption;
-    number.set(String(setIndex + 1).padStart(2, "0")); idle = 0;
+    number.set(String(setIndex + 1).padStart(2, "0"));
+    if (paused) snapStill();
     wake();
+  }
+  function snapStill() {
+    // A stopped simulation must still follow window resizes and selected sets.
+    // Seed both upstream GPU buffers with the target instead of freezing an
+    // unfinished morph at the old window coordinates.
+    const data = field.tTarget.image.data.slice(), point = new THREE.Vector3();
+    for (let i = 0; i < data.length; i += 4) if (data[i + 3] > 0.5) {
+      point.fromArray(data, i).applyMatrix4(field.setMat); point.toArray(data, i);
+    }
+    const positions = field._dataTex(data), velocities = field.gpu.createTexture();
+    for (const target of field.pos.renderTargets) field.gpu.renderTexture(positions, target);
+    for (const target of field.vel.renderTargets) field.gpu.renderTexture(velocities, target);
+    positions.dispose(); velocities.dispose();
+    field.du.uLit.value = field.litTarget;
+    field.du.uLitAlpha.value = field.alphaTarget;
   }
   function resize() {
     stage.w = Math.max(2, root.clientWidth); stage.h = Math.max(2, root.clientHeight);
@@ -308,7 +344,7 @@ function mountPointField(root) {
     camera.aspect = stage.w / stage.h; camera.updateProjectionMatrix();
     renderer.setPixelRatio(stage.dpr); renderer.setSize(stage.w, stage.h, false);
     field.setOffset = new THREE.Vector3(stage.mobile ? 0 : 1.35, 0.25, 0.7);
-    field.onResize(stage); wake();
+    field.onResize(stage); if (paused) snapStill(); wake();
   }
   function updateRay() {
     camera.updateMatrixWorld(); raycaster.setFromCamera(pointer.ndc, camera);
@@ -337,7 +373,6 @@ function mountPointField(root) {
     if (dead || !active || document.hidden) { last = 0; return; }
     const dt = last ? Math.min(0.05, (now - last) / 1000) : 1 / 60; last = now;
     time += paused ? 0 : dt;
-    if (!paused && !field.holding && (idle += dt) > 11) showSet(setIndex + 1);
     updateRay(); field.update(paused ? 0 : dt, time, stage); renderer.render(scene, camera);
     if (!paused && !frame) frame = requestAnimationFrame(loop);
   }
@@ -347,7 +382,7 @@ function mountPointField(root) {
   resize(); showSet(0);
   return {
     setActive(on) {
-      active = on; canvas.hidden = !on; badge.hidden = !on; stage.visible = on;
+      active = on; canvas.hidden = !on; badge.hidden = !on; hero.hidden = !on; stage.visible = on;
       if (!on) { field.holding = false; pointer.down = false; cancelAnimationFrame(frame); frame = 0; last = 0; }
       else wake();
     },
@@ -362,7 +397,7 @@ function mountPointField(root) {
       dead = true; abort.abort(); resizeObserver.disconnect(); cancelAnimationFrame(frame);
       field.gpu.dispose(); field.tSeed.dispose(); field.tTarget.dispose(); field.tPrev.dispose();
       field.points.geometry.dispose(); field.drawMat.dispose(); field.shadow.material.dispose();
-      renderer.dispose(); renderer.forceContextLoss(); canvas.remove(); badge.remove();
+      renderer.dispose(); renderer.forceContextLoss(); canvas.remove(); badge.remove(); hero.remove();
     },
   };
 }

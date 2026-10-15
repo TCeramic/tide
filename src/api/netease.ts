@@ -2,6 +2,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import type { AudioLevel } from "../core/audio-level";
 import { loadPlaylistPages } from "../core/playlist-pages";
+import { normalizeArtworkUrl } from "../core/artwork";
 import type { AlbumSummary, ArtistSummary, PlaylistSummary, SearchHit, SessionUser } from "../shared/contract";
 
 interface NcmBody {
@@ -54,6 +55,7 @@ interface NcmModule {
   playlist_tracks(query: { op: "add" | "del"; pid: string; tracks: string; cookie?: string }): Promise<unknown>;
   artist_songs(query: { id: string; limit?: number; cookie?: string }): Promise<unknown>;
   album(query: { id: string; cookie?: string }): Promise<unknown>;
+  song_detail?(query: { ids: string; cookie?: string }): Promise<unknown>;
 }
 
 export interface QrImage {
@@ -119,6 +121,30 @@ export interface CatalogPage {
 }
 
 export function createNeteaseClient(module: NcmModule = loadNeteaseModule()): NeteaseClient {
+  const covers = new Map<string, string>();
+  const hydrateCovers = async (hits: SearchHit[], cookie: string | null): Promise<SearchHit[]> => {
+    for (const hit of hits) if (hit.cover) covers.set(hit.id, hit.cover);
+    const missing = [...new Set(hits.filter(hit => !hit.cover && !covers.has(hit.id)).map(hit => hit.id))];
+    if (module.song_detail && missing.length > 0) {
+      // Batch the documented song/detail endpoint; a missing image must never
+      // turn a usable search/playlist into an error or alter play privileges.
+      for (let offset = 0; offset < missing.length; offset += 500) {
+        let timeout: ReturnType<typeof setTimeout> | undefined;
+        try {
+          const result = await Promise.race([
+            module.song_detail(withCookie({ ids: missing.slice(offset, offset + 500).join(",") }, cookie)),
+            new Promise<never>((_, reject) => { timeout = setTimeout(() => reject(new Error("cover_timeout")), 5000); }),
+          ]);
+          const body = requireOk(result, "cover_failed");
+          for (const detail of collectHits(body.songs, null, 500, true)) if (detail.cover) covers.set(detail.id, detail.cover);
+        } catch { break; }
+        finally { if (timeout) clearTimeout(timeout); }
+      }
+    }
+    const enriched = hits.map(hit => !hit.cover && covers.has(hit.id) ? { ...hit, cover: covers.get(hit.id)! } : hit);
+    while (covers.size > 2000) covers.delete(covers.keys().next().value!);
+    return enriched;
+  };
   return {
     async qrKey() {
       return readQrKey(await module.login_qr_key({}));
@@ -136,40 +162,42 @@ export function createNeteaseClient(module: NcmModule = loadNeteaseModule()): Ne
       return readPlaylists(await module.user_playlist({ uid, cookie, limit: 100 }));
     },
     async search(keywords, cookie) {
-      return readSearch(await module.cloudsearch(withCookie({ keywords, type: 1, limit: 20 }, cookie)));
+      return hydrateCovers(readSearch(await module.cloudsearch(withCookie({ keywords, type: 1, limit: 20 }, cookie))), cookie);
     },
     async songUrl(id, cookie, level) {
       return readSongUrl(await module.song_url_v1(withCookie({ id, level }, cookie)));
     },
     async playlistTracks(id, cookie) {
       try {
-        return await loadPlaylistPages(async (offset, limit) => (
+        const hits = await loadPlaylistPages(async (offset, limit) => (
           readPlaylistTracks(await module.playlist_track_all(withCookie({ id, limit, offset }, cookie)))
         ));
+        return hydrateCovers(hits, cookie);
       } catch (error) {
         rethrowSignedOut(error);
       }
     },
     async similarSongs(id, cookie) {
       try {
-        return readSimilar(await module.simi_song(withCookie({ id, limit: 20 }, cookie)));
+        return hydrateCovers(readSimilar(await module.simi_song(withCookie({ id, limit: 20 }, cookie))), cookie);
       } catch (error) {
         rethrowSignedOut(error);
       }
     },
     async searchKind(keywords, type, cookie) {
-      return readCatalog(await module.cloudsearch(withCookie({ keywords, type, limit: 20 }, cookie)), type);
+      const page = readCatalog(await module.cloudsearch(withCookie({ keywords, type, limit: 20 }, cookie)), type);
+      return { ...page, hits: await hydrateCovers(page.hits, cookie) };
     },
     async artistSongs(id, cookie) {
       try {
-        return readSimilar(await module.artist_songs(withCookie({ id, limit: 50 }, cookie)));
+        return hydrateCovers(readSimilar(await module.artist_songs(withCookie({ id, limit: 50 }, cookie))), cookie);
       } catch (error) {
         rethrowSignedOut(error);
       }
     },
     async albumTracks(id, cookie) {
       try {
-        return readAlbum(await module.album(withCookie({ id }, cookie)));
+        return hydrateCovers(readAlbum(await module.album(withCookie({ id }, cookie))), cookie);
       } catch (error) {
         rethrowSignedOut(error);
       }
@@ -191,7 +219,7 @@ export function createNeteaseClient(module: NcmModule = loadNeteaseModule()): Ne
     },
     async personalFm(cookie) {
       try {
-        return readPersonalFm(await module.personal_fm(withCookie({}, cookie)));
+        return hydrateCovers(readPersonalFm(await module.personal_fm(withCookie({}, cookie))), cookie);
       } catch (error) {
         rethrowSignedOut(error);
       }
@@ -235,7 +263,7 @@ export function createNeteaseClient(module: NcmModule = loadNeteaseModule()): Ne
     },
     async dailySongs(cookie) {
       try {
-        return readDailySongs(await module.recommend_songs(withCookie({}, cookie)));
+        return hydrateCovers(readDailySongs(await module.recommend_songs(withCookie({}, cookie))), cookie);
       } catch (error) {
         rethrowSignedOut(error);
       }
@@ -336,7 +364,8 @@ export function readAlbum(result: unknown): SearchHit[] {
   const body = requireOk(result, "album_failed");
   const album = asRecord(body.album);
   const songs = body.songs ?? album?.songs;
-  return collectHits(songs, body.privileges, CATALOG_LIMIT, true);
+  const cover = album ? readCoverUrl(album) : null;
+  return collectHits(songs, body.privileges, CATALOG_LIMIT, true).map(hit => !hit.cover && cover ? { ...hit, cover } : hit);
 }
 
 export function readLyricText(result: unknown): string {
@@ -526,11 +555,12 @@ function toHit(
 
 /** Album art from a song payload. Only http(s) URLs are kept. */
 export function readCoverUrl(song: Record<string, unknown>): string | null {
-  const album = asRecord(song.al) ?? asRecord(song.album);
-  const raw = album?.picUrl ?? song.picUrl;
-  if (typeof raw !== "string") return null;
-  const trimmed = raw.trim();
-  return isHttpUrl(trimmed) ? trimmed : null;
+  const al = asRecord(song.al), album = asRecord(song.album);
+  for (const raw of [al?.picUrl, album?.picUrl, song.picUrl, song.coverImgUrl, song.img1v1Url]) {
+    const url = normalizeArtworkUrl(raw);
+    if (url) return url;
+  }
+  return null;
 }
 
 function playableOf(
@@ -557,7 +587,8 @@ function readArtistRows(value: unknown): ArtistSummary[] {
     const id = row?.id == null ? "" : String(row.id);
     const name = typeof row?.name === "string" ? row.name.trim() : "";
     if (!/^\d{1,20}$/.test(id) || name.length === 0) continue;
-    rows.push({ id, name: name.slice(0, 200) });
+    const cover = row ? readCoverUrl(row) : null;
+    rows.push({ id, name: name.slice(0, 200), ...(cover ? { cover } : {}) });
     if (rows.length >= MAX_HITS) break;
   }
   return rows;
@@ -575,7 +606,8 @@ function readAlbumRows(value: unknown): AlbumSummary[] {
     const artist = typeof artistRecord?.name === "string" && artistRecord.name.trim().length > 0
       ? artistRecord.name.trim().slice(0, 200)
       : readArtists(row?.artists);
-    rows.push({ id, name: name.slice(0, 200), artist });
+    const cover = row ? readCoverUrl(row) : null;
+    rows.push({ id, name: name.slice(0, 200), artist, ...(cover ? { cover } : {}) });
     if (rows.length >= MAX_HITS) break;
   }
   return rows;
