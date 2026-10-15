@@ -25,7 +25,8 @@ describe("cookie", () => {
     assert.equal(store.read(), null);
     store.write("MUSIC_U=secret");
     assert.equal(store.read(), "MUSIC_U=secret");
-    assert.equal(fs.statSync(file).mode & 0o777, 0o600);
+    // Node's POSIX mode bits do not represent Windows ACLs.
+    if (process.platform !== "win32") assert.equal(fs.statSync(file).mode & 0o777, 0o600);
     store.clear();
     assert.equal(fs.existsSync(file), false);
     assert.equal(store.read(), null);

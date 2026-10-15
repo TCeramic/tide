@@ -14,3 +14,6 @@ userData/
 *.pem
 .DS_Store
 Thumbs.db
+artifacts/
+!src/renderer/vendor/design-systems/lattice/dist/
+!src/renderer/vendor/design-systems/lattice/dist/lattice-showcase.html

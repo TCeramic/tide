@@ -12,7 +12,8 @@ describe("command bus files", () => {
     const first = token.read();
     assert.match(first, /^[a-f0-9]{64}$/);
     assert.equal(token.read(), first);
-    assert.equal(fs.statSync(path.join(dir, "bus-token")).mode & 0o777, 0o600);
+    // Keep the read/write assertions on Windows; POSIX mode is meaningful on Unix.
+    if (process.platform !== "win32") assert.equal(fs.statSync(path.join(dir, "bus-token")).mode & 0o777, 0o600);
 
     const allowFile = path.join(dir, "bus-allow.json");
     fs.writeFileSync(allowFile, JSON.stringify({

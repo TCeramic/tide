@@ -67,8 +67,8 @@ function bindHardwareWindow(win: BrowserWindow): void {
   });
 }
 
-function applyTitleBar(win: BrowserWindow, shell: "lens" | "lattice"): void {
-  const chrome = titleBarChrome(shell);
+function applyTitleBar(win: BrowserWindow, shell: "lens" | "lattice", theme = "tide"): void {
+  const chrome = titleBarChrome(shell, theme);
   try {
     win.setTitleBarOverlay({ color: chrome.color, symbolColor: chrome.symbolColor, height: chrome.height });
   } catch {
@@ -78,18 +78,19 @@ function applyTitleBar(win: BrowserWindow, shell: "lens" | "lattice"): void {
 
 function createWindow(): BrowserWindow {
   const shell = settingsStore?.read().shell ?? "lens";
+  const theme = settingsStore?.read().theme ?? "tide";
   const win = new BrowserWindow({
     width: 1100,
     height: 720,
     minWidth: 800,
     minHeight: 560,
     show: false,
-    backgroundColor: windowBackground(shell),
+    backgroundColor: windowBackground(shell, theme),
     title: "潮汐 Tide",
     icon: windowIcon(),
     autoHideMenuBar: true,
     titleBarStyle: "hidden",
-    titleBarOverlay: titleBarChrome(shell),
+    titleBarOverlay: titleBarChrome(shell, theme),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -99,7 +100,7 @@ function createWindow(): BrowserWindow {
     },
   });
 
-  applyTitleBar(win, shell);
+  applyTitleBar(win, shell, theme);
   win.once("ready-to-show", () => win.show());
   win.on("close", () => {
     closeDesk();
@@ -163,8 +164,8 @@ function pushAppearance(): void {
   const win = mainWindow;
   if (win && !win.isDestroyed()) {
     win.webContents.send(Ipc.appearance, appearance);
-    applyTitleBar(win, appearance.shell);
-    win.setBackgroundColor(windowBackground(appearance.shell));
+    applyTitleBar(win, appearance.shell, appearance.theme);
+    win.setBackgroundColor(windowBackground(appearance.shell, appearance.theme));
   }
   commandServer?.publish({ type: "appearance", appearance });
 }

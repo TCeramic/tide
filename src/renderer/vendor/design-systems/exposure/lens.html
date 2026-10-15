@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:,">
+<title>透镜 Lens · 一次曝光</title>
+<link rel="stylesheet" href="../lens/lab/design-system/tokens.css">
+<link rel="stylesheet" href="../lens/lab/design-system/components.css">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;background:#cfdeed;color:#1d2433;font:16px/1.5 var(--lg-font-family);-webkit-font-smoothing:antialiased}
+html[data-lang="zh"] [lang="en"],html[data-lang="en"] [lang="zh"]{display:none!important}
+.mono{font:12px/1.4 ui-monospace,"SFMono-Regular",Consolas,monospace;letter-spacing:.02em}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* page 1 · hero: the headline lives inside the refracted scene, so the lens bends real type */
+.hero{position:relative;height:100vh;min-height:520px}
+.hero-stage{position:absolute;inset:0;border-radius:0}
+.hero-stage .lg-lens{width:clamp(170px,21vw,290px);height:clamp(170px,21vw,290px);border-radius:clamp(56px,7vw,96px);font-size:13px;color:#2b3550}
+.hero-top{position:absolute;left:clamp(20px,4vw,56px);right:clamp(20px,4vw,56px);top:clamp(18px,3.4vh,34px);display:flex;justify-content:space-between;align-items:baseline;pointer-events:none;z-index:2}
+.hero-top b{font-weight:600;font-size:17px;letter-spacing:-.01em}
+.hero-top .mono{color:#4a5672}
+.hero-foot{position:absolute;left:clamp(20px,4vw,56px);right:clamp(20px,4vw,56px);bottom:clamp(22px,5vh,48px);display:flex;justify-content:space-between;align-items:end;gap:24px;pointer-events:none;z-index:2}
+.hero-foot p{margin:0;max-width:520px;font-size:clamp(15px,1.25vw,18px);color:#27324a}
+.hero-foot .mono{display:block;margin-top:10px;color:#4a5672}
+.hero-foot .hint{text-align:right;color:#4a5672;white-space:nowrap}
+
+/* page 2 · the kit: one sheet of real components, base or flat */
+.kit{position:relative;min-height:100vh}
+.kit-stage{position:relative;min-height:100vh;border-radius:0;padding:clamp(22px,3.4vh,36px) clamp(20px,4vw,56px) clamp(28px,5vh,52px)}
+.kit-head{display:flex;justify-content:space-between;align-items:start;gap:24px}
+.kit-mark{font-weight:600;font-size:17px;letter-spacing:-.01em;padding-top:10px}
+.kit-ver{display:grid;justify-items:end;gap:10px;width:min(300px,52vw)}
+.kit-ver .lg-tab-panel{display:none}
+.kit-ver code{color:#4a5672}
+.kit h2{margin:clamp(4px,1.6vh,18px) 0 0;font-weight:600;font-size:clamp(40px,6.2vw,92px);line-height:1.04;letter-spacing:-.035em;color:#1d2433}
+.kit-sub{margin:10px 0 0;font-size:clamp(16px,1.6vw,22px);color:#3c4762}
+.grid{margin-top:clamp(26px,5vh,56px);display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:clamp(26px,4.4vh,46px) clamp(16px,2vw,28px);align-items:start}
+.cell{min-width:0;display:grid;gap:12px;align-content:start}
+.cell>.mono{color:#3f4a63;padding-left:4px;white-space:nowrap}
+/* the drag hint and live status stay for screen readers; the wells already say it */
+.c-drop :is(.lg-drop-hint,.lg-drop-status){position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.c-dock{grid-column:span 4}.c-switch{grid-column:span 2}.c-icon{grid-column:span 2}.c-tiles{grid-column:span 4}
+.c-drop{grid-column:span 5}.c-choices{grid-column:span 5}.c-button{grid-column:span 2}
+.c-progress{grid-column:1/-1}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.tiles .lg-toggle-tile{width:100%}
+.c-button .lg-button{width:100%}
+.c-progress .lg-progress-track{margin:12px 0 0}
+.kit-foot{margin-top:clamp(28px,5vh,56px);display:flex;justify-content:space-between;gap:16px;color:#4a5672}
+@media (max-width:980px){
+  .c-dock,.c-drop,.c-choices{grid-column:1/-1}.c-switch,.c-icon{grid-column:span 3}.c-tiles{grid-column:span 6}.c-button{grid-column:1/-1}
+}
+@media (max-width:620px){
+  .c-switch,.c-icon{grid-column:span 6}.c-tiles{grid-column:1/-1}
+  .kit-head{flex-direction:column}.kit-ver{justify-items:start;width:100%}
+  .hero-foot{flex-direction:column;align-items:start}.hero-foot .hint{text-align:left}
+}
+
+/* flat: what is unselected or still moving stays liquid glass; once a choice settles, or a task completes, it
+   flattens into a solid sheet that covers the glass beneath it. Moving again (pressed, dragged, sliding) melts the
+   sheet back into glass. The glass system keeps running in both versions, so switching is instant. */
+.kit-stage :is(.lg-segment-indicator,.lg-choice,.lg-icon-button,.lg-toggle-tile,.lg-switch-thumb,.lg-switch-track,.lg-drop-well,.lg-progress-track){transition:background-color .16s ease,color .16s ease,box-shadow .16s ease}
+.kit-stage.flat :is(
+  .lg-segment-indicator,
+  .lg-choice[aria-pressed=true],
+  .lg-icon-button[aria-pressed=true],
+  .lg-toggle-tile[aria-checked=true],
+  .lg-switch[aria-checked=true] .lg-switch-thumb,
+  .lg-drop-select[data-phase=rest] .lg-drop-well[data-selected=true],
+  .lg-progress[data-complete=true] .lg-progress-track
+):not(.jelly-moving):not([data-held=true]){transition-duration:.38s;box-shadow:0 1px 2px #1d24331f,0 0 0 1px #1d243312}
+.kit-stage.flat .lg-segment-indicator:not(.jelly-moving):not([data-held=true]),
+.kit-stage.flat .lg-switch[aria-checked=true] .lg-switch-thumb:not(.jelly-moving),
+.kit-stage.flat .lg-drop-select[data-phase=rest] .lg-drop-well[data-selected=true]{background:#fff}
+.kit-stage.flat .lg-drop-select[data-phase=rest] .lg-drop-well[data-selected=true]{color:#1f7a4d}
+.kit-stage.flat .lg-choice[aria-pressed=true]:not(.jelly-moving):not([data-held=true]){background:#2d6fdf;color:#fff}
+.kit-stage.flat :is(.lg-icon-button[aria-pressed=true],.lg-toggle-tile[aria-checked=true]):not(.jelly-moving):not([data-held=true]){background:#2f9e6a;color:#fff}
+.kit-stage.flat .lg-switch[aria-checked=true]:not(:has(.jelly-moving)) .lg-switch-track{background:#2f9e6a;transition-duration:.38s}
+.kit-stage.flat .lg-progress[data-complete=true] .lg-progress-track{background:#2f9e6a}
+.kit-stage.flat .lg-progress[data-complete=true] :is(.lg-optic-rim,.lg-progress-fiber,.lg-progress-emitter){display:none}
+</style>
+</head>
+<body>
+<section class="hero" id="hero" aria-labelledby="hero-h">
+  <h1 id="hero-h" class="sr-only"><span lang="zh">光，可以触摸。</span><span lang="en">Light you can touch.</span></h1>
+  <div class="hero-stage" id="hero-stage"></div>
+  <div class="hero-top"><b><span lang="zh">透镜</span> Lens</b><span class="mono">v1.1 · WebGL2</span></div>
+  <div class="hero-foot">
+    <p><span lang="zh">玻璃承载信息，液体表达连续变化，光表达状态。标题就画在玻璃背后的场景里，拖动透镜，它会被真实地折射。</span><span lang="en">Glass carries information, liquid shows continuous change, light shows state. The headline is drawn into the scene behind the glass: drag the lens and it really refracts.</span>
+      <span class="mono"><span lang="zh">18 类组件 · 实时折射 · 13 种合成音 · 零依赖</span><span lang="en">18 components · live refraction · 13 synthesized sounds · zero dependencies</span></span></p>
+    <span class="hint mono"><span lang="zh">拖动透镜 · 向下滚动看组件 ↓</span><span lang="en">Drag the lens · scroll for the kit ↓</span></span>
+  </div>
+</section>
+
+<section class="kit" id="kit" aria-labelledby="kit-h">
+  <div class="kit-stage" id="kit-stage">
+    <div class="kit-head">
+      <div class="kit-mark"><span lang="zh">透镜</span> Lens</div>
+      <div class="kit-ver"><div id="ver"></div><code class="mono" id="ver-code">Lens.use('base')</code></div>
+    </div>
+    <h2 id="kit-h"><span lang="zh">选中，是一束光。</span><span lang="en">Selection is a beam of light.</span></h2>
+    <p class="kit-sub" id="kit-sub"></p>
+    <div class="grid">
+      <div class="cell c-dock"><span class="mono">dock</span><div id="c-dock"></div></div>
+      <div class="cell c-switch"><span class="mono">switch</span><div id="c-switch"></div></div>
+      <div class="cell c-icon"><span class="mono">icon-button</span><div id="c-icon"></div></div>
+      <div class="cell c-tiles"><span class="mono">toggle-tile</span><div class="tiles" id="c-tiles"></div></div>
+      <div class="cell c-drop"><span class="mono">drop-select</span><div id="c-drop"></div></div>
+      <div class="cell c-choices"><span class="mono">choices</span><div id="c-choices"></div></div>
+      <div class="cell c-button"><span class="mono">button</span><div id="c-button"></div></div>
+      <div class="cell c-progress"><span class="mono">progress</span><div id="c-progress"></div></div>
+    </div>
+    <div class="kit-foot mono"><span><span lang="zh">全部为实时组件，可直接操作</span><span lang="en">Every piece is a live component; use it</span></span><span>@lens/design-system 1.1</span></div>
+  </div>
+</section>
+
+<script type="module">
+import {createComponent,createGlassSystem} from '../lens/lab/design-system/index.js';
+import {lang,fullMotion,progress,ready,on} from './page.js';
+
+const zh=lang==='zh',t=(a,b)=>zh?a:b,$=s=>document.querySelector(s);
+progress(0.45);
+let soundOn=false;
+const quiet=system=>system?.sound.set({enabled:soundOn});
+
+/* ---------- page 1 · hero ---------- */
+const AURORA=['#d3e8e3','#badde8','#9db7dc','#929ee0','#d3b4d2','#eccbc1'];
+function paintAurora(ctx,{width:w,height:h,dpr}){
+  const g=ctx.createLinearGradient(0,0,w,h);g.addColorStop(0,AURORA[0]);g.addColorStop(.5,AURORA[1]);g.addColorStop(1,AURORA[5]);ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+  // the same raised colour sheets as the system's own aurora scene
+  const ribbon=(o,c1,c2)=>{
+    const contour=new Path2D();contour.moveTo(-w*.1,h*(.98+o));contour.bezierCurveTo(w*.13,h*(.39+o),w*.48,h*(.86+o),w*1.1,h*(-.32+o));
+    const shape=new Path2D(contour);shape.lineTo(w*1.15,h*1.4);shape.lineTo(-w*.1,h*1.4);shape.closePath();
+    const f=ctx.createLinearGradient(w*.05,h*.1,w*.87,h*.92);f.addColorStop(0,c1);f.addColorStop(.48,c2);f.addColorStop(1,AURORA[5]);
+    ctx.save();ctx.shadowColor='#38486830';ctx.shadowBlur=27*dpr;ctx.shadowOffsetY=-7*dpr;ctx.fillStyle=f;ctx.fill(shape);ctx.restore();
+    ctx.save();ctx.clip(shape);ctx.filter=`blur(${15*dpr}px)`;ctx.strokeStyle='#ffffff45';ctx.lineWidth=37*dpr;ctx.stroke(contour);ctx.filter='none';ctx.strokeStyle='#ffffff25';ctx.lineWidth=1.2*dpr;ctx.stroke(contour);ctx.restore();
+  };
+  ribbon(-.31,AURORA[1],AURORA[2]);ribbon(-.10,AURORA[2],AURORA[3]);ribbon(.18,AURORA[3],AURORA[4]);ribbon(.44,AURORA[4],AURORA[5]);
+  const glow=ctx.createRadialGradient(w*.12,h*.08,0,w*.12,h*.08,w*.85);glow.addColorStop(0,'#ffffff55');glow.addColorStop(1,'#ffffff00');ctx.fillStyle=glow;ctx.fillRect(0,0,w,h);
+}
+function paintHero(ctx,size){
+  paintAurora(ctx,size);const {width:w,height:h}=size;
+  // the headline: fitted to the width, set in the system face
+  const text=t('光，可以触摸。','Light you can touch.'),family=getComputedStyle(document.documentElement).getPropertyValue('--lg-font-family')||'sans-serif';
+  ctx.font=`300 100px ${family}`;const px=Math.min(h*.2,w*.86/ctx.measureText(text).width*100);
+  ctx.font=`300 ${px}px ${family}`;ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillStyle='#1f2b45e6';
+  ctx.fillText(text,w*.07,h*.5);
+}
+const heroStage=$('#hero-stage'),freeLens=createComponent('lens',{label:t('可拖动的透镜','Draggable lens'),caption:t('按住拖动','Hold and drag')});
+heroStage.append(freeLens.element);
+const hero=createGlassSystem(heroStage,{scene:'aurora',artwork:paintHero,motion:fullMotion});quiet(hero);
+// start the lens over the end of the headline so the first thing seen is type being bent
+requestAnimationFrame(()=>hero.jelly.target(freeLens.element,-heroStage.clientWidth*.04,-heroStage.clientHeight*.02));
+progress(0.65);
+
+/* ---------- page 2 · the kit ---------- */
+const kitStage=$('#kit-stage'),parts=[];
+const make=(name,props,host)=>{const c=createComponent(name,props);$(host).append(c.element);parts.push(c);return c;};
+make('dock',{label:t('导航','Navigation'),value:'material',options:[{value:'all',label:t('总览','Overview'),icon:'home'},{value:'material',label:t('材质','Material'),icon:'layers'},{value:'saved',label:t('收藏','Saved'),icon:'heart'}]},'#c-dock');
+make('switch',{label:t('专注','Focus'),checked:true},'#c-switch');
+make('icon-button',{label:t('收藏','Favorite'),icon:'heart',pressed:false},'#c-icon');
+make('toggle-tile',{label:'Wi-Fi',icon:'wifi',checked:true,onLabel:t('已连接','Connected'),offLabel:t('已关闭','Off')},'#c-tiles');
+make('toggle-tile',{label:t('蓝牙','Bluetooth'),icon:'bluetooth',checked:true,onLabel:t('已连接','Connected'),offLabel:t('已关闭','Off')},'#c-tiles');
+make('drop-select',{label:t('场景','Scene'),dragLabel:t('拖到发光的凹槽，或用方向键','Drag to a glowing well, or use arrow keys'),variant:'lens',value:'day',options:[{value:'focus',label:t('专注','Focus'),icon:'focus'},{value:'day',label:t('日光','Daylight'),icon:'sun'},{value:'night',label:t('夜间','Night'),icon:'moon'}]},'#c-drop');
+make('choices',{label:t('分组','Group'),value:'work',options:[{value:'all',label:t('全部','All')},{value:'work',label:t('工作','Work')},{value:'saved',label:t('收藏','Saved')}]},'#c-choices');
+make('button',{label:t('保存此刻','Save this moment'),sound:'success'},'#c-button');
+const bar=make('progress',{label:t('当前进度','Current progress'),value:0,max:100,completionColor:'green',completeLabel:t('已完成','Complete')},'#c-progress');
+
+// two versions of one kit, one glass system: base keeps everything glass; flat flattens what is chosen or done
+const VERSIONS={base:t('基础版 base · 全玻璃，选中以发光、反光与液体表达','Base · all glass; selection shown with glow, reflection and liquid'),flat:t('扁平版 flat · 未选中与移动中的仍是液态玻璃，选中或完成后平化为实色','Flat · unselected and moving parts stay liquid glass; chosen or finished ones flatten into solid colour')};
+let kit=null,version=null,ver=null;
+function use(next){
+  if(next===version)return;version=next;
+  kit||=(()=>{const k=createGlassSystem(kitStage,{scene:'aurora',artwork:paintAurora,motion:fullMotion});quiet(k);return k;})();
+  kitStage.classList.toggle('flat',next==='flat');kit.renderer?.invalidate(500);
+  ver?.setValue(next);$('#kit-sub').textContent=VERSIONS[next];$('#ver-code').textContent=`Lens.use('${next}')`;
+  kitStage.dispatchEvent(new CustomEvent('lg:sync',{bubbles:true}));
+}
+ver=createComponent('tabs',{label:t('版本','Version'),value:'base',options:[{value:'base',label:t('基础版','Base')},{value:'flat',label:t('扁平版','Flat')}],onChange:use});
+$('#ver').append(ver.element);parts.push(ver);
+use('base');
+window.Lens={use};
+
+// the progress bar fills once it is seen, and again whenever it comes back into view
+let filling=0;
+new IntersectionObserver(([e])=>{
+  cancelAnimationFrame(filling);if(!e.isIntersecting){bar.setValue(0);return;}
+  const t0=performance.now(),run=now=>{const v=Math.min(100,Math.round((now-t0)/24));bar.setValue(v);if(v<100)filling=requestAnimationFrame(run);};
+  filling=requestAnimationFrame(run);
+},{threshold:.6}).observe($('#c-progress'));
+
+on('sound',on=>{soundOn=on;quiet(hero);quiet(kit);});
+on('park',p=>{if(p)cancelAnimationFrame(filling);});
+progress(0.9);
+ready();
+addEventListener('pagehide',()=>{hero.destroy();kit?.destroy();parts.forEach(c=>c.destroy());freeLens.destroy();});
+</script>
+</body>
+</html>

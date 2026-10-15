@@ -1,0 +1,33 @@
+/* 点阵 Lattice — tokens (Night world). Points of light on deep ink.
+   Roles: ink = points at rest · hot = action, attention, "what it needs" · hot-2 = secondary, "what it enables". */
+:root {
+  --bg: #07080b;
+  --bg-2: #0d0f14;
+  --ink: #ece7da;
+  --text: #ece7da;
+  --text-dim: #9d988c;      /* 7.4:1 on --bg */
+  --text-faint: #6c685f;    /* 3.6:1, large text and decoration only */
+  --hot: #ff5a1f;           /* 5.9:1 on --bg */
+  --hot-2: #7fd8ff;         /* 11:1 on --bg */
+  --line: rgb(236 231 218 / 0.14);
+  --line-strong: rgb(236 231 218 / 0.3);
+  --panel: rgb(7 8 11 / 0.78);
+
+  --f-ui: "Atkinson Hyperlegible Next", "Noto Sans SC", system-ui, sans-serif;
+  --f-dot: "Doto", "Atkinson Hyperlegible Next", monospace;
+  --f-zh: "Noto Sans SC", "Microsoft YaHei", "PingFang SC", sans-serif;
+
+  --t-12: 12px; --t-13: 13px; --t-15: 15px; --t-17: 17px; --t-21: 21px;
+  --t-28: clamp(24px, 2.4vw, 30px); --t-40: clamp(28px, 3vw, 40px); --t-64: clamp(40px, 6vw, 64px);
+
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px; --s-6: 32px; --s-7: 48px; --s-8: 64px; --s-9: 96px;
+  --r-1: 6px; --r-2: 12px; --r-pill: 999px;
+
+  --pitch: 9px;             /* dot pitch for DOM dot patterns (underlines, rules) */
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --t-fast: 160ms; --t-mid: 320ms; --t-slow: 700ms;
+
+  color-scheme: dark;
+}
+@media (prefers-reduced-motion: reduce) { :root { --t-fast: 0ms; --t-mid: 0ms; --t-slow: 0ms; } }

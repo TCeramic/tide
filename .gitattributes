@@ -1,0 +1,3 @@
+src/renderer/vendor/design-systems/** text eol=lf -whitespace
+src/renderer/vendor/fonts/** -whitespace
+*.ttf binary

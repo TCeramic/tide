@@ -1,5 +1,7 @@
 import type { Appearance, FontPresetId, PerformanceTier, ShellId, StageBackground, VisualPresetId } from "../../shared/contract";
 
+import { createNativeChoiceRow, openDesignCatalog } from "../native-shell.js";
+
 const PRESETS: { id: VisualPresetId; title: string; detail: string }[] = [
   { id: "tide", title: "潮汐默认", detail: "液体玻璃 · 歌词为主" },
   { id: "cover-glow", title: "封面晕影", detail: "封面色晕开 · 字仍清晰" },
@@ -69,10 +71,20 @@ export function mountPresetForm(): {
   const detailHeading = document.createElement("p");
   detailHeading.className = "preset-kicker";
   detailHeading.textContent = "细节";
-  const tierRow = choiceRow("性能", TIERS, (id) => void window.tide.setAppearance({ performance: id }), buttons, "performance");
-  const backgroundRow = choiceRow("背景", BACKGROUNDS, (id) => void window.tide.setAppearance({ background: id }), buttons, "background");
-  const shellRow = choiceRow("外壳", SHELLS, (id) => void window.tide.setAppearance({ shell: id }), buttons, "shell");
-  const fontRow = choiceRow("字体", FONTS, (id) => void window.tide.setAppearance({ fontPreset: id }), buttons, "font");
+  const tierRow = createNativeChoiceRow("性能", TIERS, (id) => void window.tide.setAppearance({ performance: id as PerformanceTier }));
+  const backgroundRow = createNativeChoiceRow("背景", BACKGROUNDS, (id) => void window.tide.setAppearance({ background: id as StageBackground }));
+  const shellRow = createNativeChoiceRow("设计系统", SHELLS, (id) => void window.tide.setAppearance({ shell: id as ShellId }));
+  const fontRow = createNativeChoiceRow("字体", FONTS, (id) => void window.tide.setAppearance({ fontPreset: id as FontPresetId }));
+  const catalogs = document.createElement("div");
+  catalogs.className = "preset-catalogs";
+  for (const shell of SHELLS) {
+    const show = document.createElement("button");
+    show.type = "button";
+    show.className = "text-button";
+    show.textContent = `${shell.label} · 完整组件`;
+    show.addEventListener("click", () => openDesignCatalog(shell.id));
+    catalogs.append(show);
+  }
   const family = document.createElement("input");
   family.type = "text";
   family.className = "key-input";
@@ -102,52 +114,21 @@ export function mountPresetForm(): {
   });
   const later = document.createElement("p");
   later.className = "library-note";
-  later.textContent = "封面粒子、黑胶细调和简易频谱还在后面。这一版只切换场景配方。";
-  root.append(kicker, hint, grid, detailHeading, tierRow, backgroundRow, shellRow, fontRow, family, importFont, imageButton, later);
+  later.textContent = "Lens / Lattice · DayDreamInAReverie · MIT";
+  root.append(kicker, hint, shellRow.element, catalogs, grid, detailHeading, tierRow.element, backgroundRow.element, fontRow.element, family, importFont, imageButton, later);
 
   return {
     element: root,
     sync(appearance) {
+      shellRow.sync(appearance.shell);
+      tierRow.sync(appearance.performance);
+      backgroundRow.sync(appearance.background);
+      fontRow.sync(appearance.fontPreset);
+      if (document.activeElement !== family) family.value = appearance.fontFamily;
       for (const [key, button] of buttons) {
-        const [group, id] = key.split(":");
-        const on = group === "preset"
-          ? appearance.preset === id
-          : group === "performance"
-            ? appearance.performance === id
-            : group === "background"
-              ? appearance.background === id
-              : group === "font"
-                ? appearance.fontPreset === id
-                : appearance.shell === id;
-        if (group === "font" && appearance.fontFamily && document.activeElement !== family) {
-          family.value = appearance.fontFamily;
-        }
-        button.setAttribute("aria-pressed", on ? "true" : "false");
+        const [, id] = key.split(":");
+        button.setAttribute("aria-pressed", String(appearance.preset === id));
       }
     },
   };
-}
-
-function choiceRow<T extends string>(
-  label: string,
-  options: readonly { id: T; label: string }[],
-  onPick: (id: T) => void,
-  buttons: Map<string, HTMLButtonElement>,
-  group: string,
-): HTMLElement {
-  const row = document.createElement("div");
-  row.className = "preset-row";
-  const name = document.createElement("span");
-  name.textContent = label;
-  row.append(name);
-  for (const option of options) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "text-button";
-    button.textContent = option.label;
-    button.addEventListener("click", () => onPick(option.id));
-    buttons.set(`${group}:${option.id}`, button);
-    row.append(button);
-  }
-  return row;
 }

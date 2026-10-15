@@ -15,7 +15,9 @@
     "dist": "npm run build && electron-builder --win zip --x64",
     "dist:setup": "npm run build && electron-builder --win nsis --x64",
     "typecheck": "tsc --noEmit",
-    "test": "node scripts/test.mjs"
+    "test": "node scripts/test.mjs",
+    "verify:design-systems": "node scripts/verify-design-systems.mjs",
+    "test:ui": "node scripts/ui-smoke.cjs"
   },
   "devDependencies": {
     "@types/node": "22.19.21",

@@ -8,6 +8,7 @@ import { mountLyrics } from "./layers/lyrics";
 import { installMediaSession, syncMediaSession } from "./media-session";
 import { mountPlayer } from "./player";
 import { mountStage } from "./layers/stage";
+import { mountNativeShell } from "./native-shell.js";
 
 declare global {
   interface Window {
@@ -53,6 +54,7 @@ const stageLayer = mountStage(stage);
 const lyricsLayer = mountLyrics(lyrics);
 const chromeLayer = mountChrome(chrome);
 const library = mountLibrary(chrome);
+const nativeShell = mountNativeShell(document.querySelector<HTMLElement>("#app")!);
 const stopPlayer = mountPlayer();
 
 const bus = new EventBus<PlaybackEvents>();
@@ -134,6 +136,7 @@ function applyAppearance(appearance: Appearance): void {
   chromeLayer.setLattice(appearance.lattice);
   library.setLattice(appearance.lattice);
   library.setAppearance(appearance);
+  nativeShell.sync(appearance);
 }
 
 applyAppearance({
@@ -197,6 +200,7 @@ void window.tide.getHealth().then((status) => {
 });
 
 window.addEventListener("beforeunload", () => {
+  nativeShell.destroy();
   stopClock();
   stageLayer.destroy();
   lyricsLayer.destroy();

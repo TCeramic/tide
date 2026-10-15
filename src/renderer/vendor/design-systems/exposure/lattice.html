@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<script>/* ?motion=full shows full motion even when the OS asks for reduced motion */if(/[?&]motion=full\b/.test(location.search)){const mm=matchMedia.bind(window);window.matchMedia=q=>/prefers-reduced-motion:\s*reduce/.test(q)?mm("not all"):mm(q);}</script>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:,">
+<title>点阵 Lattice · 一次曝光</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Doto:wght@500;700;900&family=Atkinson+Hyperlegible+Next:wght@300..700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../lattice/dist/catalog/assets/bundle.css">
+<style>
+html[data-lang="zh"] [lang="en"],html[data-lang="en"] [lang="zh"]{display:none!important}
+.mono{font:500 12px/1.4 ui-monospace,"SFMono-Regular",Consolas,monospace;letter-spacing:.04em;color:var(--text-dim)}
+
+/* page 1 · the first screen of the full showcase */
+.hero{position:relative;height:100vh;min-height:520px}
+.hero iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;background:var(--bg)}
+
+/* page 2 · the kit, laid out like the Lens sheet: one set of points, mapped two ways */
+.kit{position:relative;min-height:100vh;padding:clamp(22px,3.4vh,36px) clamp(20px,4vw,56px) clamp(28px,5vh,52px);border-top:1px solid var(--line)}
+.kit-head{display:flex;justify-content:space-between;align-items:start;gap:24px}
+.kit-mark{display:flex;gap:10px;align-items:baseline;padding-top:8px;font-weight:600}
+.kit-mark .matrix{color:var(--hot);font-size:16px}
+.kit-ver{display:grid;justify-items:end;gap:10px}
+.kit-ver code{color:var(--text-dim)}
+.kit h2{margin:clamp(4px,1.6vh,18px) 0 0;font-family:var(--f-zh);font-weight:700;font-size:clamp(40px,6.2vw,92px);line-height:1.05;letter-spacing:-.02em;color:var(--text)}
+html[data-lang="en"] .kit h2{font-family:var(--f-ui);font-weight:600}
+.kit-sub{margin:12px 0 0;font-size:clamp(16px,1.6vw,21px);color:var(--text-dim)}
+.kit-sub b{color:var(--text);font-weight:600}
+.grid{margin-top:clamp(26px,5vh,56px);display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:clamp(26px,4.4vh,46px) clamp(16px,2vw,28px);align-items:start}
+.cell{min-width:0;display:grid;gap:14px;align-content:start}
+.cell>.mono{white-space:nowrap}
+.c-dot{grid-column:span 5}.c-switch{grid-column:span 3}.c-tabs{grid-column:span 4}
+.c-button{grid-column:span 5}.c-slider{grid-column:span 4}.c-loader{grid-column:span 3}
+.c-field{grid-column:span 5}.c-progress{grid-column:span 7}
+.dot-word{display:inline-block;min-height:56px}
+.row{display:flex;flex-wrap:wrap;gap:10px}
+.col{display:grid;gap:12px;justify-items:start}
+.c-loader .lx-loader{width:96px;height:96px}
+.kit-foot{margin-top:clamp(28px,5vh,56px);display:flex;justify-content:space-between;gap:16px}
+@media (max-width:980px){.c-dot,.c-button,.c-field,.c-progress{grid-column:1/-1}.c-switch,.c-tabs,.c-slider,.c-loader{grid-column:span 6}}
+@media (max-width:620px){.grid>.cell{grid-column:1/-1}.kit-head{flex-direction:column}.kit-ver{justify-items:start}}
+</style>
+</head>
+<body>
+<section class="hero" aria-label="点阵 Lattice"><iframe id="hero" title="点阵 Lattice · first screen" src="lattice-hero.html"></iframe></section>
+
+<section class="kit" aria-labelledby="kit-h">
+  <div class="kit-head">
+    <div class="kit-mark"><span class="matrix">LX</span><span><span lang="zh">点阵</span> Lattice</span></div>
+    <div class="kit-ver">
+      <div class="lx-tabs" role="tablist" aria-label="Phase" id="ver"><button role="tab" aria-selected="false" data-value="gas"><b>气</b><span lang="zh">气态</span><span lang="en">Gas</span></button><button role="tab" aria-selected="true" data-value="crystal"><b>晶</b><span lang="zh">晶体</span><span lang="en">Crystal</span></button></div>
+      <code class="mono" id="ver-code"></code>
+    </div>
+  </div>
+  <h2 id="kit-h"><span lang="zh">交互，是一次映射。</span><span lang="en">Every interaction is a map.</span></h2>
+  <p class="kit-sub" id="kit-sub"></p>
+  <div class="grid">
+    <div class="cell c-dot"><span class="mono">dot-text</span><span class="dot-word" id="word" aria-hidden="true">CRYSTAL</span></div>
+    <div class="cell c-switch"><span class="mono">switch</span><div class="col">
+      <button class="lx-switch lx-switch--lg" aria-checked="true"><span class="lx-switch__track"></span><span><span lang="zh">相</span><span lang="en">Phase</span><small lang="zh">气态与晶体</small><small lang="en">gas or crystal</small></span></button>
+      <button class="lx-switch" aria-checked="true"><span class="lx-switch__track"></span><span><span lang="zh">自动轮换</span><span lang="en">Auto-advance</span></span></button>
+    </div></div>
+    <div class="cell c-tabs"><span class="mono">tabs</span><div class="lx-tabs" role="tablist" aria-label="Field" id="tabs"><button role="tab" aria-selected="true" data-value="math"><b>数</b><span lang="zh">数学</span><span lang="en">Maths</span></button><button role="tab" aria-selected="false" data-value="quant"><b>量</b><span lang="zh">量化</span><span lang="en">Quant</span></button><button role="tab" aria-selected="false" data-value="agents"><b>智</b><span lang="zh">智能体</span><span lang="en">Agents</span></button></div></div>
+    <div class="cell c-button"><span class="mono">button</span><div class="row"><button class="lx-btn lx-btn--primary"><span lang="zh">生成证明</span><span lang="en">Grow a proof</span></button><button class="lx-btn lx-btn--accent"><span lang="zh">下一个点集</span><span lang="en">Next set</span></button><button class="lx-btn lx-btn--ghost"><span lang="zh">读注释</span><span lang="en">Read the notes</span></button></div></div>
+    <div class="cell c-slider"><span class="mono">slider</span><div class="lx-range"><span lang="zh">流速</span><span lang="en">Flow</span><div class="lx-slider"><input type="range" min="0" max="100" value="72" aria-label="Flow" id="flow"></div><output id="flow-out">72</output></div></div>
+    <div class="cell c-loader"><span class="mono">loader</span><div class="lx-loader" id="loader" aria-label="Loading"></div></div>
+    <div class="cell c-field"><span class="mono">text-field</span><form class="lx-field" id="form" novalidate><label for="mail"><span lang="zh">邮箱</span><span lang="en">Email</span></label><input id="mail" type="email" placeholder="you@example.com" required><p class="lx-field__msg" id="mail-msg"><span lang="zh">按回车检查格式。</span><span lang="en">Press Enter to check the format.</span></p></form></div>
+    <div class="cell c-progress"><span class="mono">progress</span><div class="lx-progress" id="progress" data-value="1" aria-label="Crystallised"></div><div class="lx-progress" data-indeterminate aria-label="Working"></div></div>
+  </div>
+  <div class="kit-foot mono"><span><span lang="zh">全部为实时组件，可直接操作</span><span lang="en">Every piece is a live component; use it</span></span><span>window.Lattice · 14 components</span></div>
+</section>
+
+<script src="../lattice/dist/catalog/assets/bundle.js"></script>
+<script type="module">
+import {lang,progress,ready,on,pinFirstScreen} from './page.js';
+const L=window.Lattice,zh=lang==='zh',$=s=>document.querySelector(s);
+
+// page 1: the first screen is ready once its field has started
+const heroWin=await pinFirstScreen($('#hero'),{progressFrom:.35,progressTo:.85});
+const until=(test,ms)=>new Promise(r=>{const t0=performance.now();(function poll(){test()||performance.now()-t0>ms?r():setTimeout(poll,60);})();});
+await until(()=>heroWin?.latticeHero,3000);
+
+// page 2: every control mounted the way the catalog mounts it
+const switches=[...document.querySelectorAll('.c-switch .lx-switch')].map(L.mountSwitch);
+L.mountTabs($('#tabs'));
+const flow=$('#flow');L.mountSlider(flow);flow.addEventListener('input',()=>{$('#flow-out').textContent=flow.value;});
+L.mountLoader($('#loader'));
+const bar=L.mountProgress($('#progress'));L.mountProgress(document.querySelector('[data-indeterminate]'));
+const word=L.mountDotText($('#word'),{pitch:7});
+$('#form').addEventListener('submit',e=>{e.preventDefault();const ok=$('#mail').checkValidity();$('#form').toggleAttribute('data-invalid',!ok);$('#mail-msg').textContent=ok?(zh?'格式正确。':'Looks right.'):(zh?'还不是邮箱地址：需要名字、@ 和域名。':'That is not an email address yet: it needs a name, an @ and a domain.');});
+L.mountCursor();
+
+// two versions of one set: the same points as a gas, or mapped into a crystal
+const PHASES={
+  gas:{sub:zh?'<b>气态 gas</b> · 点在流场里自由漂移，尚未成形':'<b>Gas</b> · the points drift through the flow, not yet a shape',code:'progress.set(0) · switch.set(false)',on:false,v:0,word:'GAS'},
+  crystal:{sub:zh?'<b>晶体 crystal</b> · 同一批点被映射进有序的晶格':'<b>Crystal</b> · the same points, mapped into an ordered lattice',code:'progress.set(1) · switch.set(true)',on:true,v:1,word:'CRYSTAL'},
+};
+const ver=$('#ver'),tabs=L.mountTabs(ver);
+function phase(name,{quiet=false}={}){
+  const p=PHASES[name];
+  $('#kit-sub').innerHTML=p.sub;$('#ver-code').textContent=p.code;
+  switches.forEach(s=>s.set(p.on,{quiet:true}));bar.set(p.v);word.set(p.word);
+  if(!quiet)L.sound.tick(.6,.2);
+}
+ver.addEventListener('tabs:change',e=>phase(e.detail.value));
+phase('crystal',{quiet:true});
+
+// the first screen is its own document with its own Lattice, so both follow the site's sound switch
+on('sound',on=>[L,heroWin?.Lattice].forEach(x=>{if(x&&x.sound.enabled!==on)x.sound.toggle();}));
+progress(.95);
+ready();
+</script>
+</body>
+</html>
