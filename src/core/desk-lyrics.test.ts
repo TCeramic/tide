@@ -40,6 +40,12 @@ describe("desktop lyrics settings", () => {
     assert.ok(row.width > row.height);
   });
 
+  it("keeps independent sung and unsung colors and a sanitized font", () => {
+    const value = deskSettingsFromUnknown({color:"#123456",highlightColor:"#fedcba",fontFamily:"微软雅黑"});
+    assert.equal(value.color,"#123456");assert.equal(value.highlightColor,"#fedcba");assert.equal(value.fontFamily,"微软雅黑");
+    assert.equal(deskSettingsFromUnknown({highlightColor:"bad"}).highlightColor,DEFAULT_DESK_LYRICS.highlightColor);
+    assert.equal(deskSettingsFromUnknown({fontFamily:'";{}'}).fontFamily,DEFAULT_DESK_LYRICS.fontFamily);
+  });
   it("keeps a point on the second display and returns a lost point to the first", () => {
     const areas = [
       { x: 0, y: 0, width: 1920, height: 1080 },

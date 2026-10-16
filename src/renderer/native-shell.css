@@ -338,3 +338,11 @@ html[data-shell="lattice"][data-color-mode="light"] #lyrics :is(.lyrics-title,.l
 html[data-shell="lattice"] .tide-titlebar { background:transparent; color:var(--text); }
 html[data-shell="lattice"] #app .transport { color:var(--text); }
 html[data-shell="lattice"][data-color-mode="light"] .native-set-caption { color:var(--text-dim); }
+
+html[data-shell="lattice"] .native-point-progress { height:48px; }
+html[data-shell="lattice"] .dock-seek { height:48px; }
+html[data-shell="lattice"] .native-point-progress input { cursor:default; z-index:1; }
+html[data-shell="lattice"] .transport { min-height:152px; }
+
+html[data-shell="lattice"][data-view="playing"] #lyrics { padding-bottom:180px; }
+html[data-shell="lattice"] #app :is(.home-grid,.browse-sheet,.proof-host) { bottom:172px; }

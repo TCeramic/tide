@@ -238,6 +238,10 @@ setAppearance:async patch=>{Object.assign(appearance,patch);listeners.onAppearan
  assert.equal(await page.locator('#app > .lg-canvas').count(),1);
  assert.equal(await page.locator('.native-point-range').count(),2);
  await page.evaluate(()=>window.tide.setAppearance({shell:'lattice',motion:0}));
+ assert.equal(await page.locator('.native-point-progress canvas').count(),1);
+ await page.mouse.move(800,650);await page.waitForTimeout(250);
+ assert.ok(await page.locator('.lx-cursor').evaluate(cv=>cv.width*cv.height < innerWidth*innerHeight/2),'cursor rasterizes a local tile');
+
  await page.waitForTimeout(200);
  await page.setViewportSize({width:800,height:560});
  await page.screenshot({path:path.join(output,'lattice-small.png')});
@@ -386,6 +390,16 @@ setAppearance:async patch=>{Object.assign(appearance,patch);listeners.onAppearan
  await page.screenshot({path:path.join(output,'today-20-refresh.png')});
  console.log('TODAY_20_REFRESH_PRESERVES_CURRENT_AUDIO_REPLACES_UPCOMING','passed');
 
+ await page.setViewportSize({width:1440,height:960});
+ await page.evaluate(()=>{window.tide.setAppearance({shell:'lattice',motion:1});window.fixtureSetPlayback({positionMs:116000,status:'playing'});});
+ await page.waitForTimeout(1400);
+ await page.locator('.native-point-progress').screenshot({path:path.join(output,'crystal-song-progress.png')});
+ const crystalSeek=page.getByRole('slider',{name:'进度',exact:true});
+ await crystalSeek.evaluate(el=>{el.value='154000';el.dispatchEvent(new Event('input',{bubbles:true}));});
+ assert.match(await page.locator('.seek-preview').innerText(),/2:34/);
+ await crystalSeek.evaluate(el=>el.dispatchEvent(new Event('change',{bubbles:true})));
+ assert.ok(await page.locator('.native-point-field').evaluate(cv=>cv.width*cv.height<=1110000),'point background respects the physical pixel budget');
+ console.log('CRYSTAL_PROGRESS_DRAG_TIME_AND_PIXEL_BUDGET passed');
  console.log('ERRORS',JSON.stringify(errors));
  assert.deepEqual(errors,[]);
  console.log('UI_SMOKE_PASS');

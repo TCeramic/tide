@@ -99,6 +99,8 @@ export function attachDeskLyrics(options: {
       playing: state.status === "playing",
       fontSize: settings.fontSize,
       color: settings.color,
+      highlightColor: settings.highlightColor,
+      fontFamily: settings.fontFamily,
       opacity: settings.opacity,
       glow: budget.deskFarGlow ? settings.glow : Math.min(settings.glow, 0.35),
       motion: settings.motion && budget.deskFps > 30,
@@ -224,6 +226,7 @@ export function attachDeskLyrics(options: {
       if (overlay !== win || win.isDestroyed()) return;
       win.showInactive();
       applyLock(read());
+      lastPayload = ""; // Replay the initial cue after the overlay subscribes.
       paint();
     });
     void win.loadFile(path.join(__dirname, "desk.html"));

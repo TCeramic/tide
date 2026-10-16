@@ -10,6 +10,7 @@ import * as sets from "./vendor/design-systems/lattice/src/gl/sets.js";
 import { WORLDS, applyWorldCss } from "./vendor/design-systems/lattice/src/core/theme.js";
 import { mountTabs, mountSlider } from "./vendor/design-systems/lattice/src/dom/controls.js";
 import { mountDotText } from "./vendor/design-systems/lattice/src/dom/dottext.js";
+import { mountProgress } from "./lattice-progress.js";
 import { mountCursor } from "./lattice-cursor.js";
 import { mountLensShell } from "./lens-shell.js";
 import { mountPaperBackground } from "./paper-background.ts";
@@ -162,7 +163,7 @@ export function mountNativeShell(root) {
       glass.sync(next);
     } else stopLens();
     if (next.shell === "lattice") {
-      cursor ||= mountCursor();
+      cursor ||= mountCursor(); cursor.sync?.(next);
       if (points && pointTier !== next.performance) { points.destroy(); points = null; }
       if (!points) {
         try { points = mountPointField(root, next.performance); pointTier = next.performance; }
@@ -176,25 +177,28 @@ export function mountNativeShell(root) {
     }
   }
   // Use the actual upstream point slider for the existing volume/seek inputs.
-  const enhancedRanges = new Set();
-  const rangeObserver = new MutationObserver(() => {
-    for (const input of root.querySelectorAll('.transport input[type="range"]')) {
-      if (enhancedRanges.has(input)) continue;
-      enhancedRanges.add(input);
-      const wrap = document.createElement("span");
-      wrap.className = "lx-slider native-point-range";
-      input.before(wrap); wrap.append(input); mountSlider(input);
+  const enhancedRanges = new Set(), progressViews=[];
+  function enhanceRanges() {
+    for(const input of root.querySelectorAll('.transport input[type="range"]')) {
+      if(enhancedRanges.has(input))continue;enhancedRanges.add(input);
+      const wrap=document.createElement("span");
+      const seek=input.getAttribute("aria-label")==="进度";
+      wrap.className=seek?"lx-progress native-point-range native-point-progress":"lx-slider native-point-range";
+      input.before(wrap);wrap.append(input);
+      if(seek) {
+        const view=mountProgress(wrap);progressViews.push(view);wrap.setAttribute("aria-hidden","false");
+        // Preserve the real range input's keyboard/drag semantics; canvas is decoration.
+        wrap.removeAttribute("role");wrap.removeAttribute("aria-valuemin");wrap.removeAttribute("aria-valuemax");
+        const update=()=>{wrap.dataset.playing=input.dataset.playing||"false";view.set(Number(input.max)>0?Number(input.value)/Number(input.max):0);};
+        input.addEventListener("input",update);input.addEventListener("tide:progress",update);update();
+      } else mountSlider(input);
     }
-  });
-  rangeObserver.observe(root, { childList: true, subtree: true });
-  // A first mutation is not guaranteed after mount.
-  for (const input of root.querySelectorAll('.transport input[type="range"]')) {
-    enhancedRanges.add(input);
-    const wrap = document.createElement("span");
-    wrap.className = "lx-slider native-point-range";
-    input.before(wrap); wrap.append(input); mountSlider(input);
   }
-  return { sync, destroy() { destroyed = true; cursor?.destroy?.(); document.removeEventListener("visibilitychange", clockActivity); cancelAnimationFrame(latticeClock._raf); cancelAnimationFrame(widgetFrame); clearTimeout(widgetTimer); stopLens(); points?.destroy(); paper.destroy(); rangeObserver.disconnect(); popupLayer.remove(); } };
+  const rangeObserver = new MutationObserver(records=>{
+    if(records.some(r=>[...r.addedNodes].some(n=>n instanceof Element && (n.matches('.transport,input[type="range"]')||n.querySelector('.transport,input[type="range"]')))))enhanceRanges();
+  });
+  rangeObserver.observe(root,{childList:true,subtree:true});enhanceRanges();
+  return { sync, destroy() { destroyed = true; cursor?.destroy?.(); document.removeEventListener("visibilitychange", clockActivity); cancelAnimationFrame(latticeClock._raf); cancelAnimationFrame(widgetFrame); clearTimeout(widgetTimer); stopLens(); points?.destroy(); paper.destroy(); for(const view of progressViews)view.destroy();rangeObserver.disconnect(); popupLayer.remove(); } };
 }
 
 // Embed the original Field and set generators into a desktop viewport. This host supplies
@@ -303,7 +307,8 @@ function mountPointField(root, tier = "balanced") {
     stage.w = Math.max(2, root.clientWidth); stage.h = Math.max(2, root.clientHeight);
     stage.mobile = stage.w <= 760;
     camera.aspect = stage.w / stage.h; camera.updateProjectionMatrix();
-    renderer.setPixelRatio(stage.dpr); renderer.setSize(stage.w, stage.h, false);
+    const maxPixels = tier === "vivid" ? 1800000 : tier === "smooth" ? 700000 : 1100000;
+    renderer.setPixelRatio(Math.min(stage.dpr, Math.sqrt(maxPixels / (stage.w * stage.h)))); renderer.setSize(stage.w, stage.h, false);
     field.setOffset = new THREE.Vector3(stage.mobile ? 0 : 1.35, 0.25, 0.7);
     field.onResize(stage); if (paused) snapStill(); wake();
   }
@@ -312,13 +317,13 @@ function mountPointField(root, tier = "balanced") {
     stage.ray.o.copy(raycaster.ray.origin); stage.ray.d.copy(raycaster.ray.direction);
   }
   const move = event => {
-    interactionUntil = performance.now() + 500;
-    const rect = root.getBoundingClientRect();
-    pointer.x = event.clientX - rect.left; pointer.y = event.clientY - rect.top;
+    if (pointer.down) interactionUntil = performance.now() + 500;
+    pointer.x = event.clientX; pointer.y = event.clientY;
     pointer.ndc.set(pointer.x / stage.w * 2 - 1, -(pointer.y / stage.h) * 2 + 1);
-    pointer.inside = true;
+    pointer.inside = !event.target.closest("button,input,select,textarea,a,label,summary,.home-card,.corner-panel,.browse-sheet,.proof-host");
     if (pointer.down) pointer.moved += Math.abs(event.movementX || 0) + Math.abs(event.movementY || 0);
-    updateRay(); field.onPointerMove(stage); wake();
+    // Ray and GPU interaction are coalesced once per rendered frame.
+    wake();
   };
   root.addEventListener("pointermove", move, { signal, passive: true });
   root.addEventListener("pointerdown", event => {
@@ -336,7 +341,7 @@ function mountPointField(root, tier = "balanced") {
     lastPaint = now;
     const dt = last ? Math.min(0.05, (now - last) / 1000) : 1 / 60; last = now;
     time += paused ? 0 : dt;
-    updateRay(); field.update(paused ? 0 : dt, time, stage); renderer.render(scene, camera);
+    updateRay(); field.onPointerMove(stage); field.update(paused ? 0 : dt, time, stage); renderer.render(scene, camera);
     if (!paused) wake();
   }
   function wake() {

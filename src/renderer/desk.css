@@ -1,7 +1,7 @@
 /* Tide desktop overlay, rebuilt following Mineradio's transparent viewport,
    warm highlight, feathered edges and perspective line entry. */
 html, body { margin:0; width:100%; height:100%; background:transparent; overflow:hidden; user-select:none; cursor:default; -webkit-app-region:drag; }
-.stack { position:relative; box-sizing:border-box; height:100%; padding:28px 32px 20px; display:flex; flex-direction:column; align-items:center; justify-content:center; font-family:Inter,"Noto Sans SC","Microsoft YaHei",sans-serif; perspective:800px; }
+.stack { position:relative; box-sizing:border-box; height:100%; padding:28px 32px 20px; display:flex; flex-direction:column; align-items:center; justify-content:center; font-family:var(--desk-font,"Microsoft YaHei",sans-serif); perspective:800px; }
 .stack::before { content:""; position:absolute; z-index:-1; inset:10% 4%; border-radius:28px; background:rgba(7,16,24,var(--desk-backdrop,0)); }
 .lyric-viewport { width:100%; padding:12px 0; overflow:hidden; text-align:center; mask-image:linear-gradient(90deg,transparent,#000 28px,#000 calc(100% - 28px),transparent); filter:drop-shadow(0 1px 2px #04060cbb); }
 .lyric-scroll { display:inline-block; min-width:0; will-change:transform; }
@@ -9,7 +9,7 @@ html, body { margin:0; width:100%; height:100%; background:transparent; overflow
 .ink,.sweep { paint-order:stroke fill; -webkit-text-stroke:.18px #ffffffb8; }
 .ink { color:var(--desk-color,#f6fdff); }
 .mask { position:absolute; inset:0; overflow:hidden; transform-origin:left center; pointer-events:none; opacity:0; }
-.sweep { display:block; white-space:pre; color:#fff0b8; transform-origin:left center; }
+.sweep { display:block; white-space:pre; color:var(--desk-highlight,#fff0b8); transform-origin:left center; }
 .current.enter { animation:desk-in 820ms cubic-bezier(.16,.84,.32,1.02); }
 .current.is-paused,.current.is-still { animation-play-state:paused; }
 .trans { margin:0; max-width:100%; font-size:calc(var(--desk-size,48px)*.46); font-weight:600; line-height:1.4; text-align:center; color:#d6f7ef; text-shadow:0 1px 3px #04060ccc; }

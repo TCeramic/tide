@@ -72,3 +72,7 @@ Folia 的 `useThemeController` 在缺少模型密钥时调用本地 `generateBui
 灵感续播按用户更正改为队尾单曲随机续接。点阵鼠标环直接复用原版 cursor.js 的圆环、轮廓采样和 Dots 弹簧；适配副本 lattice-cursor.js 增加事件/时钟/观察器清理和像素预算，原文件未改。明亮点阵采用原 WORLDS.paper，深色采用 WORLDS.night；透镜对应原 aurora/ocean。
 
 桌面歌词参考本机 Mineradio/resources/app/public/desktop-lyrics.html 的视觉与交互，自行实现 Tide 的 IPC、视窗滚动、逐字遮罩和悬停控制，未复制其脚本或依赖。测试说明见 TEST7.md。
+
+## 0.9.2-test.8 增量
+
+原版 Progress 的晶格/散点、锁定闪光与弹簧直接适配到歌曲进度。适配层 lattice-progress.js 增加暂停、像素预算、颜色缓存和生命周期；移除音乐播放时不合适的组件提示音。鼠标环改为占用范围内的局部画布，背景鼠标事件合并，vendor仍保持原样。桌面歌词颜色和字体独立持久化。见 TEST8.md。

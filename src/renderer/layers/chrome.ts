@@ -236,6 +236,8 @@ export function mountChrome(root: HTMLElement): {
     seek.max = String(durationMs);
     seek.disabled = !track;
     if (!seeking) seek.value = String(Math.min(snapshot.positionMs, durationMs));
+    seek.dataset.playing = String(snapshot.status === "playing");
+    seek.dispatchEvent(new Event("tide:progress"));
     if (!adjustingVolume) volume.value = String(Math.round(snapshot.volume * 100));
   };
 

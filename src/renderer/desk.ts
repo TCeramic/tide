@@ -73,6 +73,8 @@ function easeSweep(): void {
 
 function paint(cue: DeskCue): void {
   root.style.setProperty("--desk-color", cue.color);
+  root.style.setProperty("--desk-highlight", cue.highlightColor);
+  root.style.setProperty("--desk-font", ["serif", "sans-serif", "monospace"].includes(cue.fontFamily) ? cue.fontFamily : `${JSON.stringify(cue.fontFamily)},sans-serif`);
   root.style.setProperty("--desk-size", `${cue.fontSize}px`);
   root.style.setProperty("--desk-opacity", String(cue.opacity));
   root.style.setProperty("--glow", cue.farGlow ? String(cue.glow) : String(Math.min(cue.glow, 0.28)));

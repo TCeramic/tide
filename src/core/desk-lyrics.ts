@@ -14,6 +14,8 @@ export interface DeskLyricsSettings {
   y: number | null;
   fontSize: number;
   color: string;
+  highlightColor: string;
+  fontFamily: string;
   opacity: number;
   /** Word sweep inside the glyph. Off keeps one even line. */
   highlightFollow: boolean;
@@ -42,6 +44,8 @@ export const DEFAULT_DESK_LYRICS: DeskLyricsSettings = {
   y: null,
   fontSize: 48,
   color: "#f7fbfc",
+  highlightColor: "#fff0b8",
+  fontFamily: "Microsoft YaHei",
   opacity: 1,
   highlightFollow: true,
   motion: true,
@@ -85,6 +89,8 @@ export function deskSettingsFromUnknown(value: unknown): DeskLyricsSettings {
     y: x == null || y == null ? null : y,
     fontSize: Math.min(FONT_MAX, Math.max(FONT_MIN, font)),
     color,
+    highlightColor: typeof record.highlightColor === "string" && /^#[0-9a-fA-F]{6}$/.test(record.highlightColor) ? record.highlightColor.toLowerCase() : DEFAULT_DESK_LYRICS.highlightColor,
+    fontFamily: typeof record.fontFamily === "string" && record.fontFamily.trim() ? record.fontFamily.replace(/[\x00-\x1f";{}]/g, "").trim().slice(0,80) || DEFAULT_DESK_LYRICS.fontFamily : DEFAULT_DESK_LYRICS.fontFamily,
     opacity: Math.min(OPACITY_MAX, Math.max(OPACITY_MIN, opacity)),
     highlightFollow: record.highlightFollow !== false,
     motion: record.motion !== false,

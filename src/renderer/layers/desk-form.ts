@@ -3,7 +3,7 @@ import type { DeskLyricsSettings } from "../../core/desk-lyrics";
 /** Settings block for the desktop lyric overlay. */
 export function mountDeskForm(): { element: HTMLElement; destroy: () => void } {
   const panel = document.createElement("details");
-  panel.className = "key-panel";
+  panel.className = "key-panel desk-form";
   const summary = document.createElement("summary");
   summary.textContent = "桌面歌词";
 
@@ -19,7 +19,14 @@ export function mountDeskForm(): { element: HTMLElement; destroy: () => void } {
   const waveRow = checkRow("字后波形");
   const columnRow = checkRow("竖列");
   const sizeRow = rangeRow("字号", 18, 64, 32);
-  const colorRow = colorRowOf();
+  const colorRow = colorRowOf("未唱歌词颜色");
+  const highlightRow = colorRowOf("已唱歌词颜色");
+  const fontRow = document.createElement("label"); fontRow.className = "key-row";
+  const fontLabel = document.createElement("span"); fontLabel.textContent = "歌词字体";
+  const font = document.createElement("select"); font.setAttribute("aria-label", "歌词字体");
+  for(const [value, label] of [["Microsoft YaHei","微软雅黑"],["SimSun","宋体"],["KaiTi","楷体"],["SimHei","黑体"],["Arial","Arial"],["serif","衬线"],["monospace","等宽"],["custom","自定义字体"]]) { const option = document.createElement("option"); option.value=value!;option.textContent=label!;font.append(option); }
+  const family = document.createElement("input");family.type="text";family.maxLength=80;family.className="key-input";family.placeholder="输入已安装的字体名称";family.setAttribute("aria-label","桌面歌词自定义字体");
+  fontRow.append(fontLabel,font);
   const opacityRow = rangeRow("透明度", 20, 100, 100);
   const glowRow = rangeRow("光晕", 0, 100, 72);
   const motionLevelRow = rangeRow("动效强度", 35, 100, 100);
@@ -37,6 +44,8 @@ export function mountDeskForm(): { element: HTMLElement; destroy: () => void } {
     columnRow.row,
     sizeRow.row,
     colorRow.row,
+    highlightRow.row,
+    fontRow, family,
     opacityRow.row,
     glowRow.row,
     motionLevelRow.row,
@@ -54,6 +63,10 @@ export function mountDeskForm(): { element: HTMLElement; destroy: () => void } {
     columnRow.input.checked = settings.orientation === "vertical";
     sizeRow.input.value = String(settings.fontSize);
     colorRow.input.value = settings.color;
+    highlightRow.input.value = settings.highlightColor;
+    font.value = Array.from(font.options).some(o=>o.value===settings.fontFamily) ? settings.fontFamily : "custom";
+    family.hidden = font.value !== "custom";
+    if(document.activeElement!==family) family.value=settings.fontFamily;
     opacityRow.input.value = String(Math.round(settings.opacity * 100));
     glowRow.input.value = String(Math.round(settings.glow * 100));
     motionLevelRow.input.value = String(Math.round(settings.motionLevel * 100));
@@ -73,6 +86,9 @@ export function mountDeskForm(): { element: HTMLElement; destroy: () => void } {
   columnRow.input.addEventListener("change", () => push({ orientation: columnRow.input.checked ? "vertical" : "horizontal" }));
   sizeRow.input.addEventListener("change", () => push({ fontSize: Number(sizeRow.input.value) }));
   colorRow.input.addEventListener("change", () => push({ color: colorRow.input.value }));
+  highlightRow.input.addEventListener("change", () => push({ highlightColor: highlightRow.input.value }));
+  font.addEventListener("change",()=>{family.hidden=font.value!=="custom";if(font.value==="custom")family.focus();else push({fontFamily:font.value});});
+  family.addEventListener("change",()=>push({fontFamily:family.value}));
   opacityRow.input.addEventListener("change", () => push({ opacity: Number(opacityRow.input.value) / 100 }));
   glowRow.input.addEventListener("change", () => push({ glow: Number(glowRow.input.value) / 100 }));
   motionLevelRow.input.addEventListener("change", () => push({ motionLevel: Number(motionLevelRow.input.value) / 100 }));
@@ -117,15 +133,15 @@ function rangeRow(label: string, min: number, max: number, value: number): { row
   return { row, input };
 }
 
-function colorRowOf(): { row: HTMLLabelElement; input: HTMLInputElement } {
+function colorRowOf(label: string): { row: HTMLLabelElement; input: HTMLInputElement } {
   const row = document.createElement("label");
   row.className = "key-row";
   const text = document.createElement("span");
-  text.textContent = "字色";
+  text.textContent = label;
   const input = document.createElement("input");
   input.type = "color";
   input.value = "#f7fbfc";
-  input.setAttribute("aria-label", "字色");
+  input.setAttribute("aria-label", label);
   row.append(text, input);
   return { row, input };
 }

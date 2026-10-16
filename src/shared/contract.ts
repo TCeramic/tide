@@ -234,6 +234,8 @@ export interface DeskCue {
   playing: boolean;
   fontSize: number;
   color: string;
+  highlightColor: string;
+  fontFamily: string;
   opacity: number;
   glow: number;
   motion: boolean;
