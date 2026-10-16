@@ -7,7 +7,7 @@ const fs = require('node:fs');
 const root = path.resolve(__dirname, '..');
 const handlers = new Map();
 global.__tideTestIpc = { handle: (name, handler) => handlers.set(name, handler), removeHandler: name => handlers.delete(name), on() {}, removeListener() {} };
-const hit = id => ({ id: String(id), title: 'Song ' + id, artist: 'Artist ' + (id % 7), albumTitle: 'Album', albumId: '42', durationMs: 1000, playable: true });
+const hit = id => ({ id: String(id), title: 'Song ' + id, artist: 'Artist ' + (id % 7), albumTitle: 'Album', cover:'https://example.com/cover.jpg', albumId: '42', durationMs: 1000, playable: true });
 const delay = ms => new Promise(r => setTimeout(r, ms));
 async function until(fn) { for (let i = 0; i < 100; i++) { if (fn()) return; await delay(20); } assert.fail('timed out'); }
 (async () => {
@@ -49,6 +49,10 @@ async function until(fn) { for (let i = 0; i < 100; i++) { if (fn()) return; awa
     await delay(100); assert.equal(control.get().queue.length, 150, 'no insertion in the middle');
     await control.track(149); await until(() => control.get().queue.length === 151);
     const firstRandom = control.get().queue[150].id;
+    const beforeLoop=control.get();control.setMode({repeat:'all',explore:false});const afterLoop=control.get();
+    assert.deepEqual(afterLoop.queue[afterLoop.index],beforeLoop.queue[beforeLoop.index],'clearing an inspiration tail keeps the current cover and album');
+    assert.equal(afterLoop.queue.length,150);control.setMode({repeat:'off',explore:true});await until(()=>control.get().queue.length===151);
+
     assert.ok(Number(firstRandom) >= 9000);
     await control.track(0); await delay(100);
     assert.equal(control.get().queue.length, 151, 'changing tracks never inserts another recommendation');
@@ -65,6 +69,10 @@ async function until(fn) { for (let i = 0; i < 100; i++) { if (fn()) return; awa
     const refreshed = await handlers.get('tide:today')({}, true);
     assert.equal(today.hits.length,20); assert.equal(refreshed.hits.length,20);
     assert.ok(refreshed.hits.every(h=>!today.hits.some(old=>old.id===h.id)));
+    const requestsBeforeReentry=calls.length;
+    const reopened=await handlers.get('tide:today')({},false);
+    assert.deepEqual(reopened.hits,refreshed.hits,'reopening keeps the refreshed snapshot');
+    assert.equal(calls.length,requestsBeforeReentry,'reopening must not regenerate the old daily list');
     control.setMode({explore:false}); control.seek(500);
     const currentBefore=control.get().queue[control.get().index].id;
     const replaced=await handlers.get('tide:replace-upcoming')({},refreshed.hits);

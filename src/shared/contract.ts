@@ -56,6 +56,8 @@ export const Ipc = {
   captureMediaKeysSet: "tide:keys:capture",
   hardwareKey: "tide:keys:hardware",
   likedIds: "tide:liked:ids",
+  deskContext: "tide:desk:context",
+  deskContextClose: "tide:desk:context-close",
   deskGet: "tide:desk:get",
   deskSet: "tide:desk:set",
   deskState: "tide:desk:state",
@@ -197,6 +199,10 @@ export type SearchKind = "songs" | "artists" | "albums";
 export interface PlaylistCursor { playlistId: string; offset: number; hasMore: boolean }
 
 export interface SearchResult {
+  offset?: number;
+  nextOffset?: number;
+  hasMore?: boolean;
+  total?: number;
   source?: PlaylistCursor;
   ok: true;
   kind: SearchKind;
@@ -224,6 +230,10 @@ export interface LyricPayload {
 
 export interface DeskCue {
   title: string;
+  artist: string;
+  metadata: boolean;
+  next: string;
+  lineMode: "single" | "double";
   /** Current line. The overlay does not parse YRC. */
   text: string;
   translation: string;
@@ -272,6 +282,7 @@ export interface SessionUser {
 }
 
 export interface PlaylistSummary {
+  cover?: string;
   id: string;
   name: string;
   trackCount: number;
@@ -351,7 +362,7 @@ export interface TideBridge {
   logout(): Promise<SessionSnapshot | ApiFailure>;
   startQr(): Promise<QrTicket | ApiFailure>;
   checkQr(key: string): Promise<QrCheck | ApiFailure>;
-  search(keywords: string, type?: number): Promise<SearchResult | ApiFailure>;
+  search(keywords: string, type?: number, offset?: number): Promise<SearchResult | ApiFailure>;
   artistSongs(id: string): Promise<SearchResult | ApiFailure>;
   albumTracks(id: string): Promise<SearchResult | ApiFailure>;
   lyric(id: string): Promise<LyricPayload | ApiFailure>;
@@ -368,6 +379,8 @@ export interface TideBridge {
   hardwareKey(action: "play" | "pause" | "next" | "previous" | "stop"): Promise<PlaybackSnapshot>;
   likeSong(id: string, like: boolean): Promise<ApiFailure | { ok: true; message: string; liked: boolean }>;
   likedIds(): Promise<ApiFailure | { ok: true; known: boolean; ids: string[] }>;
+  openDeskMenu(): Promise<void>;
+  closeDeskMenu(): Promise<void>;
   getDeskLyrics(): Promise<DeskLyricsSettings>;
   setDeskLyrics(patch: Partial<DeskLyricsSettings>): Promise<DeskLyricsSettings>;
   onDeskState(listener: (settings: DeskLyricsSettings) => void): () => void;

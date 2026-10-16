@@ -121,9 +121,9 @@ describe("media keys", () => {
     assert.equal(normalizeAccelerator("Ctrl+Shift+F13"), "Ctrl+Shift+F13");
     assert.equal(normalizeAccelerator("ctrl+shift+f24"), "Ctrl+Shift+F24");
     assert.equal(normalizeAccelerator("Ctrl+F25"), null);
-    const reserved = planCustomShortcuts({ toggle: "Ctrl+Alt+L", next: "", previous: "", stop: "" });
+    const reserved = planCustomShortcuts({ toggle: "Ctrl+Alt+D", next: "", previous: "", stop: "" });
     assert.equal(reserved.register.length, 0);
-    assert.match(reserved.messages.join(" "), /桌面歌词锁定/);
+    assert.match(reserved.messages.join(" "), /桌面歌词显隐/);
     assert.equal(normalizeAccelerator("Right"), null);
     assert.equal(normalizeAccelerator("MediaPlayPause"), null);
     const plan = planCustomShortcuts({

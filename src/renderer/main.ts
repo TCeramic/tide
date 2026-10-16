@@ -1,4 +1,5 @@
 import { isRenderingActive, setRenderingActive } from "./render-activity";
+import { installModuleMotion } from "./module-motion";
 import { mountCloseMenu } from "./close-menu";
 import { EventBus } from "../core/events";
 import type { PlaybackEvents } from "../core/playback/types";
@@ -105,7 +106,7 @@ function installFace(family: string, dataUrl: string): void {
   document.documentElement.style.setProperty("--tide-font-custom", `"${safe}"`);
 }
 
-function applyAppearance(appearance: Appearance): void {
+function commitAppearance(appearance: Appearance): void {
   const root = document.documentElement;
   root.dataset.theme = isThemeId(appearance.theme) ? appearance.theme : "tide";
   root.dataset.shell = appearance.shell === "lattice" ? "lattice" : "lens";
@@ -129,6 +130,22 @@ function applyAppearance(appearance: Appearance): void {
   library.setAppearance(appearance);
   nativeShell.sync(appearance);
 }
+
+let desiredAppearance: Appearance | null = null;
+let appearanceGeneration=0, themeTransition: ViewTransition | null=null;
+function applyAppearance(appearance: Appearance): Promise<void> {
+ const prior=desiredAppearance;desiredAppearance=appearance;const generation=++appearanceGeneration;
+ const mode=(a:Appearance)=>a.shell==="lattice"?a.latticeMode??"dark":a.lensMode??(a.theme==="dusk"?"dark":"light");
+ const changed=prior&&(prior.shell!==appearance.shell||mode(prior)!==mode(appearance));
+ themeTransition?.skipTransition();themeTransition=null;
+ if(changed&&appearance.performance!=="smooth"&&appearance.motion>0&&isRenderingActive()&&!matchMedia("(prefers-reduced-motion: reduce)").matches&&typeof document.startViewTransition==="function") {
+  document.documentElement.style.setProperty("--theme-duration",appearance.performance==="vivid"?"640ms":"380ms");
+  themeTransition=document.startViewTransition(()=>{if(generation===appearanceGeneration)commitAppearance(appearance);});
+  return themeTransition.updateCallbackDone.catch(()=>{});
+ }
+ commitAppearance(appearance);return Promise.resolve();
+}
+installModuleMotion();
 
 applyAppearance({
   chromeVisible: true,

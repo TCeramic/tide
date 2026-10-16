@@ -1,14 +1,14 @@
 import { BrowserWindow, globalShortcut, ipcMain, screen } from "electron";
 import path from "node:path";
 import {
-  DESK_LOCK_ACCELERATOR,
+  fitDeskBounds,
   clampDeskOrigin,
   deskSettingsFromUnknown,
   deskWindowSize,
   type DeskLyricsSettings,
 } from "../core/desk-lyrics";
 import { performanceBudget } from "../core/performance";
-import { deskLineCue, immersiveProgress, lyricPosition, type LyricLine } from "../core/lyrics";
+import { desktopLyricContent, type LyricLine } from "../core/lyrics";
 import type { PlaybackMachine } from "../core/playback/machine";
 import { Ipc, type DeskCue, type YrcLine } from "../shared/contract";
 import type { SettingsStore } from "./settings";
@@ -32,8 +32,8 @@ const EMPTY_BUNDLE: LyricBundle = {
 };
 
 /**
- * Desktop lyrics overlay. The window, timer, and lock shortcut exist only
- * while the feature is on, so a closed overlay does not keep a resident window.
+ * Desktop lyrics overlay. The window and cue timer exist only while enabled.
+ * The one visibility shortcut stays registered so it can reopen a hidden overlay.
  */
 export function attachDeskLyrics(options: {
   settings: SettingsStore;
@@ -44,18 +44,20 @@ export function attachDeskLyrics(options: {
   let overlay: BrowserWindow | null = null;
   let timer: ReturnType<typeof setInterval> | null = null;
   let moveTimer: ReturnType<typeof setTimeout> | null = null;
-  let shortcutArmed = false;
-  let shortcutOpen = false;
+  let registeredShortcut = "";
+  let contextMenu: BrowserWindow | null = null;
+  let anchor: {x:number;y:number} | null = null;
+  let programmaticBounds: {x:number;y:number;width:number;height:number} | null = null;
   let bundle = { ...EMPTY_BUNDLE };
   let seenMs = 0;
   let seenAt = 0;
+  let seenTrack = "";
   let lastPayload = "";
 
   const read = () => options.settings.read().deskLyrics;
 
   const publishState = (settings: DeskLyricsSettings) => {
-    const win = options.getMainWindow();
-    if (win && !win.isDestroyed()) win.webContents.send(Ipc.deskState, settings);
+    for(const win of [options.getMainWindow(),overlay,contextMenu]) if(win&&!win.isDestroyed())win.webContents.send(Ipc.deskState,settings);
   };
 
   const areas = () => screen.getAllDisplays().map((display) => display.workArea);
@@ -63,7 +65,9 @@ export function attachDeskLyrics(options: {
   const estimatePosition = () => {
     const state = options.machine.getState();
     const now = Date.now();
-    if (state.status !== "playing" || state.positionMs !== seenMs) {
+    const id=state.queue[state.index]?.id??"";
+    if (!seenAt || seenTrack!==id || state.status !== "playing" || state.positionMs !== seenMs) {
+      seenTrack=id;
       seenMs = state.positionMs;
       seenAt = now;
       return state.positionMs;
@@ -77,25 +81,20 @@ export function attachDeskLyrics(options: {
     const state = options.machine.getState();
     const track = state.index >= 0 ? state.queue[state.index] : undefined;
     const same = Boolean(track && track.id === bundle.trackId);
-    const at = lyricPosition(estimatePosition(), same ? bundle.offsetMs : 0);
-    const swept = immersiveProgress(same ? bundle.yrc : [], same ? bundle.original : [], at);
-    const frame = deskLineCue(
-      same ? bundle.original : [],
-      same ? bundle.translation : [],
-      estimatePosition(),
-      same ? bundle.offsetMs : 0,
-      track?.title || bundle.title,
-    );
-    const text = swept.text || (frame.empty ? "" : frame.current);
-    const translation = settings.pair && !frame.empty ? frame.translation : "";
-    const follow = settings.highlightFollow && swept.wordLevel;
+    const display = desktopLyricContent(same?bundle.yrc:[],same?bundle.original:[],same?bundle.translation:[],estimatePosition(),same?bundle.offsetMs:0,track?.title??"",track?.artist??"");
+    const text=display.text, translation=settings.pair||display.metadata?display.translation:"";
+    const follow=settings.highlightFollow&&!display.metadata;
     return {
-      title: frame.title,
+      title: track?.title??"",
+      artist: track?.artist??"",
+      metadata: display.metadata,
+      next: display.next,
+      lineMode: settings.lineMode,
       text,
       translation,
-      progress: follow ? swept.progress : 1,
-      wordLevel: follow,
-      highlightFollow: settings.highlightFollow,
+      progress: follow ? display.progress : 0,
+      wordLevel: follow && display.wordLevel,
+      highlightFollow: follow,
       playing: state.status === "playing",
       fontSize: settings.fontSize,
       color: settings.color,
@@ -134,26 +133,28 @@ export function attachDeskLyrics(options: {
     timer = setInterval(paint, Math.max(16, Math.round(1000 / fps)));
   };
 
-  const armShortcut = (open: boolean) => {
-    if (open === shortcutOpen) return;
-    shortcutOpen = open;
-    if (shortcutArmed) {
-      globalShortcut.unregister(DESK_LOCK_ACCELERATOR);
-      shortcutArmed = false;
-    }
-    if (!open) return;
-    try {
-      shortcutArmed = globalShortcut.register(DESK_LOCK_ACCELERATOR, () => {
-        const current = read();
-        if (!current.open) return;
-        apply({ locked: !current.locked });
-      });
-    } catch {
-      shortcutArmed = false;
-    }
-    if (!shortcutArmed) {
-      options.notify("Ctrl+Alt+L 没有注册成功。可以在设置里切换桌面歌词锁定。");
-    }
+  const armShortcut = (_open?: boolean) => {
+    const accelerator=read().toggleShortcut;
+    if(accelerator===registeredShortcut)return;
+    if(registeredShortcut)globalShortcut.unregister(registeredShortcut);
+    registeredShortcut="";
+    if(!accelerator)return;
+    try { if(globalShortcut.register(accelerator,()=>apply({open:!read().open})))registeredShortcut=accelerator; }
+    catch { /* Report a collision or unsupported accelerator below. */ }
+    if(!registeredShortcut)options.notify("桌面歌词显隐热键未能注册，请在设置中更换。");
+  };
+  const closeContext = () => {const win=contextMenu;contextMenu=null;if(win&&!win.isDestroyed())win.destroy();};
+  const openContext = () => {
+    if(!overlay||overlay.isDestroyed()||read().locked)return;
+    closeContext();
+    const cursor=screen.getCursorScreenPoint(),area=screen.getDisplayNearestPoint(cursor).workArea;
+    const look=options.settings.read(),width=Math.min(320,area.width),height=Math.min(520,area.height);
+    const win=new BrowserWindow({width,height,x:Math.max(area.x,Math.min(cursor.x,area.x+area.width-width)),y:Math.max(area.y,Math.min(cursor.y,area.y+area.height-height)),frame:false,transparent:true,alwaysOnTop:true,skipTaskbar:true,resizable:false,show:false,backgroundColor:"#00000000",webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:true}});
+    contextMenu=win;win.setAlwaysOnTop(true,"screen-saver");
+    win.once("ready-to-show",()=>{if(contextMenu===win){win.show();win.focus();}});
+    win.on("blur",()=>{setTimeout(()=>{if(contextMenu===win&&!win.isDestroyed()&&!win.isFocused())closeContext();},80);});
+    win.on("closed",()=>{if(contextMenu===win)contextMenu=null;});
+    void win.loadFile(path.join(__dirname,"desk.html"),{query:{context:"true",shell:look.shell,mode:(look.shell==="lattice"?look.latticeMode:look.lensMode)??"dark"}});
   };
 
   const applyLock = (settings: DeskLyricsSettings) => {
@@ -163,6 +164,7 @@ export function attachDeskLyrics(options: {
 
   const destroyOverlay = () => {
     stopTimer();
+    closeContext();
     lastPayload = "";
     if (moveTimer) clearTimeout(moveTimer);
     moveTimer = null;
@@ -173,7 +175,9 @@ export function attachDeskLyrics(options: {
 
   const onMoved = () => {
     if (!overlay || overlay.isDestroyed()) return;
-    const [x, y] = overlay.getPosition();
+    const bounds=overlay.getBounds(),{x,y}=bounds;
+    if(programmaticBounds&&["x","y","width","height"].every(k=>Math.abs(bounds[k as keyof typeof bounds]-programmaticBounds![k as keyof typeof bounds])<=1))return;
+    programmaticBounds=null;anchor={x:x+bounds.width/2,y:y+bounds.height/2};
     if (moveTimer) clearTimeout(moveTimer);
     moveTimer = setTimeout(() => {
       const next = deskSettingsFromUnknown({ ...read(), x, y });
@@ -184,23 +188,28 @@ export function attachDeskLyrics(options: {
 
   const ensure = (settings: DeskLyricsSettings) => {
     if (overlay && !overlay.isDestroyed()) {
-      const size = deskWindowSize(settings.fontSize, settings.pair, settings.orientation);
+      const size = deskWindowSize(settings.fontSize, settings.pair, settings.orientation, settings.lineMode==="double");
       const bounds = overlay.getBounds();
-      if (bounds.width !== size.width || bounds.height !== size.height) {
-        overlay.setBounds({ x: bounds.x, y: bounds.y, ...size });
+      if(!programmaticBounds||Math.abs(bounds.x-programmaticBounds.x)>2||Math.abs(bounds.y-programmaticBounds.y)>2)anchor={x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2};
+      if (Math.abs(bounds.width-size.width)>1 || Math.abs(bounds.height-size.height)>1) {
+        anchor??={x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2};
+        if(moveTimer)clearTimeout(moveTimer);moveTimer=null;
+        programmaticBounds=fitDeskBounds(anchor,size,areas());overlay.setBounds(programmaticBounds);
+        options.settings.write({deskLyrics:{...settings,x:programmaticBounds.x,y:programmaticBounds.y}});
       }
       applyLock(settings);
       return;
     }
-    const size = deskWindowSize(settings.fontSize, settings.pair, settings.orientation);
+    const size = deskWindowSize(settings.fontSize, settings.pair, settings.orientation, settings.lineMode==="double");
     const origin = clampDeskOrigin(
       settings.x == null || settings.y == null ? null : { x: settings.x, y: settings.y },
       areas(),
       size,
     );
+    anchor={x:origin.x+size.width/2,y:origin.y+size.height/2};
+    const fitted=fitDeskBounds(anchor,size,areas());
     const win = new BrowserWindow({
-      ...size,
-      ...origin,
+      ...fitted,
       frame: false,
       transparent: true,
       alwaysOnTop: true,
@@ -221,7 +230,8 @@ export function attachDeskLyrics(options: {
     overlay = win;
     win.setAlwaysOnTop(true, "screen-saver");
     win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-    win.on("moved", onMoved);
+    win.on("move", onMoved);
+    win.on("system-context-menu",event=>{event.preventDefault();openContext();});
     win.once("ready-to-show", () => {
       if (overlay !== win || win.isDestroyed()) return;
       win.showInactive();
@@ -250,14 +260,17 @@ export function attachDeskLyrics(options: {
     const settings = read();
     if (!settings.open || !overlay || overlay.isDestroyed()) return;
     const [x, y] = overlay.getPosition();
-    const size = deskWindowSize(settings.fontSize, settings.pair, settings.orientation);
-    const origin = clampDeskOrigin({ x, y }, areas(), size);
+    const size = deskWindowSize(settings.fontSize, settings.pair, settings.orientation, settings.lineMode==="double");
+    const fitted=fitDeskBounds({x:x+size.width/2,y:y+size.height/2},size,areas());
+    const origin={x:fitted.x,y:fitted.y};
     if (origin.x !== x || origin.y !== y) overlay.setPosition(origin.x, origin.y);
   };
 
   screen.on("display-removed", reclamp);
   screen.on("display-metrics-changed", reclamp);
 
+  ipcMain.handle(Ipc.deskContext,event=>{if(event.sender===overlay?.webContents)openContext();});
+  ipcMain.handle(Ipc.deskContextClose,event=>{if(event.sender===contextMenu?.webContents||event.sender===overlay?.webContents)closeContext();});
   ipcMain.handle(Ipc.deskGet, () => read());
   ipcMain.handle(Ipc.deskSet, (_event, patch: unknown) => {
     const record = patch && typeof patch === "object" ? patch as Partial<DeskLyricsSettings> : {};
@@ -270,16 +283,19 @@ export function attachDeskLyrics(options: {
   });
 
   if (read().open) apply(read());
+  else armShortcut();
 
   return {
     close() {
       screen.removeListener("display-removed", reclamp);
       screen.removeListener("display-metrics-changed", reclamp);
+      ipcMain.removeHandler(Ipc.deskContext);
+      ipcMain.removeHandler(Ipc.deskContextClose);
       ipcMain.removeHandler(Ipc.deskGet);
       ipcMain.removeHandler(Ipc.deskSet);
       ipcMain.removeAllListeners(Ipc.deskLines);
-      if (shortcutArmed) globalShortcut.unregister(DESK_LOCK_ACCELERATOR);
-      shortcutArmed = false;
+      if (registeredShortcut) globalShortcut.unregister(registeredShortcut);
+      registeredShortcut = "";
       destroyOverlay();
     },
   };

@@ -97,3 +97,5 @@ await cp(path.join(root, "build/icon.ico"), path.join(dist, "icon.ico"));
 await cp(path.join(root, "build/icon.png"), path.join(dist, "icon.png"));
 
 await cp(path.join(root, "licenses"), path.join(dist, "licenses"), { recursive: true });
+
+await cp(path.join(root,"src/renderer/assets"),path.join(dist,"assets"),{recursive:true});

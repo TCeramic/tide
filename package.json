@@ -1,6 +1,6 @@
 {
   "name": "tide",
-  "version": "0.9.2-test.8",
+  "version": "0.9.2-test.9",
   "private": true,
   "description": "潮汐 Tide — a personal, unofficial desktop music player",
   "main": "dist/main.js",
@@ -20,7 +20,9 @@
     "test:ui": "node scripts/ui-smoke.cjs",
     "test:perf": "node scripts/perf-smoke.cjs",
     "test:playback": "node scripts/playback-host-smoke.cjs",
-    "test:native": "node scripts/native-smoke.cjs"
+    "test:native": "node scripts/native-smoke.cjs",
+    "test:cursor": "node scripts/cursor-hold-smoke.cjs",
+    "test:refresh": "node scripts/high-refresh-smoke.cjs"
   },
   "devDependencies": {
     "@types/node": "22.19.21",

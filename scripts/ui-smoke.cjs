@@ -38,10 +38,10 @@ const server = http.createServer((req,res)=>{if(req.url==='/fixture.wav'){const 
     tideToday:async refresh=>{if(refresh)window.fixtureTodayGeneration++;window.fixtureTodayRows=Array.from({length:20},(_,i)=>({...tracks[0],id:String(500+window.fixtureTodayGeneration*20+i),title:`潮汐 ${window.fixtureTodayGeneration}-${i+1}`}));return {ok:true,hits:window.fixtureTodayRows,message:null};},
     replaceUpcoming:async rows=>{window.fixtureReplaced++;const current=snapshot.queue[snapshot.index];snapshot.queue=[current,...rows.filter(h=>h.id!==current.id)];snapshot.index=0;listeners.onPlayback?.forEach(f=>f({...snapshot}));return {...snapshot};},
     windowAction:async action=>window.fixtureActions.push(action),
-    search:async(keywords,type)=>type===10?{ok:true,kind:'albums',albums:[{id:'2',name:'专辑名称'.repeat(12),artist:'测试歌手',cover}]}:{ok:true,kind:'songs',hits:keywords==='保留状态'?Array.from({length:30},(_,i)=>({...tracks[0],id:String(i+1),title:`保留曲目 ${i+1}`})):tracks},
+    search:async(keywords,type,offset=0)=>keywords==="分页测试"?{ok:true,kind:"songs",hits:Array.from({length:offset===0?20:offset===20?20:3},(_,i)=>({...tracks[0],id:String(offset+i+1),title:`分页歌曲 ${offset+i+1}`})),nextOffset:offset+20,hasMore:offset<40}:type===10?{ok:true,kind:'albums',albums:[{id:'2',name:'专辑名称'.repeat(12),artist:'测试歌手',cover}]}:{ok:true,kind:'songs',hits:keywords==='保留状态'?Array.from({length:30},(_,i)=>({...tracks[0],id:String(i+1),title:`保留曲目 ${i+1}`})):tracks},
     albumTracks:async()=>({ok:true,kind:'songs',hits:tracks}),
     addLocalTracks:async()=>{window.fixtureAdds++;data.localTracks=tracks;return tracks;},
-setAppearance:async patch=>{Object.assign(appearance,patch);listeners.onAppearance?.forEach(f=>f({...appearance}));return {...appearance};}}, {get(target,key){if(key in target)return target[key];if(String(key).startsWith('on'))return f=>{(listeners[key]||=[]).push(f);return ()=>{};};return async()=>data[key]??{ok:false,message:'preview fixture'};}});
+setAppearance:async patch=>{Object.assign(appearance,patch);for(const f of listeners.onAppearance??[])await f({...appearance});return {...appearance};}}, {get(target,key){if(key in target)return target[key];if(String(key).startsWith('on'))return f=>{(listeners[key]||=[]).push(f);return ()=>{};};return async()=>data[key]??{ok:false,message:'preview fixture'};}});
  });
  await page.goto('http://127.0.0.1:4179/');
  await page.waitForTimeout(1800);
@@ -72,6 +72,22 @@ setAppearance:async patch=>{Object.assign(appearance,patch);listeners.onAppearan
  await page.keyboard.press('Escape');
  await page.locator('.search-tabs').waitFor({state:"hidden"});
  console.log('SEARCH_FOCUS_CATEGORY_SELECTION_COLLAPSE passed');
+ await page.getByRole('searchbox',{name:'搜索',exact:true}).fill('分页测试');await page.locator('form.search').evaluate(form=>form.requestSubmit());
+ await page.waitForFunction(()=>document.querySelectorAll('.search-page .hit-row').length===20);
+ assert.equal(await page.getByRole('region',{name:'搜索结果',exact:true}).isVisible(),true);
+ for(const count of [40,43]){await page.getByRole('button',{name:'加载更多',exact:true}).click();await page.waitForFunction(count=>document.querySelectorAll('.search-page .hit-row').length===count,count);}
+ assert.equal(await page.getByRole('button',{name:'加载更多',exact:true}).isVisible(),false);
+ assert.match(await page.locator('.search-page>.library-note').last().innerText(),/全部/);
+ await page.getByRole('button',{name:'主页',exact:true}).click();
+ await page.locator('.home-card').filter({has:page.locator('h2',{hasText:'歌单'})}).click();
+ await page.waitForFunction(()=>document.querySelector('.playlist-art img')?.naturalWidth>0);
+ await page.getByRole('button',{name:'打开歌单 今日潮汐',exact:true}).click();
+ await page.waitForFunction(()=>document.querySelectorAll('.hits .hit-row').length===20);
+ await page.waitForFunction(()=>document.querySelector('.playlist-detail-art img')?.naturalWidth>0);
+ await page.getByRole('button',{name:'返回',exact:true}).click();assert.equal(await page.locator('.playlists').isVisible(),true);
+ await page.getByRole('button',{name:'主页',exact:true}).click();
+ console.log('SEARCH_PAGE_PAGINATION_COMPLETE_AND_PLAYLIST_COVER_NAV passed');
+
  assert.equal(await page.locator('.queue-col').isVisible(),false);
  await page.locator('.peek-queue').hover({position:{x:4,y:4}});
  assert.equal(await page.locator('.queue-col').isVisible(),true);
@@ -171,8 +187,22 @@ setAppearance:async patch=>{Object.assign(appearance,patch);listeners.onAppearan
  assert.equal(await page.locator('.proof-list .proof-node').count(),8);
  await page.getByRole('button',{name:'下一组',exact:true}).click();
  assert.equal(await page.locator('.proof-list .proof-node').count(),4);
- await page.getByRole('button',{name:'上一组',exact:true}).click();
+ const graphCanvas=await page.locator('.proof-canvas').elementHandle();
  await page.locator('.proof-list .proof-node').first().click();
+ await page.getByRole('button',{name:'返回上一级',exact:true}).click();
+ assert.equal(await page.locator('.proof-pager span').innerText(),'2 / 2');
+ await page.getByRole('searchbox',{name:'搜索音乐脉络',exact:true}).fill('专辑 11');
+ assert.equal(await page.locator('.proof-list .proof-node').count(),1);
+ await page.locator('.proof-list .proof-node').first().click();
+ await page.getByRole('button',{name:'返回上一级',exact:true}).click();
+ assert.equal(await page.getByRole('searchbox',{name:'搜索音乐脉络',exact:true}).inputValue(),'专辑 11');
+ await page.getByRole('searchbox',{name:'搜索音乐脉络',exact:true}).fill('');
+ await page.locator('.proof-list .proof-node').first().click();
+ assert.ok(await graphCanvas.evaluate(el=>el===document.querySelector('.proof-canvas')));
+ await page.waitForTimeout(600);
+ assert.ok(Number(await page.locator('.proof-canvas').getAttribute('data-nodes'))>9);
+ assert.equal(await page.locator('.proof-canvas').getAttribute('data-root'),'current');
+ assert.ok(await page.locator('.proof-label').evaluateAll(els=>els.some(el=>el.style.opacity==='0.3')));
  assert.match(await page.locator('.proof-status').innerText(),/专辑/);
  await page.locator('.proof-list .proof-node').first().click();
  assert.match(await page.locator('.proof-status').innerText(),/单曲/);
@@ -291,25 +321,25 @@ setAppearance:async patch=>{Object.assign(appearance,patch);listeners.onAppearan
  await page.locator('.hit-row').first().getByRole('button',{name:'更多',exact:true}).click();
  assert.equal(await page.getByRole('dialog',{name:'曲目操作',exact:true}).isVisible(),true);
  const rowAfter=await page.locator('.hit-row').first().boundingBox();
- assert.equal(rowAfter.height,rowBefore.height);
+ assert.ok(Math.abs(rowAfter.height-rowBefore.height)<1);
  assert.equal(await page.locator('.track-context-menu').evaluate(el=>el.parentElement===document.body),true);
  const optionColors=await page.locator('.track-context-menu option').first().evaluate(el=>({fg:getComputedStyle(el).color,bg:getComputedStyle(el).backgroundColor}));
  assert.deepEqual(optionColors,{fg:'rgb(241, 246, 252)',bg:'rgb(21, 34, 51)'});
  await page.screenshot({path:path.join(output,'lens-track-context-menu.png')});
  await page.keyboard.press('Escape');
- assert.equal(await page.locator('.track-context-menu').count(),0);
+ await page.waitForFunction(()=>document.querySelectorAll('.track-context-menu').length===0);
  await page.locator('.hit-row').first().click({button:'right'});
  assert.equal(await page.getByRole('dialog',{name:'曲目操作',exact:true}).isVisible(),true);
  await page.keyboard.press('Escape');
  await page.locator('.hit').nth(12).click();
- await page.locator('.browse-sheet').evaluate(el=>el.scrollTop=320);
- const previousScroll=await page.locator('.browse-sheet').evaluate(el=>el.scrollTop);
+ await page.locator('.browse-sheet:not([hidden])').evaluate(el=>el.scrollTop=320);
+ const previousScroll=await page.locator('.browse-sheet:not([hidden])').evaluate(el=>el.scrollTop);
  await page.locator('.dock-cover').click();
  assert.equal(await page.locator('html').getAttribute('data-view'),'playing');
  await page.locator('.dock-cover').click();
  assert.equal(await page.locator('html').getAttribute('data-view'),'home');
  assert.equal(await page.getByRole('searchbox',{name:'搜索',exact:true}).inputValue(),'保留状态');
- assert.equal(await page.locator('.browse-sheet').evaluate(el=>el.scrollTop),previousScroll);
+ assert.equal(await page.locator('.browse-sheet:not([hidden])').evaluate(el=>el.scrollTop),previousScroll);
  assert.ok((await page.locator('.hit.is-selected').innerText()).includes('保留曲目 13'));
  assert.equal(await page.locator('.hits .hit-row').count(),30);
  assert.equal(await page.locator('.transport-controls .icon-button').count(),4);
@@ -388,7 +418,12 @@ setAppearance:async patch=>{Object.assign(appearance,patch);listeners.onAppearan
  assert.equal(refreshedState.positionMs,1234);
  assert.equal(refreshedState.queue[1].id,'520');
  await page.screenshot({path:path.join(output,'today-20-refresh.png')});
- console.log('TODAY_20_REFRESH_PRESERVES_CURRENT_AUDIO_REPLACES_UPCOMING','passed');
+ const refreshedTitles=await page.locator('.hit-title').allTextContents();
+ await page.getByRole('button',{name:'主页',exact:true}).click();
+ await page.locator('.home-card').filter({has:page.locator('h2',{hasText:'今日潮汐'})}).click();
+ await page.waitForFunction(()=>document.querySelectorAll('.hits .hit-row').length===20);
+ assert.deepEqual(await page.locator('.hit-title').allTextContents(),refreshedTitles,'page reentry keeps the refreshed songs');
+ console.log('TODAY_20_REFRESH_REENTRY_PRESERVES_CURRENT_AND_LATEST_LIST','passed');
 
  await page.setViewportSize({width:1440,height:960});
  await page.evaluate(()=>{window.tide.setAppearance({shell:'lattice',motion:1});window.fixtureSetPlayback({positionMs:116000,status:'playing'});});

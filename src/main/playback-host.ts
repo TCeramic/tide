@@ -5,6 +5,7 @@ import { profileSeeds, randomProfileMatch } from "../core/explore-queue";
 import { PlaybackMachine } from "../core/playback/machine";
 import { countsAsSkip, type ListenKind } from "../core/tide-today";
 import { ListenLog } from "./listen-log";
+import { TodayStore } from "./today-store";
 import { loadTideToday } from "./tide-today";
 import { loopbackJson } from "./session-host";
 import {
@@ -17,6 +18,7 @@ import {
   type PlaylistCursor,
   type SearchHit,
   type Track,
+  type TideToday,
 } from "../shared/contract";
 
 export interface PlaybackControl {
@@ -50,6 +52,7 @@ export function attachPlayback(
   persistVolume?: (volume: number) => void,
   listenLog?: ListenLog,
   getQuality?: () => string,
+  todayStore = new TodayStore(),
 ): { detach: () => void; control: PlaybackControl } {
   let generation = 0;
   let currentMedia: { trackId: string; url: string } | null = null;
@@ -449,7 +452,8 @@ export function attachPlayback(
     if (typeof id === "string" && typeof durationMs === "number" && currentMedia?.trackId === id) machine.reportDuration(id, durationMs);
   };
   ipcMain.on(Ipc.duration, onDuration);
-  let todayIds: string[] = [];
+  let todayRequest = 0;
+  let todayPending: Promise<TideToday> | null = null;
   ipcMain.handle(Ipc.replaceUpcoming, (_event, raw: unknown) => {
     const hits = parseHits(raw);
     if (!hits || !hits.length) return machine.getState();
@@ -459,8 +463,20 @@ export function attachPlayback(
   });
   ipcMain.handle(Ipc.tideToday, async (_event, refresh: unknown) => {
     try {
-      const result = await loadTideToday(getPort(), listenLog?.read() ?? [], refresh === true, todayIds);
-      if (result.hits.length) todayIds = result.hits.map(hit => hit.id); return result;
+      const previous = todayStore.read();
+      if (refresh !== true) {
+        if (todayPending) return await todayPending;
+        if (previous) return previous;
+      }
+      const request = ++todayRequest;
+      const job: Promise<TideToday> = (async () => {
+        const result = await loadTideToday(getPort(), listenLog?.read() ?? [], refresh === true, previous?.hits.map(hit => hit.id) ?? []);
+        if (request !== todayRequest) return todayPending ? await todayPending : todayStore.read() ?? result;
+        if (result.hits.length) todayStore.replace(result);
+        return result;
+      })();
+      todayPending = job;
+      try { return await job; } finally { if (todayPending === job) todayPending = null; }
     } catch {
       return { ok: false, error: "tide_today", message: "今日潮汐暂时没有整理出来" } satisfies ApiFailure;
     }

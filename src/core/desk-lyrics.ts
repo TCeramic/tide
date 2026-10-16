@@ -25,6 +25,8 @@ export interface DeskLyricsSettings {
   glow: number;
   /** Second line for a translation. The default is one line. */
   pair: boolean;
+  lineMode: "single" | "double";
+  toggleShortcut: string;
   /** Optional wave drawn behind the line, never through the glyphs. */
   wave: boolean;
   /** Horizontal line, or the same line set as a vertical column. */
@@ -35,7 +37,7 @@ export interface DeskLyricsSettings {
   backdrop: number;
 }
 
-export const DESK_LOCK_ACCELERATOR = "CommandOrControl+Alt+L";
+export const DESK_TOGGLE_ACCELERATOR = "CommandOrControl+Alt+D";
 
 export const DEFAULT_DESK_LYRICS: DeskLyricsSettings = {
   open: false,
@@ -51,6 +53,8 @@ export const DEFAULT_DESK_LYRICS: DeskLyricsSettings = {
   motion: true,
   glow: 0.72,
   pair: false,
+  lineMode: "single",
+  toggleShortcut: "Ctrl+Alt+D",
   wave: false,
   orientation: "horizontal",
   motionLevel: 1,
@@ -96,6 +100,8 @@ export function deskSettingsFromUnknown(value: unknown): DeskLyricsSettings {
     motion: record.motion !== false,
     glow: Math.min(1, Math.max(0, glow)),
     pair: record.pair === true,
+    lineMode: record.lineMode === "double" ? "double" : "single",
+    toggleShortcut: typeof record.toggleShortcut === "string" && (record.toggleShortcut === "" || /^(?:(?:Ctrl|Control|Alt|Shift|Meta|CommandOrControl)\+){1,3}(?:[A-Z0-9]|F(?:[1-9]|1[0-9]|2[0-4])|Space)$/.test(record.toggleShortcut)) ? record.toggleShortcut : DEFAULT_DESK_LYRICS.toggleShortcut,
     wave: record.wave === true,
     orientation: record.orientation === "vertical" ? "vertical" : "horizontal",
     motionLevel: Math.min(1, Math.max(0.35, motionLevel)),
@@ -131,11 +137,19 @@ export function deskWindowSize(
   fontSize: number,
   pair = false,
   orientation: "horizontal" | "vertical" = "horizontal",
+  double = false,
 ): { width: number; height: number } {
   const size = deskSettingsFromUnknown({ fontSize }).fontSize;
   if (orientation === "vertical") {
-    return { width: Math.round(size * (pair ? 3.6 : 2.4) + 36), height: 640 };
+    return { width: Math.round(size * (2.4 + (pair ? 1.2 : 0) + (double ? 1.3 : 0)) + 36), height: 640 };
   }
-  const lines = pair ? 3.4 : 2.15;
+  const lines = 2.15 + (pair ? 1.25 : 0) + (double ? 1.3 : 0);
   return { width: 1080, height: Math.round(size * lines + 28) };
+}
+
+/** Keep the visual center during orientation changes and fit the whole window on its display. */
+export function fitDeskBounds(anchor: {x:number;y:number}, size:{width:number;height:number}, areas:readonly DeskArea[]): DeskArea {
+ const area=areas.find(a=>anchor.x>=a.x&&anchor.x<=a.x+a.width&&anchor.y>=a.y&&anchor.y<=a.y+a.height)??areas[0]??{x:0,y:0,width:1920,height:1080};
+ const width=Math.min(size.width,area.width),height=Math.min(size.height,area.height);
+ return {width,height,x:Math.round(Math.max(area.x,Math.min(area.x+area.width-width,anchor.x-width/2))),y:Math.round(Math.max(area.y,Math.min(area.y+area.height-height,anchor.y-height/2)))};
 }

@@ -1,6 +1,6 @@
 import { isRenderingActive } from "./render-activity.ts";
 // Adapted from design-systems/lattice/src/dom/cursor.js, MIT © 2026 DayDreamInAReverie.
-// Only lifecycle cleanup and the desktop pixel budget differ.
+// Adapted lifecycle, local canvas budget, and press-and-hold feedback.
 // 眼 Cursor — a point with a small set around it. Over anything you can act on, the set leaves the
 // pointer and re-forms along that control's outline (the "meteors converge into the option" idea);
 // pressing bursts it; holding on the field turns the ring hot as the points melt.
@@ -43,7 +43,7 @@ export function mountCursor() {
   let dpr = Math.min(1.25, devicePixelRatio || 1), boxStamp = 0, outline = null;
   listen("resize", () => { dpr = Math.min(1.25, devicePixelRatio || 1); boxStamp = 0; });
   listen("scroll", () => { boxStamp = 0; }, { capture: true, passive: true });
-  let frame = 0, last = 0, dead = false, motion = true;
+  let frame = 0, last = 0, dead = false, motion = true, fps = 60, holding=false, heldAt=0, releaseHeat=0, pointerId=null;
 
   const N = 30;
   const dots = new Dots(N);
@@ -61,8 +61,12 @@ export function mountCursor() {
     if (next !== target) { boxStamp = 0; target = next; }
     wake();
   }, { passive: true });
-  listen("pointerout", e => { if (!e.relatedTarget) { inside = false; target = null; wake(); } });
-  listen("pointerdown", () => { dots.burst(px, py, 220); });
+  listen("pointerout", e => { if (!e.relatedTarget) { inside = false; target = null; cancelHold(); wake(); } });
+  listen("pointerdown", e => { if(e.button!==0||!e.isPrimary||!motion)return;px=e.clientX;py=e.clientY;inside=true;holding=true;pointerId=e.pointerId;heldAt=performance.now();cv.dataset.press="holding";dots.burst(px,py,220);wake();});
+  const release=e=>{if(holding&&e.pointerId===pointerId){holding=false;pointerId=null;releaseHeat=heat;cv.dataset.press="released";if(motion)dots.burst(px,py,140+heat*180);wake();}};
+  function cancelHold(){holding=false;pointerId=null;heat=releaseHeat=0;cv.dataset.press="idle";}
+  listen("blur",cancelHold);
+  listen("pointerup",release);listen("pointercancel",release);
   // keyboard focus gets the same outline, so the halo is also a focus indicator
   listen("focusin", (e) => { if (e.target.matches?.(":focus-visible") && e.target.matches(TARGETS)) target = e.target; });
   listen("focusout", () => { if (document.activeElement === document.body) target = null; });
@@ -70,11 +74,13 @@ export function mountCursor() {
   function tick(now) {
     frame = 0;
     if (dead || !isRenderingActive()) { last = 0; return; }
-    if (last && now - last < 1000 / 60 - .5) { wake(); return; }
+    if (last && now - last < 1000 / fps - .5) { wake(); return; }
     const dt = last ? Math.min(.05, (now - last) / 1000) : 1 / 60; last = now;
     g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,cv.width,cv.height);
     if (!inside && !target) { last = 0; return; }
-    spin += motion ? dt : 0;
+    heat=motion?(holding?Math.min(1,(now-heldAt)/700):Math.max(0,releaseHeat-=dt*2.5)):0;
+    if(holding&&heat===1)cv.dataset.press="held";else if(!holding&&heat===0)cv.dataset.press="idle";
+    spin += motion ? dt*(1+heat*.7) : 0;
     if (target && target.isConnected) {
       if (!boxStamp || now - boxStamp > 150) {
         const r = target.getBoundingClientRect(), pad = 6;
@@ -87,10 +93,10 @@ export function mountCursor() {
       for (let i = 0; i < N; i++) { const at=((i/N+spin*.035)%1)*128,j=Math.floor(at),mix=at-j,a=samples[j],z=samples[(j+1)%128]; const x=a[0]+(z[0]-a[0])*mix,y=a[1]+(z[1]-a[1])*mix; dots.home(i, x, y, 0.95); }
     } else {
       lastTarget = null;
-      const R = 11 + heat * 12;
+      const R = 11 - heat * 4 + (heat>.98?Math.sin(now/100)*2:0);
       for (let i = 0; i < N; i++) { const a = (i / N) * Math.PI * 2 + spin * 0.6; dots.home(i, px + Math.cos(a) * R, py + Math.sin(a) * R, i % 3 === 0 || heat > 0.02 ? 0.75 : 0); }
     }
-    dots.step(dt);
+    if(motion)dots.step(dt);else dots.snap();
     // Only rasterize the small occupied tile, rather than clearing/compositing the desktop.
     let left=inside?px:Infinity,top=inside?py:Infinity,right=inside?px:-Infinity,bottom=inside?py:-Infinity;
     for(let i=0;i<N;i++){left=Math.min(left,dots.x[i]);top=Math.min(top,dots.y[i]);right=Math.max(right,dots.x[i]);bottom=Math.max(bottom,dots.y[i]);}
@@ -101,11 +107,11 @@ export function mountCursor() {
     cv.style.transform=`translate3d(${left}px,${top}px,0)`;
     g.setTransform(dpr,0,0,dpr,-left*dpr,-top*dpr);
     const hotCount = Math.round(heat * N);
-    dots.draw(g, { ink, hot, r: 1.25, hotOf: (i) => (i < hotCount ? 1 : 0) });
+    dots.draw(g, { ink, hot, r: 1.25*(1+heat*.6+(heat>.98?Math.sin(now/70)*.12:0)), hotOf: (i) => (i < hotCount ? 1 : 0) });
     if (inside) { g.fillStyle = hot; g.beginPath(); g.arc(px, py, 2.6, 0, Math.PI * 2); g.fill(); }
     if (motion || dots.step(0)) wake();
   }
   function wake() { if (!dead && !frame && isRenderingActive()) frame=requestAnimationFrame(tick); }
-  listen("visibilitychange", () => { cancelAnimationFrame(frame); frame=0;last=0;if(isRenderingActive())wake(); });
-  return { el:cv, sync(next) { motion=next.motion>0&&!reducedMotion();wake(); }, setHeat(v) { heat=v;wake(); }, destroy() { dead=true;cancelAnimationFrame(frame);abort.abort(); observer.disconnect(); cv.remove(); document.documentElement.classList.remove("has-cursor"); } };
+  listen("visibilitychange", () => { cancelAnimationFrame(frame); frame=0;last=0;cancelHold();if(isRenderingActive())wake(); });
+  return { el:cv, sync(next) { fps=next.performance === "vivid" ? 120 : 60; motion=next.motion>0&&next.performance!=="smooth"&&!reducedMotion();if(!motion)cancelHold();wake(); }, setHeat(v) { heat=v;wake(); }, destroy() { dead=true;cancelAnimationFrame(frame);abort.abort(); observer.disconnect(); cv.remove(); document.documentElement.classList.remove("has-cursor"); } };
 }

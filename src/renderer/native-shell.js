@@ -103,9 +103,12 @@ export function mountNativeShell(root) {
   const widgetTick = now => {
     widgetFrame = 0;
     if (destroyed || !isRenderingActive() || appearance?.shell !== "lattice") return;
+    const fps=appearance?.performance === "vivid" ? 60 : 30;
+    if(widgetLast && now-widgetLast<1000/fps-.5){widgetFrame=requestAnimationFrame(widgetTick);return;}
     const dt = widgetLast ? Math.min(.05, (now - widgetLast) / 1000) : 1 / 30; widgetLast = now;
     latticeClock.time += dt; latticeClock._emit(dt);
-    widgetTimer = setTimeout(() => { widgetTimer = 0; widgetFrame = requestAnimationFrame(widgetTick); }, 1000 / 30);
+    if(appearance?.performance === "vivid") widgetFrame=requestAnimationFrame(widgetTick);
+    else widgetTimer = setTimeout(() => { widgetTimer = 0; widgetFrame = requestAnimationFrame(widgetTick); }, 1000 / 30);
   };
   const clockActivity = () => {
     cancelAnimationFrame(latticeClock._raf); latticeClock._raf = 0; latticeClock._last = 0;
@@ -210,7 +213,7 @@ function mountPointField(root, tier = "balanced") {
   root.prepend(canvas);
   let renderer, field, frame = 0, paused = false, active = true, dead = false, last = 0, time = 0, setIndex = -1;
   let renderTimer = 0, lastPaint = 0, interactionUntil = 0;
-  const targetFps = tier === "vivid" ? 60 : tier === "smooth" ? 20 : 30;
+  const targetFps = tier === "vivid" ? 120 : tier === "smooth" ? 20 : 30;
   const abort = new AbortController();
   const signal = abort.signal;
   const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 400);
@@ -338,6 +341,7 @@ function mountPointField(root, tier = "balanced") {
   function loop(now) {
     frame = 0;
     if (dead || !active || !isRenderingActive()) { last = 0; return; }
+    if(tier === "vivid" && lastPaint && now-lastPaint<1000/120-.5){wake();return;}
     lastPaint = now;
     const dt = last ? Math.min(0.05, (now - last) / 1000) : 1 / 60; last = now;
     time += paused ? 0 : dt;
@@ -346,6 +350,7 @@ function mountPointField(root, tier = "balanced") {
   }
   function wake() {
     if (dead || !active || !isRenderingActive() || frame || renderTimer) return;
+    if(tier === "vivid") { frame=requestAnimationFrame(loop);return; }
     const fps = performance.now() < interactionUntil ? 60 : targetFps;
     const wait = Math.max(0, 1000 / fps - (performance.now() - lastPaint));
     renderTimer = setTimeout(() => { renderTimer = 0; if (!dead && active && isRenderingActive()) frame = requestAnimationFrame(loop); }, wait);
@@ -360,7 +365,7 @@ function mountPointField(root, tier = "balanced") {
       else wake();
     },
     sync(appearance) {
-      paused = appearance.motion === 0 || matchMedia("(prefers-reduced-motion: reduce)").matches;
+      paused = appearance.performance === "smooth" || appearance.motion === 0 || matchMedia("(prefers-reduced-motion: reduce)").matches;
       stage.dpr = appearance.performance === "vivid" ? Math.min(2, devicePixelRatio || 1) : appearance.performance === "smooth" ? 1 : Math.min(1.5, devicePixelRatio || 1);
       const world = appearance.latticeMode === "light" ? WORLDS.paper : WORLDS.night;
       field.setWorld(world);

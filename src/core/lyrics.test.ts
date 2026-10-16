@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { currentLyricIndex, deskLineCue, immersiveProgress, lineEase, lyricPosition, nextLyricOffset, pairLyrics, parseLrc, parseYrc, sweepProgress } from "./lyrics";
+import { currentLyricIndex, desktopLyricContent, deskLineCue, immersiveProgress, lineEase, lyricPosition, nextLyricOffset, pairLyrics, parseLrc, parseYrc, sweepProgress } from "./lyrics";
 
 describe("lyrics", () => {
   it("honors file offsets and multi-stamp lines while rejecting invalid seconds", () => {
@@ -80,7 +80,14 @@ describe("lyrics", () => {
     const plain = immersiveProgress([], parseLrc("[00:01.00]整行"), 1500);
     assert.equal(plain.text, "整行");
     assert.equal(plain.wordLevel, false);
-    assert.equal(plain.progress, 1);
+    assert.equal(plain.progress, lineEase(1500,1000,5000));
     assert.equal(immersiveProgress([], [], 0).text, "");
   });
+});
+
+it("desktop shares LRC fill and shows metadata before lyrics or for instrumental placeholders",()=>{
+ const rows=parseLrc("[00:02.00]第一行\n[00:04.00]第二行");
+ const intro=desktopLyricContent([],rows,[],0,0,"歌名","歌手");assert.equal(intro.text,"歌名");assert.equal(intro.translation,"歌手");assert.equal(intro.metadata,true);
+ const sung=desktopLyricContent([],rows,[],3000,0,"歌名","歌手");assert.equal(sung.progress,lineEase(3000,2000,4000));assert.equal(sung.wordLevel,false);assert.equal(sung.next,"第二行");
+ const instrumental=desktopLyricContent([],parseLrc("[00:00.00]纯音乐，请欣赏"),[],1000,0,"Instrumental song","Artist");assert.equal(instrumental.text,"Instrumental song");assert.equal(instrumental.metadata,true);
 });

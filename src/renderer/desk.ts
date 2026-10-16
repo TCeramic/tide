@@ -1,5 +1,10 @@
+import { mountDeskContext } from "./desk-context";
 import type { DeskCue } from "../shared/contract";
 
+if(new URLSearchParams(location.search).get("context")==="true") mountDeskContext(); else mountOverlay();
+function mountOverlay(): void {
+const nextEl = document.querySelector<HTMLElement>("#next")!;
+window.addEventListener("contextmenu",event=>{event.preventDefault();void window.tide.openDeskMenu();});
 const stack = document.querySelector<HTMLElement>("#stack");
 const current = document.querySelector<HTMLElement>("#current");
 const trans = document.querySelector<HTMLElement>("#trans");
@@ -84,9 +89,10 @@ function paint(cue: DeskCue): void {
   const level = cue.motion ? (cue.motionLevel ?? 1) : 0;
   root.style.setProperty("--motion-shift", `${(8 * level).toFixed(1)}px`);
   root.style.setProperty("--motion-blur", `${(10 * level).toFixed(1)}px`);
+  root.dataset.metadata=String(cue.metadata);
   root.dataset.orient = cue.orientation === "vertical" ? "vertical" : "horizontal";
-  const nextProgress = cue.wordLevel ? Math.min(1, Math.max(0, cue.progress)) : 1;
-  const jumped = Math.abs(nextProgress - shownProgress) > 0.28 || !cue.wordLevel || !cue.playing;
+  const nextProgress = cue.highlightFollow ? Math.min(1, Math.max(0, cue.progress)) : 0;
+  const jumped = Math.abs(nextProgress - shownProgress) > 0.28 || !cue.highlightFollow || !cue.playing;
   targetProgress = nextProgress;
   if (jumped) {
     if (easeFrame) cancelAnimationFrame(easeFrame);
@@ -114,10 +120,12 @@ function paint(cue: DeskCue): void {
     shown = line;
     requestAnimationFrame(() => { measureLine(); writeSweep(shownProgress); });
   }
-  scroller.classList.toggle("is-scrolling", !cue.wordLevel && cue.motion && cue.playing && overflow > 0);
-  const translation = cue.pair && !cue.empty ? cue.translation : "";
+  scroller.classList.toggle("is-scrolling", !cue.highlightFollow && cue.motion && cue.playing && overflow > 0);
+  const next = cue.lineMode === "double" && !cue.metadata ? cue.next : "";
+  nextEl.hidden=!next; if(nextEl.textContent!==next)nextEl.textContent=next;
+  const translation = (cue.metadata || cue.pair) && !cue.empty ? cue.translation : "";
   transEl.hidden = translation.length === 0;
-  transEl.textContent = translation;
+  if(transEl.textContent!==translation)transEl.textContent = translation;
   stackEl.hidden = line.length === 0 && translation.length === 0;
   paintWave(cue.wave && line.length > 0, cue.playing && cue.motion);
 }
@@ -153,3 +161,5 @@ function paintWave(on: boolean, moving: boolean): void {
 }
 
 window.tide.onDeskCue(paint);
+
+}

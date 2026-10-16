@@ -127,9 +127,11 @@ async function route(
   if (req.method === "GET" && pathname === "/search") {
     const type = Number(url.searchParams.get("type") ?? "1");
     const keywords = url.searchParams.get("keywords") ?? "";
-    const local = type === 1 ? library.search(keywords) : [];
+    const rawOffset=Number(url.searchParams.get("offset")??0);
+    const offset=Number.isFinite(rawOffset)?Math.max(0,Math.trunc(rawOffset)):0;
+    const local = type === 1 && offset===0 ? library.search(keywords) : [];
     try {
-      const page = await session.searchCatalog(keywords, type);
+      const page = await session.searchCatalog(keywords, type,offset);
       const hits = type === 1 ? [...local, ...page.hits] : page.hits;
       writeJson(res, 200, { ok: true, ...page, hits, cloud: true });
     } catch (error) {
@@ -140,7 +142,7 @@ async function route(
           hits: local,
           artists: [],
           albums: [],
-          cloud: false,
+          cloud: false,offset,nextOffset:offset,hasMore:false,
         });
         return;
       }

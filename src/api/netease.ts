@@ -21,6 +21,7 @@ interface NcmBody {
 }
 
 interface NcmPlaylist {
+  coverImgUrl?: string;
   id?: number | string;
   name?: string;
   trackCount?: number;
@@ -38,7 +39,7 @@ interface NcmModule {
   login_qr_check(query: { key: string; cookie?: string }): Promise<NcmResult>;
   login_status(query: { cookie?: string }): Promise<NcmResult>;
   user_playlist(query: { uid: string; limit?: number; cookie?: string }): Promise<NcmResult>;
-  cloudsearch(query: { keywords: string; type?: number; limit?: number; cookie?: string }): Promise<unknown>;
+  cloudsearch(query: { keywords: string; type?: number; limit?: number; offset?: number; cookie?: string }): Promise<unknown>;
   song_url(query: { id: string; br?: number; cookie?: string }): Promise<unknown>;
   song_url_v1(query: { id: string; level: string; cookie?: string }): Promise<unknown>;
   personal_fm(query: { cookie?: string }): Promise<unknown>;
@@ -103,7 +104,7 @@ export interface NeteaseClient {
   radarId(cookie: string): Promise<string>;
   /** Similar songs via `simi_song`. Not daily recommend and not 私人雷达. */
   similarSongs(id: string, cookie: string | null): Promise<SearchHit[]>;
-  searchKind(keywords: string, type: number, cookie: string | null): Promise<CatalogPage>;
+  searchKind(keywords: string, type: number, cookie: string | null, offset?: number): Promise<CatalogPage>;
   artistSongs(id: string, cookie: string | null): Promise<SearchHit[]>;
   albumTracks(id: string, cookie: string | null): Promise<SearchHit[]>;
   lyric(id: string, cookie: string | null): Promise<LyricBundle>;
@@ -189,8 +190,8 @@ export function createNeteaseClient(module: NcmModule = loadNeteaseModule()): Ne
         rethrowSignedOut(error);
       }
     },
-    async searchKind(keywords, type, cookie) {
-      const page = readCatalog(await module.cloudsearch(withCookie({ keywords, type, limit: 20 }, cookie)), type);
+    async searchKind(keywords, type, cookie, offset=0) {
+      const page = readCatalog(await module.cloudsearch(withCookie({ keywords, type, limit: 20, offset }, cookie)), type);
       return { ...page, hits: await hydrateCovers(page.hits, cookie) };
     },
     async artistSongs(id, cookie) {
@@ -313,6 +314,7 @@ export function readPlaylists(result: NcmResult): PlaylistSummary[] {
     if (typeof item.specialType === "number" && Number.isInteger(item.specialType)) {
       summary.specialType = item.specialType;
     }
+    const cover=readCoverUrl({coverImgUrl:item.coverImgUrl});if(cover)summary.cover=cover;
     playlists.push(summary);
     if (playlists.length >= 100) break;
   }

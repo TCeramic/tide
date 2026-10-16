@@ -1,7 +1,6 @@
 import { isRenderingActive } from "../render-activity";
 import { currentLyricIndex, lineEase, lyricPosition, nextLyricOffset, pairLyrics, sweepProgress, wordFill, type LyricLine } from "../../core/lyrics";
 import type { YrcLine } from "../../shared/contract";
-import type { DeskLyricsSettings } from "../../core/desk-lyrics";
 import type { Track } from "../../core/playback/types";
 import { Music2 } from "lucide";
 import { ICON_SIZE, prependIcon } from "../icons";
@@ -46,14 +45,7 @@ export function mountLyrics(root: HTMLElement): {
   const original = viewButton("原文");
   const translation = viewButton("翻译");
   const romaji = viewButton("罗马音");
-  const deskToggle = viewButton("桌面歌词");
-  const deskMenu = document.createElement("details");
-  deskMenu.className = "desk-menu";
-  deskMenu.hidden = true;
-  const deskSummary = document.createElement("summary");
-  deskSummary.textContent = "桌面歌词";
-  deskMenu.append(deskSummary, deskMenuBody());
-  tools.append(both, original, translation, romaji, deskToggle, deskMenu);
+  tools.append(both, original, translation, romaji);
 
   const offsetMenu = document.createElement("details");
   offsetMenu.className = "lyric-offset-menu";
@@ -103,7 +95,6 @@ export function mountLyrics(root: HTMLElement): {
   const stopAudioClock = onAudioClockChange(wake);
   document.addEventListener("visibilitychange", wake);
   let active = -1;
-  let deskOpen = false;
   const assist = mountAiAssist(task => ({ task, title: title.textContent ?? "", lines: (bundles.yrc.length ? bundles.yrc : bundles.original).map(row => row.text) }), () => artCover.dataset.cover, result => {
     if (result.task !== "segment") return;
     const rows = bundles.yrc.length ? bundles.yrc.map(row => ({ timeMs: row.timeMs, text: row.text })) : bundles.original;
@@ -316,22 +307,10 @@ export function mountLyrics(root: HTMLElement): {
     renderLines();
   };
 
-  const syncDeskButton = (settings: DeskLyricsSettings) => {
-    deskOpen = settings.open;
-    deskToggle.setAttribute("aria-pressed", settings.open ? "true" : "false");
-    const wasHidden = deskMenu.hidden;
-    deskMenu.hidden = !settings.open;
-    if (settings.open && wasHidden) deskMenu.open = true;
-    paintDeskMenu(deskMenu, settings);
-  };
-
   both.addEventListener("click", () => choose("both"));
   original.addEventListener("click", () => choose("original"));
   translation.addEventListener("click", () => choose("translation"));
   romaji.addEventListener("click", () => choose("romaji"));
-  deskToggle.addEventListener("click", () => {
-    void window.tide.setDeskLyrics({ open: !deskOpen }).then(syncDeskButton);
-  });
   earlier.addEventListener("click", () => {
     offsetMs = nextLyricOffset(offsetMs, -1);
     showOffset();
@@ -347,8 +326,6 @@ export function mountLyrics(root: HTMLElement): {
     publishDesk();
   });
   showOffset();
-  const stopDesk = window.tide.onDeskState(syncDeskButton);
-  void window.tide.getDeskLyrics().then(syncDeskButton);
 
   const setTrack = (track: Track | null) => {
     const id = track?.id ?? null;
@@ -417,7 +394,6 @@ export function mountLyrics(root: HTMLElement): {
     destroy: () => {
       disposed = true; stopView(); stopAudioClock(); document.removeEventListener("visibilitychange", wake);
       if (paintFrame !== 0) cancelAnimationFrame(paintFrame);
-      stopDesk();
       layoutObserver.disconnect();
       assist.destroy();
       root.replaceChildren();
@@ -445,115 +421,6 @@ function measureWord(text: string): number {
   if (!wordCanvas) return Math.max(1, text.length);
   wordCanvas.font = "40px Segoe UI, PingFang SC, Noto Sans SC, Microsoft YaHei, sans-serif";
   return Math.max(1, wordCanvas.measureText(text).width);
-}
-
-function deskMenuBody(): HTMLElement {
-  const body = document.createElement("div");
-  body.className = "desk-menu-body";
-  const row = (label: string, key: "highlightFollow" | "motion" | "pair" | "wave" | "locked", pressed: boolean) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "text-button";
-    button.dataset.desk = key;
-    button.textContent = label;
-    button.setAttribute("aria-pressed", pressed ? "true" : "false");
-    button.addEventListener("click", () => {
-      const on = button.getAttribute("aria-pressed") !== "true";
-      void window.tide.setDeskLyrics({ [key]: on });
-    });
-    return button;
-  };
-  const orient = (label: string, value: "horizontal" | "vertical") => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "text-button";
-    button.dataset.desk = "orientation";
-    button.dataset.value = value;
-    button.textContent = label;
-    button.setAttribute("aria-pressed", value === "horizontal" ? "true" : "false");
-    button.addEventListener("click", () => {
-      void window.tide.setDeskLyrics({ orientation: value });
-    });
-    return button;
-  };
-  body.append(
-    orient("横列", "horizontal"),
-    orient("竖列", "vertical"),
-    row("字内扫过", "highlightFollow", true),
-    row("动效", "motion", true),
-    row("双行译文", "pair", false),
-    row("字后波形", "wave", false),
-    row("锁定", "locked", false),
-  );
-  const opacity = document.createElement("input");
-  opacity.type = "range";
-  opacity.min = "20";
-  opacity.max = "100";
-  opacity.value = "100";
-  opacity.dataset.desk = "opacity";
-  opacity.setAttribute("aria-label", "桌面歌词透明度");
-  opacity.addEventListener("change", () => {
-    void window.tide.setDeskLyrics({ opacity: Number(opacity.value) / 100 });
-  });
-  const glow = document.createElement("input");
-  glow.type = "range";
-  glow.min = "0";
-  glow.max = "100";
-  glow.value = "72";
-  glow.dataset.desk = "glow";
-  glow.setAttribute("aria-label", "桌面歌词光晕");
-  glow.addEventListener("change", () => {
-    void window.tide.setDeskLyrics({ glow: Number(glow.value) / 100 });
-  });
-  const motionLevel = document.createElement("input");
-  motionLevel.type = "range";
-  motionLevel.min = "35";
-  motionLevel.max = "100";
-  motionLevel.value = "100";
-  motionLevel.dataset.desk = "motionLevel";
-  motionLevel.setAttribute("aria-label", "桌面歌词动效强度");
-  motionLevel.addEventListener("change", () => {
-    void window.tide.setDeskLyrics({ motionLevel: Number(motionLevel.value) / 100 });
-  });
-  const backdrop = document.createElement("input");
-  backdrop.type = "range";
-  backdrop.min = "0";
-  backdrop.max = "55";
-  backdrop.value = "0";
-  backdrop.dataset.desk = "backdrop";
-  backdrop.setAttribute("aria-label", "桌面歌词背景");
-  backdrop.addEventListener("change", () => {
-    void window.tide.setDeskLyrics({ backdrop: Number(backdrop.value) / 100 });
-  });
-  const hide = document.createElement("button");
-  hide.type = "button";
-  hide.className = "text-button";
-  hide.textContent = "隐藏";
-  hide.addEventListener("click", () => {
-    void window.tide.setDeskLyrics({ open: false });
-  });
-  body.append(opacity, glow, motionLevel, backdrop, hide);
-  return body;
-}
-
-function paintDeskMenu(menu: HTMLElement, settings: DeskLyricsSettings): void {
-  menu.querySelectorAll<HTMLButtonElement>("button[data-desk]").forEach((button) => {
-    const key = button.dataset.desk;
-    if (key === "highlightFollow" || key === "motion" || key === "pair" || key === "wave" || key === "locked") {
-      button.setAttribute("aria-pressed", settings[key] ? "true" : "false");
-    }
-    if (key === "orientation") {
-      button.setAttribute("aria-pressed", button.dataset.value === settings.orientation ? "true" : "false");
-    }
-  });
-  const opacity = menu.querySelector<HTMLInputElement>("input[data-desk=opacity]");
-  const glow = menu.querySelector<HTMLInputElement>("input[data-desk=glow]");
-  const motionLevel = menu.querySelector<HTMLInputElement>("input[data-desk=motionLevel]");
-  const backdrop = menu.querySelector<HTMLInputElement>("input[data-desk=backdrop]");
-  if (opacity && document.activeElement !== opacity) opacity.value = String(Math.round(settings.opacity * 100));
-  if (glow && document.activeElement !== glow) glow.value = String(Math.round(settings.glow * 100));
-  if (motionLevel && document.activeElement !== motionLevel) motionLevel.value = String(Math.round(settings.motionLevel * 100));
-  if (backdrop && document.activeElement !== backdrop) backdrop.value = String(Math.round(settings.backdrop * 100));
 }
 
 function viewButton(label: string): HTMLButtonElement {

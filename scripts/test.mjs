@@ -12,6 +12,7 @@ const entryPoints = [
   "src/core/ttml.test.ts",
   "src/core/ai-assist.test.ts",
   "src/main/tide-today.test.ts",
+  "src/main/today-store.test.ts",
   "src/core/artwork.test.ts",
   "src/core/playback/machine.test.ts",
   "src/core/playback/order.test.ts",

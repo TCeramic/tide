@@ -106,7 +106,8 @@ export class SessionService {
     return page.hits;
   }
 
-  async searchCatalog(keywords: string, type: number): Promise<{
+  async searchCatalog(keywords: string, type: number, offset=0): Promise<{
+    offset:number; nextOffset:number; hasMore:boolean;
     kind: SearchKind;
     hits: SearchHit[];
     artists: CatalogPage["artists"];
@@ -119,8 +120,9 @@ export class SessionService {
     const kind = searchKindOf(type);
     const apiType = type === 1006 ? 1006 : searchTypeOf(kind);
     try {
-      const page = await this.netease.searchKind(query, apiType, this.optionalCookie());
-      return { kind, hits: await this.withLiked(page.hits), artists: page.artists, albums: page.albums };
+      const page = await this.netease.searchKind(query, apiType, this.optionalCookie(), Math.max(0,Math.trunc(offset)));
+      const count=kind==="artists"?page.artists.length:kind==="albums"?page.albums.length:page.hits.length;
+      return {offset,nextOffset:offset+20,hasMore:count===20,kind, hits: await this.withLiked(page.hits), artists: page.artists, albums: page.albums };
     } catch (error) {
       if (error instanceof Error && error.message === "signed_out") {
         throw new SessionError(401, "signed_out", "请先登录");

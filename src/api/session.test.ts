@@ -337,3 +337,11 @@ describe("duplicate collect", () => {
     );
   });
 });
+
+it("search pagination forwards offsets and stops after the short last page",async()=>{
+ const netease=fakeNetease(),offsets:number[]=[];
+ netease.searchKind=async(_query,_type,_cookie,offset=0)=>{offsets.push(offset);return {hits:Array.from({length:offset===0?20:3},(_,i)=>({id:String(offset+i),title:"song",artist:"artist",durationMs:1000,playable:true})),artists:[],albums:[]};};
+ const service=new SessionService(new CookieStore(path.join(os.tmpdir(),`tide-search-${Date.now()}.txt`)),netease);
+ const first=await service.searchCatalog("test",1,0),second=await service.searchCatalog("test",1,20);
+ assert.equal(first.hasMore,true);assert.equal(first.nextOffset,20);assert.equal(second.hasMore,false);assert.equal(second.hits.length,3);assert.deepEqual(offsets,[0,20]);assert.notEqual(first.hits[0].id,second.hits[0].id);
+});

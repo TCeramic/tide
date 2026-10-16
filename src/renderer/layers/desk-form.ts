@@ -9,15 +9,17 @@ export function mountDeskForm(): { element: HTMLElement; destroy: () => void } {
 
   const help = document.createElement("p");
   help.className = "library-note";
-  help.textContent = "独立透明窗口，置顶在其它窗口之上。锁定后点击会穿透到下层。用 Ctrl+Alt+L 锁定或解锁。";
+  help.textContent = "独立透明窗口，置顶在其它窗口之上。锁定后点击会穿透到下层。显隐热键默认 Ctrl+Alt+D；右键可快捷调整。";
 
   const openRow = checkRow("桌面歌词");
   const lockRow = checkRow("锁定（点击穿透）");
   const sweepRow = checkRow("字内扫过");
   const motionRow = checkRow("动效");
-  const pairRow = checkRow("双行译文");
+  const pairRow = checkRow("显示小字翻译");
   const waveRow = checkRow("字后波形");
   const columnRow = checkRow("竖列");
+  const lineRow=document.createElement("label");lineRow.className="key-row";const lineLabel=document.createElement("span");lineLabel.textContent="原文行数";const lines=document.createElement("select");lines.setAttribute("aria-label","原文行数");for(const [value,label]of [["single","单行"],["double","双行"]]){const option=document.createElement("option");option.value=value!;option.textContent=label!;lines.append(option);}lineRow.append(lineLabel,lines);
+  const shortcutRow=document.createElement("label");shortcutRow.className="key-row";const shortcutLabel=document.createElement("span");shortcutLabel.textContent="显隐热键";const shortcut=document.createElement("input");shortcut.className="key-input";shortcut.placeholder="Ctrl+Alt+D（留空关闭）";shortcut.setAttribute("aria-label","桌面歌词显隐热键");shortcutRow.append(shortcutLabel,shortcut);
   const sizeRow = rangeRow("字号", 18, 64, 32);
   const colorRow = colorRowOf("未唱歌词颜色");
   const highlightRow = colorRowOf("已唱歌词颜色");
@@ -39,7 +41,7 @@ export function mountDeskForm(): { element: HTMLElement; destroy: () => void } {
     lockRow.row,
     sweepRow.row,
     motionRow.row,
-    pairRow.row,
+    lineRow, pairRow.row, shortcutRow,
     waveRow.row,
     columnRow.row,
     sizeRow.row,
@@ -59,6 +61,8 @@ export function mountDeskForm(): { element: HTMLElement; destroy: () => void } {
     sweepRow.input.checked = settings.highlightFollow;
     motionRow.input.checked = settings.motion;
     pairRow.input.checked = settings.pair;
+    lines.value=settings.lineMode;
+    if(document.activeElement!==shortcut)shortcut.value=settings.toggleShortcut;
     waveRow.input.checked = settings.wave;
     columnRow.input.checked = settings.orientation === "vertical";
     sizeRow.input.value = String(settings.fontSize);
@@ -81,6 +85,8 @@ export function mountDeskForm(): { element: HTMLElement; destroy: () => void } {
   lockRow.input.addEventListener("change", () => push({ locked: lockRow.input.checked }));
   sweepRow.input.addEventListener("change", () => push({ highlightFollow: sweepRow.input.checked }));
   motionRow.input.addEventListener("change", () => push({ motion: motionRow.input.checked }));
+  lines.addEventListener("change",()=>push({lineMode:lines.value==="double"?"double":"single"}));
+  shortcut.addEventListener("change",()=>push({toggleShortcut:shortcut.value.trim()}));
   pairRow.input.addEventListener("change", () => push({ pair: pairRow.input.checked }));
   waveRow.input.addEventListener("change", () => push({ wave: waveRow.input.checked }));
   columnRow.input.addEventListener("change", () => push({ orientation: columnRow.input.checked ? "vertical" : "horizontal" }));

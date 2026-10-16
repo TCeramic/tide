@@ -33,3 +33,9 @@ describe("queue edit", () => {
     assert.equal(moveQueueItem(queue, 0, 1, 1), null);
   });
 });
+
+it("keeps cover and album metadata when removing an inspiration tail or reordering",()=>{
+ const queue=[{...track("last"),cover:"https://example.com/art.jpg",albumTitle:"Album",albumId:"42"},track("recommendation")];
+ const result=removeQueueItem(queue,0,1)!;assert.deepEqual(result.queue[0],queue[0]);assert.notEqual(result.queue[0],queue[0]);
+ const moved=moveQueueItem(queue,0,0,1)!;assert.deepEqual(moved.queue[1],queue[0]);
+});

@@ -12,7 +12,7 @@ function mountCanvas(host) {
 }
 export function mountProgress(el) {
   const surface = mountCanvas(el), { g, size } = surface;
-  let lastChange=clock.time;
+  let lastChange=clock.time, frame=0, last=0, dead=false;
   let dots, cols = 0, rows = 3, value = 0, target = parseFloat(el.dataset.value || "0"), indeterminate = el.hasAttribute("data-indeterminate");
   let locked, flash, anchor, solidPrev;
   const site = (i) => { const c = i % cols, r = Math.floor(i / cols); const pitch = size.w / cols, oy = (size.h - (rows - 1) * 5) / 2; return [(c + 0.5) * pitch, oy + r * 5, c / (cols - 1)]; };
@@ -31,20 +31,24 @@ export function mountProgress(el) {
       dots.a[i] = dots.ta[i] = 0.34;
     }
   };
-  const resize = new ResizeObserver(build); resize.observe(el);
+  const resize = new ResizeObserver(()=>{build();wake();}); resize.observe(el);
   build();
   el.setAttribute("role", "progressbar");
   el.setAttribute("aria-valuemin", "0"); el.setAttribute("aria-valuemax", "100");
   let done = false;
   let cl = colors();
-  const theme = new MutationObserver(()=>{cl=colors();lastChange=clock.time;}); theme.observe(document.documentElement,{attributes:true,attributeFilter:["data-world","data-color-mode"]});
+  const theme = new MutationObserver(()=>{cl=colors();lastChange=clock.time;wake();}); theme.observe(document.documentElement,{attributes:true,attributeFilter:["data-world","data-color-mode","data-performance","data-shell"]});
   const api = {
-    set(v) { const next=Math.max(0,Math.min(1,v));if(next!==target)lastChange=clock.time;target=next; indeterminate = false; el.setAttribute("aria-valuenow", String(Math.round(target * 100))); },
+    set(v) { const next=Math.max(0,Math.min(1,v));if(next!==target)lastChange=clock.time;target=next; indeterminate = false; el.setAttribute("aria-valuenow", String(Math.round(target * 100)));wake(); },
     indeterminate(on = true) { indeterminate = on; el.removeAttribute("aria-valuenow"); },
     get value() { return target; },
   };
-  const stop = clock.add((dt, t) => {
-    if(!isRenderingActive() || document.documentElement.dataset.shell!=="lattice" || !el.getClientRects().length || (el.dataset.playing!=="true" && t-lastChange>1.2)) return;
+  function render(now) {
+    frame=0;
+    if(dead || !isRenderingActive() || document.documentElement.dataset.shell!=="lattice" || size.w<=0 || size.h<=0 || (el.dataset.playing!=="true" && clock.time-lastChange>1.2)){last=0;return;}
+    const fps=document.documentElement.dataset.performance === "vivid" ? 120 : 30;
+    if(last && now-last<1000/fps-.5){wake();return;}
+    const dt=last?Math.min(.05,(now-last)/1000):1/fps,t=clock.time;last=now;
     value += (target - value) * Math.min(1, dt * 6);
     if (reducedMotion()) value = target;
     const sweep = indeterminate ? ((t * 0.45) % 1.4) - 0.2 : -1;
@@ -81,9 +85,12 @@ export function mountProgress(el) {
       g.beginPath(); g.arc(dots.x[i], dots.y[i], r, 0, Math.PI * 2); g.fill();
     }
     g.globalAlpha = 1;
-  });
+    wake();
+  }
+  function wake(){if(!dead&&!frame&&isRenderingActive()&&document.documentElement.dataset.shell==="lattice")frame=requestAnimationFrame(render);}
+  const activity=()=>{cancelAnimationFrame(frame);frame=0;last=0;wake();};document.addEventListener("visibilitychange",activity);
   api.set(target);
   el._progress = api;
-  api.destroy=()=>{stop();resize.disconnect();theme.disconnect();surface.destroy();};
+  api.destroy=()=>{dead=true;cancelAnimationFrame(frame);document.removeEventListener("visibilitychange",activity);resize.disconnect();theme.disconnect();surface.destroy();};
   return api;
 }

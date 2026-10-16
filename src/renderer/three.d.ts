@@ -2,6 +2,7 @@
 declare module "three" {
   export class Object3D {
     add(object: Object3D): this;
+    remove(object: Object3D): this;
   }
 
   export class Scene extends Object3D {}
@@ -12,6 +13,7 @@ declare module "three" {
     x: number;
     y: number;
     z: number;
+    set(x:number,y:number,z:number):this;
     clone(): Vector3;
     project(camera: Camera): Vector3;
   }

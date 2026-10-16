@@ -36,12 +36,12 @@ export function attachSession(getPort: () => number | null): () => void {
     }
     return loopbackJson(getPort(), "POST", "/fm/trash", { id });
   });
-  ipcMain.handle(Ipc.search, (_event, keywords: unknown, type: unknown) => {
+  ipcMain.handle(Ipc.search, (_event, keywords: unknown, type: unknown, offset: unknown) => {
     if (typeof keywords !== "string") return emptyQuery();
     const query = keywords.trim().slice(0, 80);
     if (query.length === 0) return emptyQuery();
     const kind = type === 100 || type === 10 || type === 1006 || type === 1 ? type : 1;
-    return loopbackJson(getPort(), "GET", `/search?keywords=${encodeURIComponent(query)}&type=${kind}`);
+    return loopbackJson(getPort(), "GET", `/search?keywords=${encodeURIComponent(query)}&type=${kind}&offset=${typeof offset==="number"&&Number.isFinite(offset)?Math.max(0,Math.trunc(offset)):0}`);
   });
   ipcMain.handle(Ipc.artistSongs, (_event, id: unknown) => trackList(getPort(), "/artist/songs", id));
   ipcMain.handle(Ipc.albumTracks, (_event, id: unknown) => trackList(getPort(), "/album/tracks", id));

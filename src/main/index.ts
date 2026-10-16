@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, Menu, Tray, globalShortcut, ipcMain } from "electron";
+import { TodayStore } from "./today-store";
 import { titleBarChrome, windowBackground } from "../core/titlebar";
 import fs from "node:fs";
 import path from "node:path";
@@ -131,7 +132,7 @@ function createWindow(): BrowserWindow {
     if (action === "quit") { shutdown(); return; }
     if (action !== "tray") return;
     if (!tray) {
-      tray = new Tray(windowIcon()); tray.setToolTip("潮汐 Tide · 点击恢复播放器");
+      tray = new Tray(windowIcon()); tray.setToolTip("潮汐 Tide");
       tray.on("click", restoreFromTray); tray.on("double-click", restoreFromTray);
       tray.setContextMenu(Menu.buildFromTemplate([{ label: "打开 Tide", click: restoreFromTray }, { type: "separator" }, { label: "退出 Tide", click: shutdown }]));
     }
@@ -245,7 +246,7 @@ app.whenReady().then(async () => {
   machine.setVolume(settings.read().volume);
   const playback = attachPlayback(() => mainWindow, machine, () => apiPort, (volume) => {
     settings.write({ volume });
-  }, listenLog, () => settings.read().quality);
+  }, listenLog, () => settings.read().quality, new TodayStore(path.join(app.getPath("userData"), "tide-today.json")));
   const libraryFile = path.join(app.getPath("userData"), "local-library.json");
   const backdropFile = path.join(app.getPath("userData"), "backdrop");
   ipcMain.handle(Ipc.localList, () => new LocalLibrary(libraryFile).list());
