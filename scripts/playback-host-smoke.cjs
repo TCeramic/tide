@@ -38,7 +38,7 @@ async function until(fn) { for (let i = 0; i < 100; i++) { if (fn()) return; awa
   const { control, detach } = attachPlayback(() => null, machine, () => server.address().port);
   try {
     const source = { playlistId: '7', offset: 100, hasMore: true };
-    await control.playHits(Array.from({ length: 100 }, (_, i) => hit(i + 1)), 80, source);
+    await control.playHits(Array.from({ length: 100 }, (_, i) => ({ ...hit(i + 1), liked: i === 1 })), 80, source);
     await delay(80); assert.equal(calls.some(c => c.startsWith('/playlist/tracks')), false);
     await control.track(89); await until(() => control.get().queue.length === 150);
     assert.equal(calls.filter(c => c.startsWith('/playlist/tracks')).length, 1);
@@ -47,6 +47,7 @@ async function until(fn) { for (let i = 0; i < 100; i++) { if (fn()) return; awa
     await control.track(149); await control.next();
     assert.equal(control.get().queue.length, 158);
     assert.equal(control.get().queue[150].id, '9001');
+    assert.ok(!seeds.includes('2'), 'fresh unlike overrides initial liked hint');
     assert.ok(seeds.includes('1') && seeds.some(id => Number(id) > 100) && seeds.some(id => Number(id) > 40 && Number(id) < 100));
     assert.equal(control.get().index, 150);
     console.log('PLAYLIST_PREFETCH_100_AT_10_REMAINING_PROFILE_LIKED_WEIGHT passed');
