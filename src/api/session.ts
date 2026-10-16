@@ -236,13 +236,13 @@ export class SessionService {
     }
   }
 
-  async playlistTracks(id: string): Promise<SearchHit[]> {
+  async playlistTracks(id: string, offset = 0): Promise<SearchHit[]> {
     if (!/^\d{1,20}$/.test(id)) {
       throw new SessionError(400, "bad_id", "歌单编号无效");
     }
     const cookie = this.requireCookie();
     try {
-      return await this.withLiked(await this.netease.playlistTracks(id, cookie));
+      return await this.withLiked(await this.netease.playlistTracks(id, cookie, offset));
     } catch (error) {
       throw catalogFailure(error, "歌单暂时没有拉到");
     }

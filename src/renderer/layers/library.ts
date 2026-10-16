@@ -385,17 +385,15 @@ export function mountLibrary(root: HTMLElement): {
   });
 
   const proofHost = document.createElement("section");
-  proofHost.className = "proof-host glass";
+  proofHost.className = "proof-host";
   proofHost.hidden = true;
   const proof = mountProof(proofHost, (id, name) => {
     showSearchNote(name, false);
     const numeric = /^\d{1,20}$/.test(id);
     if (!numeric) return;
-    const index = shownHits.findIndex((hit) => hit.id === id);
-    if (index >= 0) {
-      void window.tide.playHits(shownHits, index);
-    }
-  });
+    const index = lastQueue?.queue.findIndex((track) => track.id === id) ?? -1;
+    if (index >= 0) void window.tide.changeTrack(index);
+  }, showHomeCards);
   const home = mountHome(root, {
     onPlaylists: () => showSheet(),
     onDaily: () => {
@@ -412,7 +410,7 @@ export function mountLibrary(root: HTMLElement): {
       sheet.hidden = true;
       home.element.hidden = true;
       proofHost.hidden = false;
-      proof.show(playlists, shownHits);
+      proof.show(playlists, (lastQueue?.queue ?? []).map(track => ({ ...track, playable: true })));
     },
     onLocal: () => {
       showSheet();
@@ -606,9 +604,10 @@ export function mountLibrary(root: HTMLElement): {
   });
 
   let shownHits: SearchHit[] = [];
-  const renderHits = (rows: SearchHit[]) => {
-    shownHits = rows;
-    fillTrackList(hits, rows, playlists, showSearchNote);
+  let shownSource: SearchResult["source"];
+  const renderHits = (rows: SearchHit[], source?: SearchResult["source"]) => {
+    shownHits = rows; shownSource = source;
+    fillTrackList(hits, rows, playlists, showSearchNote, source);
   };
 
   const showCatalog = (rows: SearchHit[], label: string) => {
@@ -616,6 +615,24 @@ export function mountLibrary(root: HTMLElement): {
     viewTitle.textContent = `${label} · 已载 ${rows.length} 首`;
     showSearchNote("", false);
     renderHits(rows);
+  };
+
+  const appendMore = (result: SearchResult, name: string) => {
+    if (!result.source?.hasMore) return;
+    const more = document.createElement("button"); more.type = "button"; more.className = "text-button"; more.textContent = "加载更多歌曲";
+    const prior = shownHits;
+    more.addEventListener("click", async () => {
+      more.disabled = true;
+      const next = await window.tide.playlistTracks(result.source!.playlistId, result.source!.offset);
+      if (disposed || shownHits !== prior) return;
+      if (!next.ok) { more.disabled = false; showSearchNote(next.message, true); return; }
+      const seen = new Set(prior.map(h => h.id));
+      const additions = next.hits.filter(h => !seen.has(h.id));
+      showCatalog([...prior, ...additions], name);
+      renderHits(shownHits, next.source);
+      if (additions.length) appendMore(next, name);
+    });
+    const row = document.createElement("li"); row.append(more); hits.append(row);
   };
 
   const showPlaylist = async (id: string, name: string) => {
@@ -631,6 +648,8 @@ export function mountLibrary(root: HTMLElement): {
       return;
     }
     showCatalog(result.hits, name);
+    renderHits(result.hits, result.source);
+    appendMore(result, name);
   };
 
   const showDetail = async (label: string, load: () => Promise<SearchResult | ApiFailure>) => {
@@ -683,8 +702,12 @@ export function mountLibrary(root: HTMLElement): {
 
   let dragging = -1;
   let lastQueue: PlaybackSnapshot | null = null;
+  let queueSignature = "";
   const renderQueue = (snapshot: PlaybackSnapshot) => {
     lastQueue = snapshot;
+    const signature = JSON.stringify([snapshot.index, snapshot.queue]);
+    if (signature === queueSignature) return;
+    queueSignature = signature;
     queueLabel.textContent = snapshot.queue.length === 0 ? "播放队列" : `播放队列 · ${snapshot.queue.length}`;
     queueList.replaceChildren();
     snapshot.queue.forEach((track, index) => {
@@ -920,7 +943,8 @@ export function mountLibrary(root: HTMLElement): {
   };
 
   const stopLiked = onLiked(() => {
-    fillTrackList(hits, shownHits, playlists, showSearchNote);
+    fillTrackList(hits, shownHits, playlists, showSearchNote, shownSource);
+    queueSignature = "";
     if (lastQueue) renderQueue(lastQueue);
   });
   return {

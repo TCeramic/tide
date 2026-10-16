@@ -1,3 +1,4 @@
+import { isRenderingActive } from "./render-activity";
 import type { MediaCue, PlaybackBusEvent } from "../shared/contract";
 import { pushAudioEnergy } from "./audio-energy";
 import { bindAudioClock } from "./audio-clock";
@@ -24,12 +25,19 @@ export function mountPlayer(): () => void {
   };
 
   let energyOn = false;
+  let energyFrame = 0;
+  let context: AudioContext | null = null;
+  let energyTick = () => {};
+  const wakeEnergy = () => { cancelAnimationFrame(energyFrame); energyFrame = 0; if (isRenderingActive() && !audio.paused) energyFrame = requestAnimationFrame(energyTick); };
+  document.addEventListener("visibilitychange", wakeEnergy);
+  audio.addEventListener("playing", wakeEnergy);
+  audio.addEventListener("pause", wakeEnergy);
   const watchEnergy = () => {
     if (energyOn) return;
     energyOn = true;
     try {
       const Ctx = window.AudioContext;
-      const ctx = new Ctx();
+      const ctx = new Ctx(); context = ctx;
       const source = ctx.createMediaElementSource(audio);
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 32;
@@ -37,13 +45,15 @@ export function mountPlayer(): () => void {
       analyser.connect(ctx.destination);
       const bins = new Uint8Array(analyser.frequencyBinCount);
       const tick = () => {
+        energyFrame = 0;
+        if (!isRenderingActive() || audio.paused) return;
         analyser.getByteFrequencyData(bins);
         let sum = 0;
         for (const value of bins) sum += value;
         pushAudioEnergy(bins.length === 0 ? 0 : sum / (bins.length * 255));
-        requestAnimationFrame(tick);
+        energyFrame = requestAnimationFrame(tick);
       };
-      tick();
+      energyTick = tick; wakeEnergy();
     } catch {
       energyOn = false;
     }
@@ -131,6 +141,10 @@ export function mountPlayer(): () => void {
   });
 
   return () => {
+    cancelAnimationFrame(energyFrame);
+    document.removeEventListener("visibilitychange", wakeEnergy);
+    audio.removeEventListener("playing", wakeEnergy); audio.removeEventListener("pause", wakeEnergy);
+    void context?.close();
     stopMedia();
     stopEvents();
     stopClock();

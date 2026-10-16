@@ -5,6 +5,8 @@ export type RepeatMode = "off" | "all" | "one";
 export type PlaybackErrorCode = "empty_queue" | "track_missing" | "no_url" | "signed_out";
 
 export interface Track {
+  albumTitle?: string;
+  albumId?: string;
   id: string;
   title: string;
   artist: string;

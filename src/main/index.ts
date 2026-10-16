@@ -101,18 +101,34 @@ function createWindow(): BrowserWindow {
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
+      backgroundThrottling: false,
     },
   });
 
   applyTitleBar(win, shell, theme);
   win.once("ready-to-show", () => win.show());
-  win.on("close", () => {
-    closeDesk();
+  let closePrompt = false;
+  win.on("close", event => {
+    if (quitting) return;
+    event.preventDefault();
+    if (closePrompt) return;
+    closePrompt = true;
+    void dialog.showMessageBox(win, {
+      type: "question", title: "潮汐 Tide", message: "要如何离开 Tide？",
+      detail: "最小化到任务栏后音乐会继续播放。", buttons: ["最小化到任务栏", "退出 Tide", "取消"], defaultId: 0, cancelId: 2, noLink: true,
+    }).then(({ response }) => {
+      if (win.isDestroyed()) return;
+      if (response === 0) win.minimize();
+      else if (response === 1) shutdown();
+    }).finally(() => { closePrompt = false; });
   });
+  const sendActivity = () => { if (!win.isDestroyed()) win.webContents.send(Ipc.renderActive, win.isVisible() && !win.isMinimized()); };
+  win.on("minimize", sendActivity); win.on("restore", sendActivity); win.on("show", sendActivity); win.on("hide", sendActivity);
   win.on("closed", () => {
     if (mainWindow === win) mainWindow = null;
   });
   win.webContents.on("did-finish-load", () => {
+    sendActivity();
     win.webContents.send(Ipc.playback, machine.getState());
     const current = settingsStore?.read();
     if (current) win.webContents.send(Ipc.appearance, appearanceOf(current));
@@ -498,6 +514,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  quitting = true;
   closeDesk();
   globalShortcut.unregisterAll();
   ipcMain.removeHandler(Ipc.qualityGet);

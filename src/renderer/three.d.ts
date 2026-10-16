@@ -25,6 +25,8 @@ declare module "three" {
   }
 
   export class WebGLRenderer {
+    setPixelRatio(value: number): void;
+    getPixelRatio(): number;
     constructor(options?: {
       canvas?: HTMLCanvasElement;
       alpha?: boolean;

@@ -21,11 +21,11 @@ export function attachSession(getPort: () => number | null): () => void {
     }
     return proxy(getPort(), "GET", `/session/qr/check?key=${encodeURIComponent(key)}`);
   });
-  ipcMain.handle(Ipc.playlistTracks, (_event, id: unknown) => {
+  ipcMain.handle(Ipc.playlistTracks, (_event, id: unknown, offset: unknown) => {
     if (typeof id !== "string" || !/^\d{1,20}$/.test(id)) {
       return { ok: false, error: "bad_id", message: "歌单编号无效" } satisfies ApiFailure;
     }
-    return loopbackJson(getPort(), "GET", `/playlist/tracks?id=${encodeURIComponent(id)}`);
+    return loopbackJson(getPort(), "GET", `/playlist/tracks?id=${encodeURIComponent(id)}&offset=${typeof offset === "number" && Number.isSafeInteger(offset) && offset >= 0 ? offset : 0}`);
   });
   ipcMain.handle(Ipc.daily, () => loopbackJson(getPort(), "GET", "/recommend/daily"));
   ipcMain.handle(Ipc.radar, () => loopbackJson(getPort(), "GET", "/recommend/radar"));

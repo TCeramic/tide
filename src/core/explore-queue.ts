@@ -58,3 +58,34 @@ export function pickExploreAdditions(
   }
   return added;
 }
+
+/** Stratified rotating sample over the whole source list, plus extra liked-song votes. */
+export function profileSeeds(hits: readonly { id: string; liked?: boolean }[], liked: ReadonlySet<string>, round = 0): Array<{ id: string; weight: number }> {
+  const valid = [...new Map(hits.filter(h => /^\d{1,20}$/.test(h.id)).map(h => [h.id, h])).values()];
+  const selected = new Map<string, number>();
+  const count = Math.min(8, valid.length);
+  for (let i = 0; i < count; i++) {
+    const start = Math.floor(i * valid.length / count), end = Math.floor((i + 1) * valid.length / count);
+    const hit = valid[start + round % Math.max(1, end - start)];
+    selected.set(hit.id, liked.has(hit.id) || hit.liked ? 3 : 1);
+  }
+  const favorites = valid.filter(h => liked.has(h.id) || h.liked);
+  for (let i = 0; i < Math.min(4, favorites.length); i++) {
+    const hit = favorites[(round * 4 + i) % favorites.length]; selected.set(hit.id, 3);
+  }
+  return [...selected].map(([id, weight]) => ({ id, weight }));
+}
+
+export function rankProfileMatches(groups: readonly { weight: number; hits: readonly SearchHit[] }[]): SearchHit[] {
+  const votes = new Map<string, { hit: SearchHit; score: number }>();
+  for (const group of groups) {
+    const seen = new Set<string>();
+    group.hits.forEach((hit, rank) => {
+      if (!hit.playable || seen.has(hit.id)) return;
+      seen.add(hit.id);
+      const prior = votes.get(hit.id) ?? { hit, score: 0 };
+      prior.score += group.weight / (1 + rank * .12); votes.set(hit.id, prior);
+    });
+  }
+  return [...votes.values()].sort((a, b) => b.score - a.score).map(v => v.hit);
+}

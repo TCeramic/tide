@@ -1,220 +1,172 @@
+import { isRenderingActive } from "../render-activity";
+import { onShellView } from "../view";
 import * as THREE from "three";
-import { catalogFromPlaylists, DEMO_PLAYLISTS, latticeRecords, type ProofPlaylist } from "../../core/proof-catalog";
+import { catalogFromPlaylists, latticeRecords, type LatticeNode } from "../../core/proof-catalog";
 import type { PlaylistSummary, SearchHit } from "../../shared/contract";
-import { ProofTree } from "../vendor/lattice/gl/prooftree.js";
+import { ProofTree } from "../vendor/design-systems/lattice/src/gl/prooftree.js";
 
-/** Clickable Lattice proof tree. Songs are leaves. WebGL is the default; the list is only the failure path. */
-export function mountProof(host: HTMLElement, onSong: (id: string, name: string) => void): {
-  show: (playlists: readonly PlaylistSummary[], hits: readonly SearchHit[]) => void;
-  stop: () => void;
-} {
+const kinds = { library: "音乐", playlist: "播放列表", artist: "歌手", album: "专辑", song: "单曲" };
+const PAGE_SIZE = 8;
+
+/** Original MIT renderer, with a bounded one-level viewport and explicit page navigation. */
+export function mountProof(host: HTMLElement, onSong: (id: string, name: string) => void, onExit: () => void) {
+  host.setAttribute("aria-label", "音乐脉络");
+  const header = document.createElement("header");
+  header.className = "proof-header";
+  const exit = button("← 返回主页", onExit);
+  exit.classList.add("proof-exit");
+  const title = document.createElement("h2");
+  title.textContent = "音乐脉络";
+  const up = button("返回上一级", () => { if (path.length > 1) { path.pop(); page = 0; render(); } });
+  header.append(exit, title, up);
+  const crumbs = document.createElement("nav");
+  crumbs.className = "proof-breadcrumbs";
+  crumbs.setAttribute("aria-label", "音乐脉络路径");
+  const body = document.createElement("div");
+  body.className = "proof-body";
+  const visual = document.createElement("div");
+  visual.className = "proof-visual";
   const canvas = document.createElement("canvas");
   canvas.className = "proof-canvas";
+  canvas.setAttribute("aria-hidden", "true");
+  const labels = document.createElement("div");
+  labels.className = "proof-labels";
+  visual.append(canvas, labels);
+  const aside = document.createElement("aside");
+  aside.className = "proof-aside";
   const status = document.createElement("p");
   status.className = "proof-status";
-  status.textContent = "歌单长成歌手，歌手长成曲。";
   const list = document.createElement("div");
   list.className = "proof-list";
-  host.append(canvas, status, list);
-
-  let running = false;
+  const pager = document.createElement("div");
+  pager.className = "proof-pager";
+  aside.append(status, list, pager);
+  body.append(visual, aside);
+  host.append(header, crumbs, body);
+  let nodes = new Map<string, LatticeNode>();
+  let path: string[] = [];
+  let page = 0;
   let frame = 0;
-  let renderer: THREE.WebGLRenderer | null = null;
-  let tree: ProofTree | null = null;
+  let disposeGl = () => {};
+  let running = false;
+  let restart = () => {};
 
-  const stop = () => {
-    running = false;
-    if (frame) cancelAnimationFrame(frame);
-    frame = 0;
-    tree = null;
-    renderer?.dispose();
-    renderer = null;
-  };
-
-  const show = (playlists: readonly PlaylistSummary[], hits: readonly SearchHit[]) => {
-    stop();
-    const source = sourceOf(playlists, hits);
-    const catalog = catalogFromPlaylists(source);
-    const names = new Map(catalog.nodes.map((node) => [node.id, node]));
-    list.replaceChildren();
-    list.hidden = true;
-    canvas.hidden = false;
-    const failure = startGl(catalog.rootId, latticeRecords(catalog.nodes), names, onSong, status, canvas, (value) => {
-      tree = value.tree;
-      renderer = value.renderer;
-      running = true;
-    });
-    if (failure) {
-      canvas.hidden = true;
-      list.hidden = false;
-      renderList(list, catalog.nodes, catalog.rootId, names, onSong, status);
-      status.textContent = `WebGL 没有起来：${failure}。已改用列表。`;
-      return;
+  function stopGl() { cancelAnimationFrame(frame); frame = 0; disposeGl(); disposeGl = () => {}; }
+  function stop() { running = false; stopGl(); }
+  function navigate(id: string) {
+    const node = nodes.get(id);
+    if (!node) return;
+    if (node.kind === "song") { onSong(node.songId!, node.name); return; }
+    if (id === path.at(-1)) return;
+    path.push(id); page = 0; render();
+  }
+  function render() {
+    stopGl();
+    const current = nodes.get(path.at(-1)!);
+    if (!current) return;
+    up.disabled = path.length < 2;
+    crumbs.replaceChildren(...path.map((id, index) => button(nodes.get(id)!.name, () => {
+      path = path.slice(0, index + 1); page = 0; render();
+    })));
+    const children = current.deps.map(id => nodes.get(id)!).filter(Boolean);
+    const shown = children.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+    status.textContent = children.length ? `${current.name} · ${children.length} 个${kinds[children[0].kind]}` : "播放队列为空，先选择一些歌曲。";
+    list.replaceChildren(...shown.map(node => {
+      const row = button("", () => navigate(node.id));
+      row.classList.add("proof-node");
+      const kind = document.createElement("small"); kind.textContent = kinds[node.kind];
+      const name = document.createElement("strong"); name.textContent = node.name;
+      const detail = document.createElement("span"); detail.textContent = node.kind === "song" ? "点击播放" : `${node.deps.length} 个${node.kind === "artist" ? "专辑" : "单曲"} →`;
+      row.append(kind, name, detail); return row;
+    }));
+    pager.replaceChildren();
+    if (children.length > PAGE_SIZE) {
+      const prev = button("上一组", () => { page--; render(); }); prev.disabled = page === 0;
+      const next = button("下一组", () => { page++; render(); }); next.disabled = (page + 1) * PAGE_SIZE >= children.length;
+      const count = document.createElement("span"); count.textContent = `${page + 1} / ${Math.ceil(children.length / PAGE_SIZE)}`;
+      pager.append(prev, count, next);
     }
-    status.textContent = "WebGL 证明树。点曲名预览。";
-    let last = 0;
-    const loop = (now: number) => {
-      if (!running || !tree || !renderer) return;
-      const dt = last === 0 ? 1 / 60 : Math.min(0.05, (now - last) / 1000);
-      last = now;
-      try {
-        const stage = stageFor(canvas, renderer);
-        tree.update(dt, now / 1000, stage);
-        renderer.render(stage.scene, stage.camera);
-      } catch (error) {
-        running = false;
-        const message = error instanceof Error ? error.message : String(error);
-        canvas.hidden = true;
-        list.hidden = false;
-        renderList(list, catalog.nodes, catalog.rootId, names, onSong, status);
-        status.textContent = `WebGL 没有起来：${message.replace(/\s+/g, " ").slice(0, 180)}。已改用列表。`;
-        return;
+    labels.replaceChildren();
+    if (!shown.length || !isRenderingActive() || host.hidden) return;
+    try {
+      const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
+      renderer.setClearColor(0x000000, 0);
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 40);
+      camera.position.set(0, 1.5, 5.2); camera.lookAt(0, 0.45, 0);
+      // Give the original renderer only the current node and eight immediate children.
+      const records = latticeRecords([{ ...current, deps: shown.map(n => n.id) }, ...shown.map(n => ({ ...n, deps: [], leaf: true }))]);
+      const tree = new ProofTree({ byId: records, station: "tree", ground: false });
+      tree.shared.uSize.value = 1.2;
+      scene.add(tree.object);
+      const abort = new AbortController();
+      let width = 0, height = 0, last = 0;
+      const stage = { scene, camera, renderer, dpr: renderer.getPixelRatio(), pointer: { x: 0, y: 0, inside: false }, near: () => true,
+        project(v: THREE.Vector3) { const p = v.clone().project(camera); return { x: (p.x * .5 + .5) * width, y: (-p.y * .5 + .5) * height, visible: p.z < 1 }; } };
+      const projectedLabels = new Map<string, HTMLButtonElement>();
+      for (const node of [current, ...shown]) {
+        const label = button(node.name, () => navigate(node.id)); label.classList.add("proof-label");
+        label.title = `${kinds[node.kind]} · ${node.name}`;
+        labels.append(label); projectedLabels.set(node.id, label);
       }
-      frame = requestAnimationFrame(loop);
-    };
-    frame = requestAnimationFrame(loop);
-  };
-
-  return { show, stop };
-}
-
-function sourceOf(playlists: readonly PlaylistSummary[], hits: readonly SearchHit[]): ProofPlaylist[] {
-  if (hits.length > 0) {
-    return [{
-      id: "now",
-      name: "当前列表",
-      songs: hits.map((hit) => ({ id: hit.id, title: hit.title, artist: hit.artist })),
-    }];
-  }
-  if (playlists.length > 0) {
-    return playlists.map((playlist) => ({ id: playlist.id, name: playlist.name, songs: [] }));
-  }
-  return DEMO_PLAYLISTS;
-}
-
-function startGl(
-  rootId: string,
-  byId: ReturnType<typeof latticeRecords>,
-  names: Map<string, { name: string; kind: string }>,
-  onSong: (id: string, name: string) => void,
-  status: HTMLElement,
-  canvas: HTMLCanvasElement,
-  keep: (value: { tree: ProofTree; renderer: THREE.WebGLRenderer }) => void,
-): string | null {
-  try {
-    const renderer = new THREE.WebGLRenderer({ canvas, alpha: false, antialias: true });
-    renderer.setClearColor(0x07080b, 1);
-    const tree = new ProofTree({ byId: byId as unknown as Map<string, unknown>, station: "tree", ground: true });
-    tree.setWorld({ ink: "#ece7da", hot: "#ff5a1f", hot2: "#7fd8ff", blend: "normal", gridAlpha: 0.45 });
-    tree.grow(rootId);
-    tree.addEventListener("pick", (event) => {
-      const id = (event as CustomEvent<string>).detail;
-      const node = names.get(id);
-      if (!node) return;
-      status.textContent = node.name;
-      if (node.kind === "song") onSong(id, node.name);
-      else tree.grow(id);
-    });
-    tree.addEventListener("hover", (event) => {
-      const detail = (event as CustomEvent<{ tid?: string } | null>).detail;
-      const node = detail?.tid ? names.get(detail.tid) : undefined;
-      if (node) status.textContent = node.name;
-    });
-    const stage = stageFor(canvas, renderer);
-    stage.scene.add(tree.object);
-    keep({ tree, renderer });
-    const pointer = stage.pointer;
-    canvas.addEventListener("pointermove", (event) => {
-      const bounds = canvas.getBoundingClientRect();
-      pointer.x = event.clientX - bounds.left;
-      pointer.y = event.clientY - bounds.top;
-      pointer.inside = bounds.width > 0;
-      tree.onPointerMove(stage);
-    });
-    canvas.addEventListener("pointerleave", () => {
-      pointer.inside = false;
-    });
-    canvas.addEventListener("pointerdown", () => {
-      tree.onPointerDown(stage);
-    });
-    canvas.addEventListener("pointerup", () => tree.onPointerUp());
-    return null;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error("ProofTree WebGL failed", error);
-    return message.replace(/\s+/g, " ").slice(0, 180);
-  }
-}
-
-const stages = new WeakMap<HTMLCanvasElement, ReturnType<typeof makeStage>>();
-
-function stageFor(canvas: HTMLCanvasElement, renderer: THREE.WebGLRenderer) {
-  let stage = stages.get(canvas);
-  if (!stage) {
-    stage = makeStage(canvas, renderer);
-    stages.set(canvas, stage);
-  }
-  const width = Math.max(2, canvas.clientWidth);
-  const height = Math.max(2, canvas.clientHeight);
-  renderer.setSize(width, height, false);
-  stage.camera.aspect = width / height;
-  stage.camera.updateProjectionMatrix();
-  stage.dpr = Math.max(1.5, Math.min(window.devicePixelRatio || 1, 2));
-  return stage;
-}
-
-function makeStage(canvas: HTMLCanvasElement, renderer: THREE.WebGLRenderer) {
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 40);
-  camera.position.set(0.2, 1.7, 3.9);
-  camera.lookAt(0, 1.15, 0);
-  return {
-    scene,
-    camera,
-    renderer,
-    dpr: 1,
-    pointer: { x: 0, y: 0, inside: false },
-    near: () => true,
-    project(vector: THREE.Vector3) {
-      const projected = vector.clone().project(camera);
-      const rect = canvas.getBoundingClientRect();
-      return {
-        x: (projected.x * 0.5 + 0.5) * rect.width,
-        y: (-projected.y * 0.5 + 0.5) * rect.height,
-        visible: projected.z < 1,
+      tree.addEventListener("frame", event => {
+        const data = (event as CustomEvent<{ tree: { nodes: Array<{ tid: string }> }; proj: Array<{ x: number; y: number; bloomed: boolean; visible: boolean }> } | null>).detail;
+        if (!data) return;
+        const placed: Array<{ x: number; y: number; w: number }> = [];
+        data.tree.nodes.map((node, i) => ({ node, p: data.proj[i] })).sort((a, b) => a.p.y - b.p.y || a.p.x - b.p.x).forEach(({ node, p }) => {
+          const label = projectedLabels.get(node.tid); if (!label) return;
+          label.hidden = !p.bloomed || !p.visible;
+          if (label.hidden) return;
+          const w = Math.min(150, Math.max(50, label.offsetWidth));
+          const x = Math.max(w / 2 + 6, Math.min(width - w / 2 - 6, p.x));
+          let y = Math.max(4, p.y + 13);
+          for (let attempt = 0; attempt < 12; attempt++) {
+            if (!placed.some(box => Math.abs(box.x - x) < (box.w + w) / 2 + 8 && Math.abs(box.y - y) < 30)) break;
+            y += 32;
+          }
+          y = Math.min(height - 30, y);
+          placed.push({ x, y, w });
+          label.style.transform = `translate(${x}px,${y}px) translateX(-50%)`;
+        });
+      });
+      tree.addEventListener("pick", event => navigate((event as CustomEvent<string>).detail));
+      canvas.addEventListener("pointermove", event => { const rect = canvas.getBoundingClientRect(); stage.pointer = { x: event.clientX - rect.left, y: event.clientY - rect.top, inside: true }; tree.onPointerMove(stage); }, { signal: abort.signal });
+      canvas.addEventListener("pointerleave", () => { stage.pointer.inside = false; }, { signal: abort.signal });
+      canvas.addEventListener("pointerdown", () => tree.onPointerDown(stage), { signal: abort.signal });
+      canvas.addEventListener("pointerup", () => tree.onPointerUp(), { signal: abort.signal });
+      const palette = () => {
+        const css = getComputedStyle(host);
+        tree.setWorld({ ink: css.getPropertyValue("--tide-fg").trim() || "#ece7da", hot: css.getPropertyValue("--tide-accent").trim() || "#ff5a1f", hot2: css.getPropertyValue("--tide-muted").trim() || "#7fd8ff", blend: "normal", gridAlpha: 0 });
       };
-    },
-  };
-}
-
-function renderList(
-  list: HTMLElement,
-  nodes: readonly { id: string; name: string; kind: string; deps: string[] }[],
-  rootId: string,
-  names: Map<string, { name: string; kind: string }>,
-  onSong: (id: string, name: string) => void,
-  status: HTMLElement,
-): void {
-  const root = nodes.find((node) => node.id === rootId);
-  const walk = (id: string, depth: number) => {
-    const node = nodes.find((item) => item.id === id);
-    if (!node || node.id === rootId && depth > 0) return;
-    if (node.kind !== "library") {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "text-button proof-node";
-      button.style.paddingLeft = `${12 + depth * 14}px`;
-      button.textContent = node.name;
-      button.addEventListener("click", () => {
-        status.textContent = node.name;
-      });
-      button.addEventListener("dblclick", () => {
-        if (node.kind === "song") onSong(node.id, node.name);
-      });
-      list.append(button);
+      palette();
+      const theme = new MutationObserver(palette); theme.observe(document.documentElement, { attributes: true, attributeFilter: ["data-shell", "data-theme"] });
+      tree.grow(current.id);
+      const loop = (now: number) => {
+        frame = 0;
+        if (!running || host.hidden || !isRenderingActive() || document.documentElement.dataset.view === "playing") return;
+        const w = Math.max(2, visual.clientWidth), h = Math.max(2, visual.clientHeight);
+        if (w !== width || h !== height) { width = w; height = h; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+        tree.update(last ? Math.min(.05, (now - last) / 1000) : 1 / 60, now / 1000, stage); last = now;
+        renderer.render(scene, camera);
+        frame = requestAnimationFrame(loop);
+      };
+      restart = () => { if (!frame && running && isRenderingActive() && !host.hidden && document.documentElement.dataset.view !== "playing") { last = 0; frame = requestAnimationFrame(loop); } };
+      disposeGl = () => { abort.abort(); theme.disconnect(); tree.trees.forEach(t => t.dispose()); renderer.dispose(); labels.replaceChildren(); };
+      restart();
+    } catch {
+      labels.replaceChildren();
+      status.textContent += " · 图形不可用，可继续使用右侧目录";
     }
-    for (const child of node.deps) walk(child, depth + 1);
+  }
+  onShellView(() => restart());
+  document.addEventListener("visibilitychange", () => { if (!isRenderingActive()) { cancelAnimationFrame(frame); frame = 0; } else restart(); });
+  return {
+    show: (_playlists: readonly PlaylistSummary[], hits: readonly SearchHit[]) => {
+      stop(); running = true;
+      const catalog = catalogFromPlaylists([{ id: "current", name: "当前播放列表", songs: hits }]);
+      nodes = new Map(catalog.nodes.map(n => [n.id, n])); path = ["current"]; page = 0; render();
+    }, stop,
   };
-  if (root) walk(root.id, 0);
-  void names;
 }
+function button(text: string, click: () => void) { const b = document.createElement("button"); b.type = "button"; b.className = "text-button"; b.textContent = text; b.addEventListener("click", click); return b; }

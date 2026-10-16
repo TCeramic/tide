@@ -44,6 +44,33 @@ let app;
   await page.evaluate(() => window.tide.pause());
   await page.evaluate(() => window.tide.seek(2500));
   await page.waitForFunction(async () => Math.abs((await window.tide.getPlayback()).positionMs - 2500) < 150);
+  await page.evaluate(() => window.tide.setDeskLyrics({ open: true }));
+  await page.waitForTimeout(500);
+  const deskPage = app.windows().find(p => p.url().endsWith('/desk.html'));
+  assert.ok(deskPage, 'desktop lyrics stays in a separate window');
+  await deskPage.waitForFunction(() => Boolean(window.tide));
+  await deskPage.evaluate(() => { window.fixtureCues = []; window.tide.onDeskCue(cue => window.fixtureCues.push(cue)); });
+
+  await page.evaluate(async () => { await window.tide.seek(0); await window.tide.play(); });
+  await app.evaluate(({ dialog, BrowserWindow }) => { dialog.showMessageBox = async () => ({ response: 0, checkboxChecked: false }); BrowserWindow.getAllWindows().find(w => w.getTitle().includes('Tide')).close(); });
+  await page.waitForFunction(() => document.documentElement.dataset.renderActive === 'false');
+  await page.evaluate(async () => {
+    const state = await window.tide.getPlayback(), track = state.queue[state.index];
+    window.tide.pushDeskLines({ trackId: track.id, title: track.title, original: [{ timeMs: 0, text: '后台桌面歌词' }], translation: [], offsetMs: 0,
+      yrc: [{ timeMs: 0, durationMs: 4000, text: '后台桌面歌词', words: [{ timeMs: 0, durationMs: 4000, text: '后台桌面歌词' }] }] });
+  });
+  const beforeMinimized = await page.evaluate(() => document.querySelector('audio').currentTime);
+  await page.waitForTimeout(900);
+  const afterMinimized = await page.evaluate(() => document.querySelector('audio').currentTime);
+  assert.ok(afterMinimized - beforeMinimized > .5, 'audio advances while main rendering is paused');
+  assert.equal(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => w.getTitle().includes('Tide')).isMinimized()), true);
+  await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows().find(w => w.getTitle().includes('Tide')); win.restore(); win.show(); });
+  await page.waitForFunction(() => document.documentElement.dataset.renderActive === 'true');
+  await page.evaluate(() => window.tide.pause());
+  console.log('DESK_CUES', await deskPage.evaluate(()=>window.fixtureCues.map(c=>({playing:c.playing,wordLevel:c.wordLevel,progress:c.progress})).slice(-5)));
+  assert.ok(await deskPage.evaluate(() => window.fixtureCues.filter(c => c.playing && c.wordLevel).length > 2), 'desktop lyric cues continue while minimized');
+  await page.evaluate(() => window.tide.setDeskLyrics({ open: false }));
+  console.log('NATIVE_CLOSE_MINIMIZE_AUDIO_CONTINUES', afterMinimized - beforeMinimized);
   const health = await page.evaluate(() => window.tide.getHealth());
   assert.equal((await (await fetch(`http://127.0.0.1:${health.port}/health`)).json()).version, require('../package.json').version);
   assert.equal((await page.evaluate(() => window.tide.aiStatus())).configured, false);

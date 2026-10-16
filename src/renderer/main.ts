@@ -1,3 +1,4 @@
+import { isRenderingActive, setRenderingActive } from "./render-activity";
 import { EventBus } from "../core/events";
 import type { PlaybackEvents } from "../core/playback/types";
 import { isThemeId, type Appearance, type PlaybackBusEvent, type PlaybackSnapshot, type TideBridge } from "../shared/contract";
@@ -35,7 +36,16 @@ const PLAYBACK_LABEL = {
   error: "出错",
 } as const;
 
+let latestPlayback: PlaybackSnapshot | null = null;
+let hiddenTrackId: string | null = null;
 function showPlayback(snapshot: PlaybackSnapshot): void {
+  latestPlayback = snapshot;
+  if (!isRenderingActive()) {
+    const track = snapshot.queue[snapshot.index] ?? null;
+    if (track?.id !== hiddenTrackId) { hiddenTrackId = track?.id ?? null; lyricsLayer.setTrack(track); }
+    syncMediaSession(snapshot);
+    return;
+  }
   const track = snapshot.index >= 0 ? (snapshot.queue[snapshot.index] ?? null) : null;
   if (track) updateCoverTheme(track.id, track.cover, track.title);
   playingNow = snapshot.status === "playing";
@@ -177,6 +187,8 @@ window.tide.onEvent((event: PlaybackBusEvent) => {
   }
 });
 
+window.tide.onRenderActive?.(setRenderingActive);
+document.addEventListener("visibilitychange", () => { if (isRenderingActive() && latestPlayback) showPlayback(latestPlayback); });
 window.tide.onPlayback(showPlayback);
 window.tide.onNotice((message) => library.notify(message));
 

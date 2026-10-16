@@ -1,8 +1,10 @@
+import { isRenderingActive } from "./render-activity.ts";
 // Tide lifecycle and business bindings. The two renderers and controls are upstream code,
 // vendored without edits at 7a424c93b9be13cf835b91ea67495fec2ec0584e (see NOTICE.md).
 import * as THREE from "three";
 import { paintLensBackground } from "./native-background.js";
 import { createGlassSystem, createComponent } from "./vendor/design-systems/lens/lab/design-system/index.js";
+import { clock as latticeClock } from "./vendor/design-systems/lattice/src/core/motion.js";
 import { Field } from "./vendor/design-systems/lattice/src/gl/field.js";
 import * as sets from "./vendor/design-systems/lattice/src/gl/sets.js";
 import { WORLDS } from "./vendor/design-systems/lattice/src/core/theme.js";
@@ -94,6 +96,11 @@ export function openDesignCatalog(shell) {
 
 export function mountNativeShell(root) {
   let appearance, glass = null, points = null, destroyed = false;
+  const clockActivity = () => {
+    cancelAnimationFrame(latticeClock._raf); latticeClock._raf = 0; latticeClock._last = 0;
+    if (!destroyed && isRenderingActive() && !latticeClock.manual) latticeClock._raf = requestAnimationFrame(latticeClock._tick);
+  };
+  document.addEventListener("visibilitychange", clockActivity); clockActivity();
   const popupLayer = document.createElement("div");
   popupLayer.className = "native-popup-layer";
   document.body.append(popupLayer);
@@ -170,7 +177,7 @@ export function mountNativeShell(root) {
     wrap.className = "lx-slider native-point-range";
     input.before(wrap); wrap.append(input); mountSlider(input);
   }
-  return { sync, destroy() { destroyed = true; stopLens(); points?.destroy(); paper.destroy(); rangeObserver.disconnect(); popupLayer.remove(); } };
+  return { sync, destroy() { destroyed = true; document.removeEventListener("visibilitychange", clockActivity); cancelAnimationFrame(latticeClock._raf); stopLens(); points?.destroy(); paper.destroy(); rangeObserver.disconnect(); popupLayer.remove(); } };
 }
 
 // Embed the original Field and set generators into a desktop viewport. This host supplies
@@ -305,14 +312,14 @@ function mountPointField(root) {
   field.addEventListener("release", event => { if (event.detail.melted) showSet(setIndex + 1); }, { signal });
   function loop(now) {
     frame = 0;
-    if (dead || !active || document.hidden) { last = 0; return; }
+    if (dead || !active || !isRenderingActive()) { last = 0; return; }
     const dt = last ? Math.min(0.05, (now - last) / 1000) : 1 / 60; last = now;
     time += paused ? 0 : dt;
     updateRay(); field.update(paused ? 0 : dt, time, stage); renderer.render(scene, camera);
     if (!paused && !frame) frame = requestAnimationFrame(loop);
   }
-  function wake() { if (!dead && active && !document.hidden && !frame) frame = requestAnimationFrame(loop); }
-  document.addEventListener("visibilitychange", () => { if (document.hidden) { cancelAnimationFrame(frame); frame = 0; last = 0; } else wake(); }, { signal });
+  function wake() { if (!dead && active && isRenderingActive() && !frame) frame = requestAnimationFrame(loop); }
+  document.addEventListener("visibilitychange", () => { if (!isRenderingActive()) { cancelAnimationFrame(frame); frame = 0; last = 0; } else wake(); }, { signal });
   const resizeObserver = new ResizeObserver(resize); resizeObserver.observe(root);
   resize(); showSet(0);
   return {

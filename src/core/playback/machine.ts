@@ -16,6 +16,8 @@ function cloneTrack(track: Track): Track {
     artist: track.artist,
     durationMs: track.durationMs,
   };
+  if (typeof track.albumTitle === "string") next.albumTitle = track.albumTitle.slice(0, 200);
+  if (typeof track.albumId === "string") next.albumId = track.albumId.slice(0, 40);
   if (typeof track.cover === "string" && /^https?:\/\//.test(track.cover)) next.cover = track.cover.slice(0, 500);
   return next;
 }

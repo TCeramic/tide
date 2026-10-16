@@ -32,7 +32,7 @@ export function createTideApiServer(options: TideApiOptions = {}): http.Server {
     playlists: (cookie, uid) => client().playlists(cookie, uid),
     search: (keywords, cookie) => client().search(keywords, cookie),
     songUrl: (id, cookie, level) => client().songUrl(id, cookie, level),
-    playlistTracks: (id, cookie) => client().playlistTracks(id, cookie),
+    playlistTracks: (id, cookie, offset) => client().playlistTracks(id, cookie, offset),
     dailySongs: (cookie) => client().dailySongs(cookie),
     radarId: (cookie) => client().radarId(cookie),
     similarSongs: (id, cookie) => client().similarSongs(id, cookie),
@@ -248,8 +248,11 @@ async function route(
     return;
   }
   if (req.method === "GET" && pathname === "/playlist/tracks") {
-    const hits = await session.playlistTracks(url.searchParams.get("id") ?? "");
-    writeJson(res, 200, { ok: true, kind: "songs", hits, artists: [], albums: [], loaded: hits.length });
+    const id = url.searchParams.get("id") ?? "";
+    const rawOffset = Number(url.searchParams.get("offset") ?? 0);
+    const offset = Number.isSafeInteger(rawOffset) && rawOffset >= 0 ? rawOffset : 0;
+    const hits = (await session.playlistTracks(id, offset)).slice(0, 100);
+    writeJson(res, 200, { ok: true, kind: "songs", hits, artists: [], albums: [], loaded: hits.length, source: { playlistId: id, offset: offset + hits.length, hasMore: hits.length === 100 } });
     return;
   }
   if (req.method === "GET" && pathname === "/recommend/daily") {

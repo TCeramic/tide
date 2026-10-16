@@ -24,7 +24,7 @@ const server = http.createServer((req,res)=>{if(req.url==='/fixture.wav'){const 
   const desk={open:false,locked:false,x:null,y:null,fontSize:48,color:'#f7fbfc',opacity:1,highlightFollow:true,motion:true,glow:.72,pair:false,wave:false,orientation:'horizontal',motionLevel:1,backdrop:0};
   const data={getPlayback:snapshot,getHealth:{ok:true,service:'tide',version:'0.9.1',busPort:39272},getSession:{ok:true,state:'signed_out',playlists:[]},getMediaShortcuts:{shortcuts:{},messages:[],captureMediaKeys:true},getQuality:'standard',getDeskLyrics:desk,localTracks:[],likedIds:{ok:true,known:false,ids:[]},backdropUrl:null,fontFace:null,getAppearance:appearance};
   const cover='http://127.0.0.1:4179/fixture-cover.svg';
-  const tracks=[{id:'1',title:'长歌曲标题用于检查边框'.repeat(8),artist:'歌手名字'.repeat(6),album:'测试专辑',durationMs:232000,playable:true,cover}];
+  const tracks=[{id:'1',title:'长歌曲标题用于检查边框'.repeat(8),artist:'歌手名字'.repeat(6),albumTitle:'测试专辑',albumId:'30',durationMs:232000,playable:true,cover}];
   snapshot.queue=tracks; snapshot.index=0;
   window.fixtureMedia=cue=>listeners.onMedia?.forEach(f=>f(cue)); window.fixtureCover=cover; window.fixtureAdds=0;
   const yrc=Array.from({length:12},(_,i)=>{const text=`测试歌词第${i+1}行 让文字跟随音乐`;return {timeMs:i*5000,durationMs:4500,text,words:Array.from(text).map((text,j)=>({text,timeMs:i*5000+j*180,durationMs:180}))};});
@@ -33,7 +33,7 @@ const server = http.createServer((req,res)=>{if(req.url==='/fixture.wav'){const 
   window.fixtureSetPlayback=patch=>{Object.assign(snapshot,patch);listeners.onPlayback?.forEach(f=>f({...snapshot}));};
 
   window.tide=new Proxy({mediaKeys:{},
-    search:async(keywords,type)=>type===10?{ok:true,kind:'albums',albums:[{id:'2',name:'专辑名称'.repeat(12),artist:'测试歌手',cover}]}:{ok:true,kind:'songs',hits:tracks},
+    search:async(keywords,type)=>type===10?{ok:true,kind:'albums',albums:[{id:'2',name:'专辑名称'.repeat(12),artist:'测试歌手',cover}]}:{ok:true,kind:'songs',hits:keywords==='保留状态'?Array.from({length:30},(_,i)=>({...tracks[0],id:String(i+1),title:`保留曲目 ${i+1}`})):tracks},
     albumTracks:async()=>({ok:true,kind:'songs',hits:tracks}),
     addLocalTracks:async()=>{window.fixtureAdds++;data.localTracks=tracks;return tracks;},
 setAppearance:async patch=>{Object.assign(appearance,patch);listeners.onAppearance?.forEach(f=>f({...appearance}));return {...appearance};}}, {get(target,key){if(key in target)return target[key];if(String(key).startsWith('on'))return f=>{(listeners[key]||=[]).push(f);return ()=>{};};return async()=>data[key]??{ok:false,message:'preview fixture'};}});
@@ -148,6 +148,41 @@ setAppearance:async patch=>{Object.assign(appearance,patch);listeners.onAppearan
  await page.waitForFunction(()=>document.querySelector('.hit-cover img')?.naturalWidth>0);
  await page.getByRole('button',{name:'主页',exact:true}).click();
  console.log('HOME_BOUNDS_LOCAL_MENU_SONG_ALBUM_COVERS','passed');
+ await page.evaluate(async()=>{ window.fixtureOriginalQueue=(await window.tide.getPlayback()).queue; window.fixtureSetPlayback({queue:Array.from({length:12},(_,i)=>({...window.fixtureOriginalQueue[0],id:String(i+1),artist:`歌手 ${i+1}`,albumTitle:`专辑 ${i+1}`})),index:0}); });
+ await page.locator('.home-card').filter({has:page.locator('h2',{hasText:'音乐脉络'})}).click();
+ assert.equal(await page.locator('.proof-host').getAttribute('role'),null);
+ assert.equal(await page.locator('.proof-header h2').innerText(),'音乐脉络');
+ assert.equal(await page.getByRole('button',{name:'返回上一级',exact:true}).isDisabled(),true);
+ assert.equal(await page.locator('.proof-list .proof-node').count(),8);
+ await page.getByRole('button',{name:'下一组',exact:true}).click();
+ assert.equal(await page.locator('.proof-list .proof-node').count(),4);
+ await page.getByRole('button',{name:'上一组',exact:true}).click();
+ await page.locator('.proof-list .proof-node').first().click();
+ assert.match(await page.locator('.proof-status').innerText(),/专辑/);
+ await page.locator('.proof-list .proof-node').first().click();
+ assert.match(await page.locator('.proof-status').innerText(),/单曲/);
+ await page.waitForTimeout(1800);
+ await page.screenshot({path:path.join(output,'music-lineage-lattice.png')});
+ await page.locator('.dock-cover').click();
+ assert.equal(await page.locator('.proof-host').isVisible(),false);
+ await page.locator('.dock-cover').click();
+ assert.equal(await page.locator('.proof-breadcrumbs button').count(),3);
+ await page.getByRole('button',{name:'返回上一级',exact:true}).click();
+ assert.equal(await page.locator('.proof-breadcrumbs button').count(),2);
+ await page.locator('.proof-breadcrumbs button').first().click();
+ assert.equal(await page.getByRole('button',{name:'返回上一级',exact:true}).isDisabled(),true);
+ await page.evaluate(()=>window.tide.setAppearance({shell:'lens'}));
+ await page.waitForTimeout(1200);
+ await page.waitForTimeout(800);
+ const labelBoxes=await page.locator('.proof-label:not([hidden])').evaluateAll(els=>els.map(el=>{const r=el.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom};}));
+ for(let i=0;i<labelBoxes.length;i++) for(let j=i+1;j<labelBoxes.length;j++){const a=labelBoxes[i],b=labelBoxes[j];assert.ok(a.right<=b.left||b.right<=a.left||a.bottom<=b.top||b.bottom<=a.top,'lineage labels do not overlap');}
+ await page.screenshot({path:path.join(output,'music-lineage-lens.png')});
+ await page.getByRole('button',{name:'← 返回主页',exact:true}).click();
+ assert.equal(await page.locator('.proof-host').isVisible(),false);
+ await page.evaluate(()=>window.tide.setAppearance({shell:'lattice'}));
+ await page.evaluate(()=>window.fixtureSetPlayback({queue:window.fixtureOriginalQueue,index:0}));
+ console.log('MUSIC_LINEAGE_HIERARCHY_BACK_BREADCRUMB_PAGE','passed');
+
  await page.getByRole('button',{name:'下一点集',exact:true}).click();
  await page.waitForTimeout(1200);
  await page.screenshot({path:path.join(output,'lattice-lorenz.png')});
@@ -218,7 +253,40 @@ setAppearance:async patch=>{Object.assign(appearance,patch);listeners.onAppearan
  }
  console.log('LENS_TEXT_BOUNDS','passed');
  await page.setViewportSize({width:1440,height:960});
- await page.locator('.transport').getByRole('button',{name:'歌词',exact:true}).click();
+ await page.getByRole('searchbox',{name:'搜索',exact:true}).fill('保留状态');
+ await page.getByRole('button',{name:'单曲',exact:true}).click();
+ await page.locator('form.search').evaluate(form=>form.requestSubmit());
+ await page.waitForFunction(()=>document.querySelectorAll('.hits .hit-row').length===30);
+ const rowBefore=await page.locator('.hit-row').first().boundingBox();
+ await page.locator('.hit-row').first().getByRole('button',{name:'更多',exact:true}).click();
+ assert.equal(await page.getByRole('dialog',{name:'曲目操作',exact:true}).isVisible(),true);
+ const rowAfter=await page.locator('.hit-row').first().boundingBox();
+ assert.equal(rowAfter.height,rowBefore.height);
+ assert.equal(await page.locator('.track-context-menu').evaluate(el=>el.parentElement===document.body),true);
+ const optionColors=await page.locator('.track-context-menu option').first().evaluate(el=>({fg:getComputedStyle(el).color,bg:getComputedStyle(el).backgroundColor}));
+ assert.deepEqual(optionColors,{fg:'rgb(241, 246, 252)',bg:'rgb(21, 34, 51)'});
+ await page.screenshot({path:path.join(output,'lens-track-context-menu.png')});
+ await page.keyboard.press('Escape');
+ assert.equal(await page.locator('.track-context-menu').count(),0);
+ await page.locator('.hit-row').first().click({button:'right'});
+ assert.equal(await page.getByRole('dialog',{name:'曲目操作',exact:true}).isVisible(),true);
+ await page.keyboard.press('Escape');
+ await page.locator('.hit').nth(12).click();
+ await page.locator('.browse-sheet').evaluate(el=>el.scrollTop=320);
+ const previousScroll=await page.locator('.browse-sheet').evaluate(el=>el.scrollTop);
+ await page.locator('.dock-cover').click();
+ assert.equal(await page.locator('html').getAttribute('data-view'),'playing');
+ await page.locator('.dock-cover').click();
+ assert.equal(await page.locator('html').getAttribute('data-view'),'home');
+ assert.equal(await page.getByRole('searchbox',{name:'搜索',exact:true}).inputValue(),'保留状态');
+ assert.equal(await page.locator('.browse-sheet').evaluate(el=>el.scrollTop),previousScroll);
+ assert.ok((await page.locator('.hit.is-selected').innerText()).includes('保留曲目 13'));
+ assert.equal(await page.locator('.hits .hit-row').count(),30);
+ assert.equal(await page.locator('.transport-controls .icon-button').count(),4);
+ console.log('CONTEXT_MENU_NO_LAYOUT_SHIFT_COVER_RETURN_STATE passed');
+
+ await page.setViewportSize({width:1440,height:960});
+ await page.locator('.dock-cover').click();
  await page.evaluate(()=>window.fixtureSetPlayback({positionMs:10500}));
  await page.waitForFunction(()=>document.querySelectorAll('.lyric-word').length>0);
  await page.waitForFunction(()=>document.querySelector('.lyric-current')?.textContent.includes('第3行'));

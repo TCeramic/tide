@@ -2,7 +2,6 @@ import type { HealthStatus, PlaybackSnapshot } from "../../shared/contract";
 import {
   Compass,
   Heart,
-  Music2,
   Pause,
   Play,
   Repeat,
@@ -17,7 +16,7 @@ import {
 import { ICON_SIZE, iconButton, setIcon } from "../icons";
 import { applyLike, isLiked, onLiked } from "../liked";
 import { paintCover } from "../cover";
-import { openNowPlaying } from "../view";
+import { toggleNowPlaying, onShellView } from "../view";
 import { mountMarquee } from "../marquee";
 
 const STATUS_LABEL: Record<PlaybackSnapshot["status"], string> = {
@@ -82,17 +81,19 @@ export function mountChrome(root: HTMLElement): {
     const next = PLAY_MODES[(index + 1) % PLAY_MODES.length] ?? PLAY_MODES[0];
     void window.tide.setMode({ repeat: next.repeat, shuffle: next.shuffle, explore: next.explore });
   });
-  const lyricJump = iconButton("歌词", "Music2", Music2, ICON_SIZE.control);
-  lyricJump.addEventListener("click", () => {
-    openNowPlaying();
-  });
-
   const controls = document.createElement("div");
   controls.className = "transport-controls";
-  controls.append(prev, play, next, mode, lyricJump);
+  controls.append(prev, play, next, mode);
 
-  const cover = document.createElement("span");
+  const cover = document.createElement("button");
+  cover.type = "button";
   cover.className = "dock-cover";
+  const syncCoverAction = () => {
+    const label = document.documentElement.dataset.view === "playing" ? "返回上一页" : "打开歌词页";
+    cover.setAttribute("aria-label", label); cover.title = label;
+  };
+  cover.addEventListener("click", toggleNowPlaying);
+  const stopView = onShellView(syncCoverAction); syncCoverAction();
   paintCover(cover, undefined);
   const meta = document.createElement("div");
   meta.className = "meta";
@@ -232,6 +233,7 @@ export function mountChrome(root: HTMLElement): {
     setIcon(volumeIcon, volumeIconName, volumeNode, ICON_SIZE.control);
 
     const durationMs = track?.durationMs ?? 0;
+    cover.disabled = !track;
     seek.max = String(durationMs);
     seek.disabled = !track;
     if (!seeking) seek.value = String(Math.min(snapshot.positionMs, durationMs));
@@ -255,6 +257,7 @@ export function mountChrome(root: HTMLElement): {
     },
     destroy: () => {
       stopLiked();
+      stopView();
       marquee.destroy();
       root.replaceChildren();
     },

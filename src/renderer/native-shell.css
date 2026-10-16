@@ -259,3 +259,43 @@ html[data-view="playing"] #app .topbar { max-height:none; }
 
 /* The viewport is a canvas, never a focus-scroll container. Menus scroll inside themselves. */
 #app { overflow:clip; }
+
+#app .dock-cover,#lyrics .lyrics-cover { display:block; padding:0; border:0; background:transparent; pointer-events:auto; overflow:hidden; }
+#app .dock-main { grid-template-columns:48px minmax(0,1fr) 184px 128px; }
+#app .transport-controls { width:184px; grid-template-columns:repeat(4,40px); }
+@media(max-width:860px) { #app .dock-main { grid-template-columns:48px minmax(0,1fr) 152px 100px; } #app .transport-controls { width:152px; grid-template-columns:repeat(4,32px); } }
+.track-context-menu:not([hidden]) { position:fixed; z-index:1000; display:flex; flex:none; width:248px; max-width:calc(100vw - 16px); max-height:calc(100vh - 16px); overflow:auto; gap:3px; margin:0; padding:7px; border:1px solid #ffffff30; border-radius:12px; background:#152233; color:#f1f6fc; box-shadow:0 12px 36px #0006; font:13px/1.5 var(--tide-font); }
+.track-context-menu .text-button { width:100%; min-height:32px; padding:6px 10px; border:0; border-radius:6px; text-align:left; background:transparent; color:inherit; box-shadow:none; justify-content:flex-start; }
+.track-context-menu .text-button:hover { background:#ffffff16; }
+.track-context-menu .collect { display:flex; flex-direction:column; align-items:stretch; margin:4px 0; padding:7px 6px; border-block:1px solid #ffffff20; color:inherit; }
+.track-context-menu .collect select { width:100%; min-height:32px; padding:4px 6px; color:inherit; background:transparent; border:1px solid #ffffff40; border-radius:6px; }
+html[data-shell="lens"][data-theme="tide"] .track-context-menu { background:#e8eff5; color:#163044; border-color:#16304430; }
+html[data-shell="lens"][data-theme="tide"] .track-context-menu .text-button:hover { background:#16304412; }
+html[data-shell="lens"][data-theme="tide"] .track-context-menu .collect { border-color:#16304420; }
+html[data-shell="lens"][data-theme="tide"] .track-context-menu select { border-color:#16304440; }
+select option,optgroup { color:#f1f6fc; background-color:#152233; }
+/* Music lineage is a library page, with persistent navigation and a readable directory. */
+#app .proof-host { background:transparent!important; border:0!important; box-shadow:none!important; backdrop-filter:none!important; color:var(--tide-fg); padding:0; border-radius:0; z-index:3; }
+html[data-view="playing"] #app .proof-host { visibility:hidden; pointer-events:none; }
+.proof-header { display:flex; align-items:center; gap:20px; flex:none; padding:8px 0; }
+.proof-header h2 { flex:1; margin:0; font-size:24px; }
+.proof-breadcrumbs { display:flex; flex-wrap:wrap; gap:8px; padding:8px 0 16px; flex:none; }
+.proof-breadcrumbs button:not(:last-child)::after { content:' /'; margin-left:12px; opacity:.5; }
+.proof-body { display:grid; grid-template-columns:minmax(0,1.5fr) minmax(270px,1fr); min-height:0; flex:1; gap:28px; }
+.proof-visual { min-width:0; min-height:0; position:relative; overflow:hidden; }
+#app .proof-canvas { width:100%; height:100%; border-radius:0; background:transparent; }
+.proof-labels { position:absolute; inset:0; pointer-events:none; }
+#app .proof-label { position:absolute; top:0; left:0; pointer-events:auto; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; padding:4px 9px; color:var(--tide-fg); background:var(--tide-bg); border:1px solid var(--tide-line); box-shadow:none; }
+.proof-aside { min-height:0; overflow:auto; padding-right:8px; }
+#app .proof-list { display:grid; gap:10px; }
+#app .proof-node { display:grid; grid-template-columns:1fr auto; gap:6px 12px; width:100%; padding:12px 16px; text-align:left; color:var(--tide-fg); background:var(--tide-panel); border:1px solid var(--tide-line); border-radius:12px; }
+.proof-node small { color:var(--tide-accent); grid-column:1/-1; }
+.proof-node strong { font-size:16px; font-weight:500; overflow-wrap:anywhere; }
+.proof-node span { align-self:center; color:var(--tide-muted); font-size:12px; white-space:nowrap; }
+.proof-pager { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:14px 0; }
+@media(max-width:900px) { .proof-body { grid-template-columns:minmax(0,1fr) minmax(250px,1fr); gap:12px; } .proof-header { gap:10px; } .proof-header h2 { font-size:20px; } }
+
+html[data-render-active="false"] :not(.desk-body) * { animation-play-state:paused!important; }
+
+/* Edge reveal regions stay inside the page gutters. */
+.peek-settings,.peek-login { width:76px; }

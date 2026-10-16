@@ -1,3 +1,4 @@
+import { isRenderingActive } from "./render-activity";
 /** Keep the metadata's layout fixed; only the clipped text moves. */
 export function mountMarquee(host: HTMLElement): { set: (text: string) => void; destroy: () => void } {
   const text = document.createElement("span");
@@ -11,7 +12,7 @@ export function mountMarquee(host: HTMLElement): { set: (text: string) => void; 
       frame = 0; animation?.cancel(); animation = null;
       const distance = Math.max(0, text.scrollWidth - host.clientWidth);
       host.classList.toggle("is-overflowing", distance > 2);
-      if (distance <= 2 || reduced.matches || document.hidden) return;
+      if (distance <= 2 || reduced.matches || !isRenderingActive()) return;
       animation = text.animate([
         { transform: "translateX(0)", offset: 0 },
         { transform: "translateX(0)", offset: 0.2 },

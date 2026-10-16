@@ -1,3 +1,4 @@
+import { isRenderingActive } from "./render-activity";
 import { ShaderMount, meshGradientFragmentShader, getShaderColorFromString } from "@paper-design/shaders";
 import type { Appearance } from "../shared/contract";
 import type { GeneratedTheme } from "../core/generated-theme";
@@ -19,10 +20,10 @@ export function mountPaperBackground(root: HTMLElement, invalidate: () => void) 
   const copyFrame = (time: number) => {
     frame = 0;
     if (dead || current?.background !== "paper") return;
-    if (!document.hidden && (time - lastCopy > (current.performance === "smooth" ? 500 : 200) || lastCopy === 0)) { invalidate(); lastCopy = time; }
-    if (current.motion > 0 && !document.hidden && !matchMedia("(prefers-reduced-motion: reduce)").matches) frame = requestAnimationFrame(copyFrame);
+    if (isRenderingActive() && (time - lastCopy > (current.performance === "smooth" ? 500 : 200) || lastCopy === 0)) { invalidate(); lastCopy = time; }
+    if (current.motion > 0 && isRenderingActive() && !matchMedia("(prefers-reduced-motion: reduce)").matches) frame = requestAnimationFrame(copyFrame);
   };
-  const wake = () => { lastCopy = 0; if (!dead && !frame) frame = requestAnimationFrame(copyFrame); };
+  const wake = () => { shader?.setSpeed(isRenderingActive() && current?.background === "paper" ? (current.motion * .2) : 0); lastCopy = 0; if (!dead && !frame) frame = requestAnimationFrame(copyFrame); };
   document.addEventListener("visibilitychange", wake);
   window.addEventListener("tide:palette", palette);
   return {
@@ -40,7 +41,7 @@ export function mountPaperBackground(root: HTMLElement, invalidate: () => void) 
       }
       host.dataset.active = String(active);
       host.style.opacity = active && next.shell === "lattice" ? "0.45" : "0";
-      shader?.setSpeed(active && next.motion > 0 && !matchMedia("(prefers-reduced-motion: reduce)").matches ? next.motion * 0.2 : 0);
+      shader?.setSpeed(active && isRenderingActive() && next.motion > 0 && !matchMedia("(prefers-reduced-motion: reduce)").matches ? next.motion * 0.2 : 0);
       shader?.setMaxPixelCount(next.performance === "smooth" ? 500000 : 1000000);
       wake();
     },

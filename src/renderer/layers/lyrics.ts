@@ -1,3 +1,4 @@
+import { isRenderingActive } from "../render-activity";
 import { currentLyricIndex, lineEase, lyricPosition, nextLyricOffset, pairLyrics, sweepProgress, wordFill, type LyricLine } from "../../core/lyrics";
 import type { YrcLine } from "../../shared/contract";
 import type { DeskLyricsSettings } from "../../core/desk-lyrics";
@@ -9,7 +10,7 @@ import { measureTextLayout } from "../text-metrics";
 import { mountAiAssist } from "../ai-assist";
 import { segmentLyricLines } from "../../core/ai-assist";
 import { readAudioClock, onAudioClockChange } from "../audio-clock";
-import { onShellView } from "../view";
+import { onShellView, toggleNowPlaying } from "../view";
 
 type LyricView = "both" | "original" | "translation" | "romaji";
 
@@ -32,7 +33,9 @@ export function mountLyrics(root: HTMLElement): {
   const title = document.createElement("p");
   title.className = "lyrics-title";
   const art = document.createElement("div"); art.className = "lyrics-art";
-  const artCover = document.createElement("div"); artCover.className = "lyrics-cover"; paintCover(artCover, undefined);
+  const artCover = document.createElement("button"); artCover.type = "button"; artCover.className = "lyrics-cover";
+  artCover.setAttribute("aria-label", "返回上一页"); artCover.title = "返回上一页";
+  artCover.addEventListener("click", toggleNowPlaying); paintCover(artCover, undefined);
   const artist = document.createElement("p"); artist.className = "lyrics-artist";
   const sourceNote = document.createElement("p"); sourceNote.className = "lyrics-source";
   const reading = document.createElement("div"); reading.className = "lyrics-reading";
@@ -90,7 +93,7 @@ export function mountLyrics(root: HTMLElement): {
   let disposed = false;
   const tick = () => {
     paintFrame = 0;
-    if (disposed || document.hidden || document.documentElement.dataset.view !== "playing") return;
+    if (disposed || !isRenderingActive() || document.documentElement.dataset.view !== "playing") return;
     const clock = readAudioClock(shownId);
     paint(clock?.positionMs ?? pendingPosition);
     if (clock?.playing) paintFrame = requestAnimationFrame(tick);

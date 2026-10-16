@@ -1,7 +1,7 @@
 import path from "node:path";
 import { createRequire } from "node:module";
 import type { AudioLevel } from "../core/audio-level";
-import { loadPlaylistPages } from "../core/playlist-pages";
+
 import { normalizeArtworkUrl } from "../core/artwork";
 import type { AlbumSummary, ArtistSummary, PlaylistSummary, SearchHit, SessionUser } from "../shared/contract";
 
@@ -98,7 +98,7 @@ export interface NeteaseClient {
   playlists(cookie: string, uid: string): Promise<PlaylistSummary[]>;
   search(keywords: string, cookie: string | null): Promise<SearchHit[]>;
   songUrl(id: string, cookie: string | null, level: AudioLevel): Promise<SongMedia>;
-  playlistTracks(id: string, cookie: string): Promise<SearchHit[]>;
+  playlistTracks(id: string, cookie: string, offset?: number): Promise<SearchHit[]>;
   dailySongs(cookie: string): Promise<SearchHit[]>;
   radarId(cookie: string): Promise<string>;
   /** Similar songs via `simi_song`. Not daily recommend and not 私人雷达. */
@@ -174,11 +174,9 @@ export function createNeteaseClient(module: NcmModule = loadNeteaseModule()): Ne
     async songUrl(id, cookie, level) {
       return readSongUrl(await module.song_url_v1(withCookie({ id, level }, cookie)));
     },
-    async playlistTracks(id, cookie) {
+    async playlistTracks(id, cookie, offset = 0) {
       try {
-        const hits = await loadPlaylistPages(async (offset, limit) => (
-          readPlaylistTracks(await module.playlist_track_all(withCookie({ id, limit, offset }, cookie)))
-        ));
+        const hits = readPlaylistTracks(await module.playlist_track_all(withCookie({ id, limit: 100, offset }, cookie))).slice(0, 100);
         return hydrateCovers(hits, cookie);
       } catch (error) {
         rethrowSignedOut(error);
@@ -555,6 +553,9 @@ function toHit(
     playable: playableOf(song, privilege, unknownPlayable),
   };
   if (song.liked === true) hit.liked = true;
+  const album = asRecord(song.al ?? song.album);
+  if (typeof album?.name === "string") hit.albumTitle = album.name.slice(0, 200);
+  if (album?.id != null && /^\d{1,20}$/.test(String(album.id))) hit.albumId = String(album.id);
   const cover = readCoverUrl(song);
   if (cover) hit.cover = cover;
   return hit;

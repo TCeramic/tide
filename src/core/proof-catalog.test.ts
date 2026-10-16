@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { catalogFromPlaylists, latticeRecords } from "./proof-catalog";
 
 describe("proof catalog", () => {
-  it("grows playlist to artist to song", () => {
+  it("grows playlist to artist to album to song", () => {
     const catalog = catalogFromPlaylists([
       {
         id: "pl",
@@ -25,16 +25,21 @@ describe("proof catalog", () => {
     assert.deepEqual(artists?.map((node) => node?.name).sort(), ["星尘", "海湾"]);
     for (const artist of artists ?? []) {
       assert.equal(artist?.kind, "artist");
-      for (const songId of artist?.deps ?? []) {
+      for (const albumId of artist?.deps ?? []) {
+        const album = byId.get(albumId);
+        assert.equal(album?.kind, "album");
+        for (const songId of album?.deps ?? []) {
         const song = byId.get(songId);
         assert.equal(song?.kind, "song");
         assert.equal(song?.leaf, true);
         assert.equal(song?.deps.length, 0);
+        assert.ok(song?.songId);
+        }
       }
     }
     const records = latticeRecords(catalog.nodes);
-    assert.equal(records.get("1")?.leaf, true);
-    assert.equal(records.get("1")?.t.kind, "axiom");
+    assert.equal(records.get(catalog.nodes.find(n => n.songId === "1")!.id)?.leaf, true);
+    assert.equal(records.get(catalog.nodes.find(n => n.songId === "1")!.id)?.t.kind, "axiom");
     assert.equal(records.get("pl")?.t.kind, "theorem");
   });
 });

@@ -7,11 +7,11 @@ import type { ShellId } from "../shared/contract";
  */
 export function titleBarChrome(shell: ShellId, theme = "tide"): { color: string; symbolColor: string; height: number } {
   if (shell === "lattice") {
-    return { color: "#07080b", symbolColor: "#ece7da", height: 36 };
+    return { color: "#00000000", symbolColor: "#ece7da", height: 36 };
   }
   return theme === "dusk"
-    ? { color: "#326975", symbolColor: "#f2f7fc", height: 36 }
-    : { color: "#d3e8e3", symbolColor: "#22252b", height: 36 };
+    ? { color: "#00000000", symbolColor: "#f2f7fc", height: 36 }
+    : { color: "#00000000", symbolColor: "#22252b", height: 36 };
 }
 
 /** Window fill behind the overlay. Lens is the ocean body; Lattice is ink. */

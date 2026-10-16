@@ -1,9 +1,11 @@
-/** Playlist → artist → song, shaped for the Lattice proof tree. */
+/** Playlist → artist → album → song, shaped for the Lattice proof tree. */
 
 export interface ProofSong {
   id: string;
   title: string;
   artist: string;
+  albumTitle?: string;
+  albumId?: string;
 }
 
 export interface ProofPlaylist {
@@ -17,7 +19,8 @@ export interface LatticeNode {
   name: string;
   deps: string[];
   leaf: boolean;
-  kind: "library" | "playlist" | "artist" | "song";
+  kind: "library" | "playlist" | "artist" | "album" | "song";
+  songId?: string;
 }
 
 export interface LatticeRecord {
@@ -30,10 +33,11 @@ const KIND = {
   library: "theorem",
   playlist: "theorem",
   artist: "definition",
+  album: "definition",
   song: "axiom",
 } as const;
 
-/** One library root. Playlists branch into artists, songs are the leaves. */
+/** One library root. Playlists branch into artists and albums; songs are the leaves. */
 export function catalogFromPlaylists(playlists: readonly ProofPlaylist[]): {
   rootId: string;
   nodes: LatticeNode[];
@@ -56,23 +60,28 @@ export function catalogFromPlaylists(playlists: readonly ProofPlaylist[]): {
       const artistId = `${playlistId}/artist-${artistIndex}`;
       artistIndex += 1;
       artistIds.push(artistId);
-      const songIds: string[] = [];
-      songs.forEach((song, songIndex) => {
-        const songId = safeId(song.id, `${artistId}/song-${songIndex}`);
-        songIds.push(songId);
-        nodes.push({
-          id: songId,
-          name: song.title.trim() || "未命名",
-          deps: [],
-          leaf: true,
-          kind: "song",
+      const albums = new Map<string, ProofSong[]>();
+      for (const song of songs) {
+        const key = song.albumId || song.albumTitle?.trim() || "未标注专辑";
+        albums.set(key, [...(albums.get(key) ?? []), song]);
+      }
+      const albumIds: string[] = [];
+      for (const albumSongs of albums.values()) {
+        const albumId = `${artistId}/album-${albumIds.length}`;
+        albumIds.push(albumId);
+        const songIds: string[] = [];
+        albumSongs.forEach((song, songIndex) => {
+          const songId = `${albumId}/song-${songIndex}`;
+          songIds.push(songId);
+          nodes.push({ id: songId, songId: song.id, name: song.title.trim() || "未命名", deps: [], leaf: true, kind: "song" });
         });
-      });
+        nodes.push({ id: albumId, name: albumSongs[0].albumTitle?.trim() || "未标注专辑", deps: songIds, leaf: false, kind: "album" });
+      }
       nodes.push({
         id: artistId,
         name: artist,
-        deps: songIds,
-        leaf: songIds.length === 0,
+        deps: albumIds,
+        leaf: albumIds.length === 0,
         kind: "artist",
       });
     }

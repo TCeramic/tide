@@ -1,8 +1,9 @@
 import { Heart, MoreHorizontal, Play } from "lucide";
-import type { PlaylistSummary, SearchHit } from "../shared/contract";
+import type { PlaylistCursor, PlaylistSummary, SearchHit } from "../shared/contract";
 import { paintCover } from "./cover";
 import { ICON_SIZE, iconButton, setIcon } from "./icons";
 import { applyLike, isLiked } from "./liked";
+import { openTrackMenu } from "./track-menu";
 
 export function songPageUrl(id: string): string {
   return `https://music.163.com/song?id=${encodeURIComponent(id)}`;
@@ -14,6 +15,7 @@ export function fillTrackList(
   hits: readonly SearchHit[],
   playlists: readonly PlaylistSummary[],
   note: (message: string, warn: boolean) => void,
+  source?: PlaylistCursor,
 ): void {
   list.replaceChildren();
   const start = document.createElement("li");
@@ -29,7 +31,7 @@ export function fillTrackList(
       note("没有可播放的地址", true);
       return;
     }
-    void window.tide.playHits([...hits], index);
+    void window.tide.playHits([...hits], index, source);
   });
   start.append(startButton);
   list.append(start);
@@ -41,7 +43,7 @@ export function fillTrackList(
     play.disabled = !hit.playable;
     play.addEventListener("click", () => {
       if (!hit.playable) return;
-      void window.tide.playHits([...hits], index);
+      void window.tide.playHits([...hits], index, source);
     });
 
     const art = document.createElement("span");
@@ -65,7 +67,7 @@ export function fillTrackList(
         main.classList.add("is-selected");
       });
       main.addEventListener("dblclick", () => {
-        void window.tide.playHits([...hits], index);
+        void window.tide.playHits([...hits], index, source);
       });
     }
 
@@ -90,15 +92,17 @@ export function fillTrackList(
     menu.className = "track-menu";
     menu.hidden = true;
     more.addEventListener("click", () => {
-      menu.hidden = !menu.hidden;
+      openTrackMenu(menu, more);
     });
+    more.setAttribute("aria-haspopup", "dialog"); more.setAttribute("aria-expanded", "false");
+    item.addEventListener("contextmenu", event => { event.preventDefault(); openTrackMenu(menu, more, { x:event.clientX,y:event.clientY }); });
 
     const playItem = menuButton("播放", () => {
       if (!hit.playable) {
         note("没有可播放的地址", true);
         return;
       }
-      void window.tide.playHits([...hits], index);
+      void window.tide.playHits([...hits], index, source);
     });
     playItem.disabled = !hit.playable;
     const nextItem = menuButton("下一首播放", () => {
@@ -140,7 +144,7 @@ export function fillTrackList(
     collect.append(picker, save);
     menu.append(playItem, nextItem, likeItem, collect, shareItem);
 
-    item.append(art, play, main, like, more, menu);
+    item.append(art, play, main, like, more);
     list.append(item);
   });
 }

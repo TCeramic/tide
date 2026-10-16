@@ -32,7 +32,7 @@ export function mountHome(root: HTMLElement, hooks: HomeHooks): {
   const tideCard = card("今日潮汐", "按听过的歌找相似的", hooks.onTide, "tide");
   const dailyCard = card("每日推荐", "登录后解锁", hooks.onDaily, "daily");
   const localCard = card("本地音乐", "不登录也能播", hooks.onLocal, "local");
-  const proofCard = card("证明树", "歌单、歌手、曲", hooks.onProof, "proof");
+  const proofCard = card("音乐脉络", "播放列表 → 歌手 → 专辑 → 单曲", hooks.onProof, "proof");
 
   grid.append(continueCard, libraryCard, tideCard, dailyCard, localCard, proofCard);
   root.append(grid);
