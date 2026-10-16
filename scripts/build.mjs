@@ -95,3 +95,5 @@ await cp(path.join(root, "src/renderer/desk.html"), path.join(dist, "desk.html")
 await cp(path.join(root, "src/renderer/desk.css"), path.join(dist, "desk.css"));
 await cp(path.join(root, "build/icon.ico"), path.join(dist, "icon.ico"));
 await cp(path.join(root, "build/icon.png"), path.join(dist, "icon.png"));
+
+await cp(path.join(root, "licenses"), path.join(dist, "licenses"), { recursive: true });

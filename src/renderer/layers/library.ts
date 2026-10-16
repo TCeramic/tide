@@ -273,10 +273,37 @@ export function mountLibrary(root: HTMLElement): {
   topbar.append(homeButton, searchForm);
 
   const queueCol = document.createElement("aside");
-  queueCol.className = "queue-col glass";
+  queueCol.className = "queue-col corner-panel glass";
+  queueCol.hidden = true;
   queueCol.setAttribute("aria-label", "播放队列");
   queueDetails.open = true;
   queueCol.append(queueDetails);
+  const queuePeek = document.createElement("div");
+  queuePeek.className = "peek peek-queue";
+  queuePeek.tabIndex = 0;
+  queuePeek.setAttribute("aria-label", "显示播放队列");
+  const queueButton = iconButton("播放队列", "ListMusic", ListMusic, ICON_SIZE.control);
+  queueButton.classList.add("corner-btn", "corner-queue");
+  queueButton.setAttribute("aria-expanded", "false");
+  queuePeek.append(queueButton);
+  let queueTimer: ReturnType<typeof setTimeout> | undefined;
+  const showQueue = (show: boolean) => {
+    clearTimeout(queueTimer);
+    queueCol.hidden = !show;
+    queueButton.dataset.open = String(show);
+    queueButton.setAttribute("aria-expanded", String(show));
+  };
+  const delayQueue = () => { queueTimer = setTimeout(() => {
+    if (!queueCol.matches(":hover") && !queuePeek.matches(":hover") && !queueCol.contains(document.activeElement) && !queuePeek.contains(document.activeElement)) showQueue(false);
+  }, 240); };
+  queuePeek.addEventListener("pointerenter", () => showQueue(true));
+  queuePeek.addEventListener("focusin", () => showQueue(true));
+  queuePeek.addEventListener("pointerleave", delayQueue);
+  queuePeek.addEventListener("focusout", delayQueue);
+  queueCol.addEventListener("pointerenter", () => clearTimeout(queueTimer));
+  queueCol.addEventListener("pointerleave", delayQueue);
+  queueCol.addEventListener("focusout", delayQueue);
+  queueButton.addEventListener("click", () => showQueue(queueCol.hidden));
 
   const sheet = document.createElement("section");
   sheet.className = "browse-sheet glass";
@@ -317,6 +344,7 @@ export function mountLibrary(root: HTMLElement): {
     home.element.hidden = true;
   };
   const showHomeCards = () => {
+    showQueue(false);
     sheet.hidden = true;
     proofHost.hidden = true;
     proof.stop();
@@ -396,7 +424,7 @@ export function mountLibrary(root: HTMLElement): {
     } finally { addLocal.disabled = false; }
   });
 
-  root.append(topbar, queueCol, sheet, proofHost, loginPeek, settingsPeek, loginPop, settingsPop);
+  root.append(topbar, queuePeek, queueCol, sheet, proofHost, loginPeek, settingsPeek, loginPop, settingsPop);
   void searchHeading;
   void panel;
 
@@ -935,6 +963,7 @@ export function mountLibrary(root: HTMLElement): {
     },
     destroy() {
       disposed = true;
+      clearTimeout(queueTimer);
       stopPoll();
       stopLiked();
       deskForm.destroy();

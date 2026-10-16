@@ -74,6 +74,8 @@ export interface SongMedia {
 }
 
 export interface LyricBundle {
+  source?: "netease" | "amll";
+  credits?: string[];
   lyric: string;
   translation: string;
   romaji: string;
@@ -88,6 +90,7 @@ export interface LoginRefresh {
 
 /** Calls into the pinned NeteaseCloudMusicApi package. No HTTP surface of its own. */
 export interface NeteaseClient {
+  songArtwork?(ids: string[], cookie: string | null): Promise<Record<string, string>>;
   qrKey(): Promise<string>;
   qrImage(key: string): Promise<QrImage>;
   qrCheck(key: string): Promise<QrPoll>;
@@ -146,6 +149,10 @@ export function createNeteaseClient(module: NcmModule = loadNeteaseModule()): Ne
     return enriched;
   };
   return {
+    async songArtwork(ids, cookie) {
+      const hits = await hydrateCovers(ids.map(id => ({ id, title: "", artist: "", durationMs: 0, playable: false })), cookie);
+      return Object.fromEntries(hits.filter(hit => hit.cover).map(hit => [hit.id, hit.cover!]));
+    },
     async qrKey() {
       return readQrKey(await module.login_qr_key({}));
     },

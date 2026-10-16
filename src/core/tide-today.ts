@@ -1,4 +1,5 @@
 import type { SearchHit } from "../shared/contract";
+import { normalizeArtworkUrl } from "./artwork";
 
 export type ListenKind = "play" | "skip";
 
@@ -10,6 +11,7 @@ export interface ListenEvent {
   durationMs: number;
   at: number;
   kind: ListenKind;
+  cover?: string;
 }
 
 export interface TideTodayList {
@@ -200,9 +202,36 @@ function eventHit(event: ListenEvent): SearchHit | null {
     artist: event.artist,
     durationMs: Math.trunc(event.durationMs),
     playable: true,
+    ...(normalizeArtworkUrl(event.cover) ? { cover: normalizeArtworkUrl(event.cover)! } : {}),
   };
 }
 
 function isSeedHit(hit: SearchHit): boolean {
   return /^\d{1,20}$/.test(hit.id) && hit.title.length > 0 && hit.artist.length > 0 && hit.durationMs >= 0;
+}
+
+export function readTideHits(body: unknown): SearchHit[] {
+  if (!body || typeof body !== "object" || (body as { ok?: unknown }).ok !== true) return [];
+  const hits = (body as { hits?: unknown }).hits;
+  if (!Array.isArray(hits)) return [];
+  const parsed: SearchHit[] = [];
+  for (const item of hits) {
+    if (!item || typeof item !== "object") continue;
+    const hit = item as Record<string, unknown>;
+    if (typeof hit.id !== "string" || !/^\d{1,20}$/.test(hit.id)) continue;
+    if (typeof hit.title !== "string" || hit.title.length === 0) continue;
+    if (typeof hit.artist !== "string" || hit.artist.length === 0) continue;
+    if (typeof hit.durationMs !== "number" || !Number.isFinite(hit.durationMs) || hit.durationMs < 0) continue;
+    if (typeof hit.playable !== "boolean") continue;
+    parsed.push({
+      id: hit.id,
+      title: hit.title,
+      artist: hit.artist,
+      durationMs: Math.trunc(hit.durationMs),
+      playable: hit.playable,
+      ...(normalizeArtworkUrl(hit.cover) ? { cover: normalizeArtworkUrl(hit.cover)! } : {}),
+      ...(typeof hit.liked === "boolean" ? { liked: hit.liked } : {}),
+    });
+  }
+  return parsed;
 }

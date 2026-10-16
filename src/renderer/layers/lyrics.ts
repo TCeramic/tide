@@ -1,9 +1,13 @@
-import { currentLyricIndex, lineEase, lyricPosition, nextLyricOffset, pairLyrics, sweepProgress, type LyricLine } from "../../core/lyrics";
+import { currentLyricIndex, lineEase, lyricPosition, nextLyricOffset, pairLyrics, sweepProgress, wordFill, type LyricLine } from "../../core/lyrics";
 import type { YrcLine } from "../../shared/contract";
 import type { DeskLyricsSettings } from "../../core/desk-lyrics";
 import type { Track } from "../../core/playback/types";
 import { Music2 } from "lucide";
 import { ICON_SIZE, prependIcon } from "../icons";
+import { paintCover } from "../cover";
+import { measureTextLayout } from "../text-metrics";
+import { mountAiAssist } from "../ai-assist";
+import { segmentLyricLines } from "../../core/ai-assist";
 
 type LyricView = "both" | "original" | "translation" | "romaji";
 
@@ -25,6 +29,11 @@ export function mountLyrics(root: HTMLElement): {
 
   const title = document.createElement("p");
   title.className = "lyrics-title";
+  const art = document.createElement("div"); art.className = "lyrics-art";
+  const artCover = document.createElement("div"); artCover.className = "lyrics-cover"; paintCover(artCover, undefined);
+  const artist = document.createElement("p"); artist.className = "lyrics-artist";
+  const sourceNote = document.createElement("p"); sourceNote.className = "lyrics-source";
+  const reading = document.createElement("div"); reading.className = "lyrics-reading";
 
   const tools = document.createElement("div");
   tools.className = "lyric-tools";
@@ -56,8 +65,16 @@ export function mountLyrics(root: HTMLElement): {
 
   const list = document.createElement("ol");
   list.className = "lyric-list";
+  const resume = viewButton("恢复歌词跟随"); resume.classList.add("lyric-resume"); resume.hidden = true;
+  let manualUntil = 0;
+  const suspendFollow = () => { manualUntil = performance.now() + 6000; resume.hidden = false; };
+  list.addEventListener("wheel", suspendFollow, { passive: true });
+  list.addEventListener("touchstart", suspendFollow, { passive: true });
+  list.addEventListener("keydown", event => { if (["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End"].includes(event.key)) suspendFollow(); });
 
-  block.append(kicker, title, tools, offsetMenu, line, list);
+  art.append(artCover, kicker, title, artist, sourceNote);
+  reading.append(tools, offsetMenu, line, list, resume);
+  block.append(art, reading);
   root.append(block);
 
   let generation = 0;
@@ -70,6 +87,14 @@ export function mountLyrics(root: HTMLElement): {
   let paintFrame = 0;
   let active = -1;
   let deskOpen = false;
+  const assist = mountAiAssist(task => ({ task, title: title.textContent ?? "", lines: (bundles.yrc.length ? bundles.yrc : bundles.original).map(row => row.text) }), () => artCover.dataset.cover, result => {
+    if (result.task !== "segment") return;
+    const rows = bundles.yrc.length ? bundles.yrc.map(row => ({ timeMs: row.timeMs, text: row.text })) : bundles.original;
+    bundles.yrc = segmentLyricLines(rows, result.segments, bundles.yrc);
+    sourceNote.textContent = bundles.yrc.some(row => row.estimated) ? "AI 分词 · 逐词时间为估算" : "AI 分词 · 保留原始逐词时间";
+    renderLines(); publishDesk();
+  });
+  art.append(assist.element);
 
   const usingYrc = (): boolean => (view === "both" || view === "original") && bundles.yrc.length > 0;
 
@@ -104,6 +129,16 @@ export function mountLyrics(root: HTMLElement): {
     const rows = timedRows();
     const row = rows[index];
     if (!row) return;
+    const wordNodes = origin.querySelectorAll<HTMLElement>(".lyric-word");
+    const wordLine = usingYrc() ? bundles.yrc[index] : undefined;
+    if (wordNodes.length && wordLine) {
+      wordNodes.forEach((node, cursor) => {
+        const word = wordLine.words[cursor]; const fill = word ? wordFill(word, at) : 0;
+        node.style.setProperty("--word-fill", `${(fill * 100).toFixed(2)}%`);
+        node.classList.toggle("is-singing", fill > 0 && fill < 1);
+      });
+      return;
+    }
     const mask = origin.querySelector<HTMLElement>(".lyric-mask");
     const hot = origin.querySelector<HTMLElement>(".lyric-hot");
     if (!mask || !hot) return;
@@ -131,11 +166,20 @@ export function mountLyrics(root: HTMLElement): {
       const items = list.querySelectorAll("li");
       items.forEach((item, index) => {
         item.classList.toggle("lyric-current", index === next);
+        item.classList.toggle("lyric-passed", index < next);
+        item.style.setProperty("--lyric-distance", String(Math.min(4, Math.abs(index - next))));
+        if (index !== next) item.querySelectorAll<HTMLElement>(".lyric-word").forEach(word => {
+          word.style.setProperty("--word-fill", index < next ? "100%" : "0%");
+          word.classList.remove("is-singing");
+        });
       });
-      const current = next >= 0 ? items.item(next) : null;
+    }
+    if ((changed || !resume.hidden) && performance.now() >= manualUntil) {
+      resume.hidden = true;
+      const current = next >= 0 ? list.children.item(next) : null;
       if (current instanceof HTMLElement) {
-        const top = current.offsetTop - list.clientHeight / 2 + current.clientHeight / 2;
-        list.scrollTo({ top: Math.max(0, top), behavior: "auto" });
+        const top = current.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop - list.clientHeight * 0.42 + current.clientHeight / 2;
+        list.scrollTo({ top: Math.max(0, top), behavior: changed && !matchMedia("(prefers-reduced-motion: reduce)").matches ? "smooth" : "auto" });
       }
     }
     if (next >= 0) paintSweep(next);
@@ -172,6 +216,7 @@ export function mountLyrics(root: HTMLElement): {
         const item = document.createElement("li");
         const origin = document.createElement("span");
         origin.className = "lyric-origin karaoke";
+        origin.dataset.text = row.original;
         const words = usingYrc() ? bundles.yrc[index]?.words ?? [] : [];
         const run = document.createElement("span");
         run.className = "lyric-run";
@@ -182,7 +227,9 @@ export function mountLyrics(root: HTMLElement): {
         hot.className = "lyric-hot";
         hot.textContent = row.original;
         mask.append(hot);
-        origin.append(run, mask);
+        if (words.length > 0) {
+          for (const word of words) { const span = document.createElement("span"); span.className = "lyric-word"; span.textContent = word.text; origin.append(span); }
+        } else origin.append(run, mask);
         if (words.length > 0) origin.dataset.widths = words.map((word) => String(measureWord(word.text))).join(",");
         item.append(origin);
         if (row.translation.length > 0) {
@@ -200,8 +247,27 @@ export function mountLyrics(root: HTMLElement): {
         list.append(item);
       }
     }
+    for (const [index, item] of Array.from(list.children).entries()) {
+      if (!(item instanceof HTMLElement)) continue;
+      const time = lines[index]?.timeMs ?? 0;
+      item.tabIndex = 0; item.setAttribute("role", "button"); item.setAttribute("aria-label", `跳转到 ${item.textContent ?? "歌词"}`);
+      const jump = () => { manualUntil = 0; resume.hidden = true; void window.tide.seek(Math.max(0, time - offsetMs)); };
+      item.addEventListener("click", jump);
+      item.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); jump(); } });
+    }
     paint();
   };
+  const measureLines = () => {
+    for (const origin of Array.from(list.querySelectorAll<HTMLElement>(".lyric-origin"))) {
+      const style = getComputedStyle(origin), height = Number.parseFloat(style.lineHeight) || 52;
+      const measured = measureTextLayout(origin.dataset.text ?? "", style.font || "40px sans-serif", origin.clientWidth, height);
+      origin.style.minHeight = `${measured.height}px`;
+      origin.dataset.measuredLines = String(measured.lineCount);
+    }
+    if (performance.now() >= manualUntil) { active = -1; paint(); }
+  };
+  const layoutObserver = new ResizeObserver(measureLines); layoutObserver.observe(list);
+  resume.addEventListener("click", () => { manualUntil = 0; active = -1; paint(); });
 
   const choose = (next: LyricView) => {
     view = next;
@@ -245,7 +311,10 @@ export function mountLyrics(root: HTMLElement): {
   const setTrack = (track: Track | null) => {
     const id = track?.id ?? null;
     if (id === shownId) {
-      if (track) title.textContent = track.title;
+      if (track) {
+        title.textContent = track.title; artist.textContent = track.artist;
+        if (artCover.dataset.cover !== (track.cover ?? "")) { paintCover(artCover, track.cover); artCover.dataset.cover = track.cover ?? ""; }
+      }
       publishDesk();
       return;
     }
@@ -257,16 +326,23 @@ export function mountLyrics(root: HTMLElement): {
     list.replaceChildren();
     if (!track) {
       title.textContent = "歌词层";
+      artist.textContent = sourceNote.textContent = "";
+      paintCover(artCover, undefined); artCover.dataset.cover = "";
       publishDesk();
       renderLines();
       return;
     }
     title.textContent = track.title;
+    artist.textContent = track.artist;
+    paintCover(artCover, track.cover);
+    artCover.dataset.cover = track.cover ?? "";
+    sourceNote.textContent = "正在获取歌词";
     line.textContent = "正在读取歌词…";
     publishDesk();
     void window.tide.lyric(track.id).then((result) => {
       if (token !== generation) return;
       if (!result.ok) {
+        sourceNote.textContent = "暂无可用歌词";
         renderLines();
         publishDesk();
         return;
@@ -277,10 +353,13 @@ export function mountLyrics(root: HTMLElement): {
         romaji: result.romaji ?? [],
         yrc: result.yrc ?? [],
       };
+      sourceNote.textContent = result.source === "amll" ? `AMLL TTML DB${result.credits?.length ? ` · ${result.credits.join(" / ")}` : ""}` : "网易云歌词";
       renderLines();
+      measureLines();
       publishDesk();
     }).catch(() => {
       if (token !== generation) return;
+      sourceNote.textContent = "歌词暂不可用";
       renderLines();
       publishDesk();
     });
@@ -301,6 +380,8 @@ export function mountLyrics(root: HTMLElement): {
     destroy: () => {
       if (paintFrame !== 0) cancelAnimationFrame(paintFrame);
       stopDesk();
+      layoutObserver.disconnect();
+      assist.destroy();
       root.replaceChildren();
     },
   };

@@ -8,6 +8,7 @@ import * as sets from "./vendor/design-systems/lattice/src/gl/sets.js";
 import { WORLDS } from "./vendor/design-systems/lattice/src/core/theme.js";
 import { mountTabs, mountSlider } from "./vendor/design-systems/lattice/src/dom/controls.js";
 import { mountDotText } from "./vendor/design-systems/lattice/src/dom/dottext.js";
+import { mountPaperBackground } from "./paper-background.ts";
 
 export function createNativeChoiceRow(label, options, onPick) {
   const element = document.createElement("div");
@@ -94,6 +95,11 @@ export function mountNativeShell(root) {
   const panelSelector = ".home-card,.queue-col,.browse-sheet,.corner-panel,.transport,.topbar,.proof-host,.risk";
   const buttonSelector = "button:not(.lg-choice):not([role=tab]):not([data-lg-component])";
   const decorated = new Map();
+  const paper = mountPaperBackground(root, () => {
+    if (appearance?.background !== "paper") return;
+    glass?.renderer?.setScene(appearance.theme === "dusk" ? "ocean" : "aurora");
+    for (const [popup, system] of popupSystems) if (!popup.hidden) system.renderer?.setScene(appearance.theme === "dusk" ? "ocean" : "aurora");
+  });
   const saved = (el) => {
     if (!decorated.has(el)) decorated.set(el, { className: el.className, glass: el.getAttribute("data-glass"), drag: el.getAttribute("data-lg-drag"), sound: el.getAttribute("data-lg-sound") });
   };
@@ -169,7 +175,9 @@ export function mountNativeShell(root) {
   }
   let image = null, imageUrl = "";
   function paintPlayerBackground(ctx, info) {
-    if (appearance.background === "image" && image?.complete && image.naturalWidth > 0) {
+    if (appearance.background === "paper" && paper.canvas?.width) {
+      ctx.drawImage(paper.canvas, 0, 0, info.width, info.height);
+    } else if (appearance.background === "image" && image?.complete && image.naturalWidth > 0) {
       const scale = Math.max(info.width / image.naturalWidth, info.height / image.naturalHeight);
       const w = image.naturalWidth * scale, h = image.naturalHeight * scale;
       ctx.drawImage(image, (info.width - w) / 2, (info.height - h) / 2, w, h);
@@ -184,6 +192,7 @@ export function mountNativeShell(root) {
   function sync(next) {
     if (destroyed) return;
     appearance = next;
+    paper.sync(next);
     popupLayer.hidden = !next.chromeVisible;
     const cssImage = document.documentElement.style.getPropertyValue("--tide-image");
     const url = cssImage.match(/^url\(["']?(.*?)["']?\)$/)?.[1] || "";
@@ -235,7 +244,7 @@ export function mountNativeShell(root) {
     wrap.className = "lx-slider native-point-range";
     input.before(wrap); wrap.append(input); mountSlider(input);
   }
-  return { sync, destroy() { destroyed = true; stopLens(); points?.destroy(); rangeObserver.disconnect(); popupLayer.remove(); } };
+  return { sync, destroy() { destroyed = true; stopLens(); points?.destroy(); paper.destroy(); rangeObserver.disconnect(); popupLayer.remove(); } };
 }
 
 // Embed the original Field and set generators into a desktop viewport. This host supplies
@@ -389,7 +398,7 @@ function mountPointField(root) {
     sync(appearance) {
       paused = appearance.motion === 0 || matchMedia("(prefers-reduced-motion: reduce)").matches;
       stage.dpr = appearance.performance === "vivid" ? Math.min(2, devicePixelRatio || 1) : appearance.performance === "smooth" ? 1 : Math.min(1.5, devicePixelRatio || 1);
-      scene.background = appearance.shell === "lens" ? null : new THREE.Color(WORLDS.night.bg);
+      scene.background = appearance.shell === "lens" || appearance.background === "paper" ? null : new THREE.Color(WORLDS.night.bg);
       canvas.style.opacity = String(appearance.stageLevel * (appearance.shell === "lens" ? 0.3 : 1));
       resize(); wake();
     },

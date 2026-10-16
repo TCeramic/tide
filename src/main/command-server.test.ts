@@ -1,3 +1,4 @@
+import { version as packageVersion } from "../../package.json";
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import { startCommandServer, type RunningCommandServer } from "./command-server";
@@ -68,7 +69,7 @@ describe("command server", { concurrency: 1 }, () => {
     const healthBody = (await health.json()) as { ok: boolean; service: string; version: string };
     assert.equal(health.status, 200);
     assert.equal(healthBody.service, "tide-bus");
-    assert.equal(healthBody.version, "0.9.1");
+    assert.equal(healthBody.version, packageVersion);
 
     const naked = await fetch(`http://127.0.0.1:${server.port}/command`, {
       method: "POST",

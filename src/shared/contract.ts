@@ -1,12 +1,13 @@
 import type { AudioLevel } from "../core/audio-level";
 import type { DeskLyricsSettings } from "../core/desk-lyrics";
 import type { PlaybackEvents, PlaybackSnapshot, Track } from "../core/playback/types";
+import { version as packageVersion } from "../../package.json";
 
 export type { DeskLyricsSettings } from "../core/desk-lyrics";
 
 export type { PlaybackErrorCode, PlaybackEvents, PlaybackSnapshot, PlaybackStatus, Track } from "../core/playback/types";
 
-export const TIDE_VERSION = "0.9.1";
+export const TIDE_VERSION = packageVersion;
 export const DEFAULT_API_PORT = 39271;
 export const DEFAULT_BUS_PORT = 39272;
 export const API_READY_PREFIX = "TIDE_API_READY ";
@@ -61,6 +62,7 @@ export const Ipc = {
   radar: "tide:recommend:radar",
   playHits: "tide:cmd:play-hits",
   progress: "tide:cmd:progress",
+  duration: "tide:cmd:duration",
   ended: "tide:cmd:ended",
   fail: "tide:cmd:fail",
   media: "tide:media",
@@ -114,7 +116,7 @@ export function isFontPresetId(value: unknown): value is FontPresetId {
   return typeof value === "string" && (FONT_PRESETS as readonly string[]).includes(value);
 }
 
-export const STAGE_BACKGROUNDS = ["solid", "cover", "image"] as const;
+export const STAGE_BACKGROUNDS = ["solid", "cover", "image", "paper"] as const;
 export type StageBackground = (typeof STAGE_BACKGROUNDS)[number];
 
 export function isStageBackground(value: unknown): value is StageBackground {
@@ -150,6 +152,7 @@ export interface LyricWord {
 }
 
 export interface YrcLine {
+  estimated?: boolean;
   timeMs: number;
   durationMs: number;
   text: string;
@@ -197,6 +200,8 @@ export interface LyricLine {
 }
 
 export interface LyricPayload {
+  source?: "netease" | "amll";
+  credits?: string[];
   ok: true;
   trackId: string;
   lines: LyricLine[];
@@ -309,6 +314,8 @@ export interface QueueRequest {
 
 /** Surface exposed on `window.tide` by the preload script. */
 export interface TideBridge {
+  aiStatus(): Promise<import("../core/ai-assist").AiStatus>;
+  aiGenerate(input: import("../core/ai-assist").AiInput): Promise<import("../core/ai-assist").AiReply>;
   /** `session` on Windows, `shortcut` elsewhere. Only one media-key path is armed. */
   mediaKeys: "session" | "shortcut";
   getHealth(): Promise<HealthStatus>;
@@ -364,6 +371,7 @@ export interface TideBridge {
   playHits(hits: SearchHit[], index: number): Promise<PlaybackSnapshot>;
   onMedia(listener: (cue: MediaCue) => void): () => void;
   reportProgress(positionMs: number): void;
+  reportDuration(id: string, durationMs: number): void;
   ended(): Promise<PlaybackSnapshot>;
   failPlayback(code: "no_url" | "signed_out"): Promise<PlaybackSnapshot>;
   onAppearance(listener: (appearance: Appearance) => void): () => void;

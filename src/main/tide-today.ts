@@ -1,6 +1,7 @@
-import { buildTideToday, likedTargetFromSession, type ListenEvent } from "../core/tide-today";
+import { buildTideToday, likedTargetFromSession, readTideHits, type ListenEvent } from "../core/tide-today";
 import type { SearchHit, TideToday } from "../shared/contract";
 import { loopbackJson } from "./session-host";
+import { normalizeArtworkUrl } from "../core/artwork";
 
 /**
  * 今日潮汐 · 探索.
@@ -23,7 +24,7 @@ export async function loadTideToday(port: number | null, events: readonly Listen
   if (target.signedIn) {
     for (const id of seeds) {
       const body = await loopbackJson(port, "GET", `/similar?id=${encodeURIComponent(id)}`);
-      const hits = readHits(body);
+      const hits = readTideHits(body);
       if (!isOk(body)) similarFailed = true;
       similar.push(...hits);
     }
@@ -33,7 +34,7 @@ export async function loadTideToday(port: number | null, events: readonly Listen
   let daily: SearchHit[] = [];
   if (target.signedIn && unheardSimilar.length < 8) {
     const body = await loopbackJson(port, "GET", "/recommend/daily");
-    if (isOk(body)) daily = readHits(body);
+    if (isOk(body)) daily = readTideHits(body);
   }
 
   const list = buildTideToday(events, {
@@ -42,39 +43,24 @@ export async function loadTideToday(port: number | null, events: readonly Listen
     similarFailed,
     signedIn: target.signedIn,
   });
+  const missing = list.hits.filter(hit => !hit.cover).map(hit => hit.id);
+  if (port != null && missing.length > 0) {
+    const response = await loopbackJson(port, "GET", `/artwork?ids=${missing.join(",")}`).catch(() => null);
+    const covers = response && typeof response === "object" ? (response as { covers?: Record<string, unknown> }).covers : null;
+    if (covers && typeof covers === "object") for (const hit of list.hits) {
+      const cover = normalizeArtworkUrl(covers[hit.id]);
+      if (!hit.cover && cover) hit.cover = cover;
+    }
+  }
   return { ok: true, hits: list.hits, message: list.message };
 }
 
 async function likedTracks(port: number | null, playlistId: string): Promise<SearchHit[]> {
   if (port == null) return [];
   const body = await loopbackJson(port, "GET", `/playlist/tracks?id=${encodeURIComponent(playlistId)}`);
-  return readHits(body);
+  return readTideHits(body);
 }
 
 function isOk(body: unknown): boolean {
   return Boolean(body && typeof body === "object" && (body as { ok?: unknown }).ok === true);
-}
-
-function readHits(body: unknown): SearchHit[] {
-  if (!isOk(body)) return [];
-  const hits = (body as { hits?: unknown }).hits;
-  if (!Array.isArray(hits)) return [];
-  const parsed: SearchHit[] = [];
-  for (const item of hits) {
-    if (!item || typeof item !== "object") continue;
-    const hit = item as Record<string, unknown>;
-    if (typeof hit.id !== "string" || !/^\d{1,20}$/.test(hit.id)) continue;
-    if (typeof hit.title !== "string" || hit.title.length === 0) continue;
-    if (typeof hit.artist !== "string" || hit.artist.length === 0) continue;
-    if (typeof hit.durationMs !== "number" || !Number.isFinite(hit.durationMs) || hit.durationMs < 0) continue;
-    if (typeof hit.playable !== "boolean") continue;
-    parsed.push({
-      id: hit.id,
-      title: hit.title,
-      artist: hit.artist,
-      durationMs: Math.trunc(hit.durationMs),
-      playable: hit.playable,
-    });
-  }
-  return parsed;
 }

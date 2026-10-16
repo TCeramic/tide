@@ -39,7 +39,13 @@ let app;
   await page.screenshot({ path: path.join(out, 'packaged-local-import.png') });
   await page.getByRole('button', { name: '开始播放', exact: true }).click();
   await page.waitForFunction(async () => { const state = await window.tide.getPlayback(); return state.status === 'playing' && state.positionMs > 200; }, null, { timeout: 20000 });
+  await page.waitForFunction(async () => (await window.tide.getPlayback()).queue.some(track => track.durationMs === 4000));
   await page.evaluate(() => window.tide.pause());
+  await page.evaluate(() => window.tide.seek(2500));
+  await page.waitForFunction(async () => Math.abs((await window.tide.getPlayback()).positionMs - 2500) < 150);
+  const health = await page.evaluate(() => window.tide.getHealth());
+  assert.equal((await (await fetch(`http://127.0.0.1:${health.port}/health`)).json()).version, require('../package.json').version);
+  assert.equal((await page.evaluate(() => window.tide.aiStatus())).configured, false);
   if (process.env.TIDE_LIVE_COVER) {
     const size = await page.evaluate(url => new Promise((resolve, reject) => {
       const image = new Image(); image.referrerPolicy = 'no-referrer';

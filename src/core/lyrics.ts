@@ -11,13 +11,14 @@ const STAMP = /\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]/g;
 export function parseLrc(source: string | null | undefined): LyricLine[] {
   if (!source) return [];
   const lines: LyricLine[] = [];
+  const offset = Number(/\[offset:([+-]?\d+)\]/i.exec(source)?.[1] ?? 0);
   for (const raw of source.split(/\r?\n/)) {
     const stamps: number[] = [];
     raw.replace(STAMP, (_match, minutes: string, seconds: string, fraction?: string) => {
       const fractionMs = fraction == null
         ? 0
         : Math.round(Number(fraction.padEnd(3, "0").slice(0, 3)));
-      stamps.push((Number(minutes) * 60 + Number(seconds)) * 1000 + fractionMs);
+      if (Number(seconds) < 60) stamps.push(Math.max(0, (Number(minutes) * 60 + Number(seconds)) * 1000 + fractionMs + (Number.isSafeInteger(offset) ? offset : 0)));
       return "";
     });
     const text = raw.replace(STAMP, "").trim();

@@ -1,3 +1,4 @@
+import { version as packageVersion } from "../../package.json";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { after, before, describe, it } from "node:test";
@@ -38,7 +39,7 @@ describe("tide api", () => {
     const body = (await response.json()) as { ok: boolean; service: string; version: string };
     assert.equal(body.ok, true);
     assert.equal(body.service, "tide");
-    assert.equal(body.version, "0.9.1");
+    assert.equal(body.version, packageVersion);
   });
 
   it("returns 404 for other paths", async () => {

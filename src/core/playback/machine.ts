@@ -74,6 +74,15 @@ export class PlaybackMachine {
     return this.getState();
   }
 
+  /** Audio metadata supplies the duration for local/unknown-length tracks. */
+  reportDuration(id: string, durationMs: number): PlaybackSnapshot {
+    const track = this.currentTrack();
+    if (!track || track.id !== id || !Number.isFinite(durationMs) || durationMs <= 0 || durationMs > 86400000 || (track.durationMs > 0 && !id.startsWith("local-"))) return this.getState();
+    const queue = this.snapshot.queue.map((item, index) => index === this.snapshot.index ? { ...item, durationMs: Math.round(durationMs) } : item);
+    this.snapshot = { ...this.snapshot, queue };
+    const snapshot = this.getState(); this.events.emit("queue", { snapshot }); return snapshot;
+  }
+
   beginLoad(): PlaybackSnapshot {
     if (!this.currentTrack()) {
       return this.fail("empty_queue");

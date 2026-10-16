@@ -389,6 +389,10 @@ export function attachPlayback(
     publish(machine.getState());
   };
   ipcMain.on(Ipc.progress, onProgress);
+  const onDuration = (_event: IpcMainEvent, id: unknown, durationMs: unknown) => {
+    if (typeof id === "string" && typeof durationMs === "number" && currentMedia?.trackId === id) machine.reportDuration(id, durationMs);
+  };
+  ipcMain.on(Ipc.duration, onDuration);
   ipcMain.handle(Ipc.tideToday, async () => {
     try {
       return await loadTideToday(getPort(), listenLog?.read() ?? []);
@@ -403,6 +407,7 @@ export function attachPlayback(
       generation += 1;
       for (const unsubscribe of unsubscribers) unsubscribe();
       ipcMain.removeListener(Ipc.progress, onProgress);
+      ipcMain.removeListener(Ipc.duration, onDuration);
       ipcMain.removeHandler(Ipc.playbackGet);
       ipcMain.removeHandler(Ipc.play);
       ipcMain.removeHandler(Ipc.pause);

@@ -98,6 +98,7 @@ export function mountPlayer(): () => void {
   };
 
   audio.addEventListener("loadedmetadata", () => {
+    if (loadedId && Number.isFinite(audio.duration)) window.tide.reportDuration(loadedId, audio.duration * 1000);
     if (pendingSeek == null) return;
     audio.currentTime = pendingSeek;
     pendingSeek = null;

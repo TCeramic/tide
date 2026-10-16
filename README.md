@@ -172,15 +172,17 @@ Playback commands cover get, play, pause, seek, volume, next, previous, queue, p
 
 `settings.write`, `appearance.write`, `session.logout`, and `session.clearCookie` return `denied` unless the request sets `"allow": true` or `userData/bus-allow.json` lists the command. That file stores no cookie. `playlist.organize` is denied the same way. If it is allowed, the result is `unsupported`, because this app cannot edit a NetEase playlist.
 
-`appearance.write` only changes the existing `#stage`, `#lyrics`, and `#chrome` layers. `theme` is `tide` or `dusk`. `shell` is `lens` (default) or `lattice`. `preset` is `tide`, `cover-glow`, `vinyl`, `stardust`, or `quiet`. `performance` is `smooth`, `balanced`, or `vivid`. `background` is `solid`, `cover`, or `image`. `lattice` toggles the optional dot field. An unknown name is rejected.
+`appearance.write` only changes the existing `#stage`, `#lyrics`, and `#chrome` layers. `theme` is `tide` or `dusk`. `shell` is `lens` (default) or `lattice`. `preset` is `tide`, `cover-glow`, `vinyl`, `stardust`, or `quiet`. `performance` is `smooth`, `balanced`, or `vivid`. `background` is `solid`, `cover`, `image`, or `paper`. `lattice` toggles the optional dot field. An unknown name is rejected.
 
 ## Windows 包 / Windows package
+
+`0.9.2-test.2` 修复透镜设置滚动、队列自动隐藏、长歌名挤动按钮和今日潮汐封面；加长进度条并显示拖动时间。新增逐字歌词与跟随交互、AMLL TTML 回退、Pretext 测量和 Paper 流动背景。无密钥可用本地封面配色；AI 自动调用接口与手动 JSON 导入已完成，尚未调用真实模型。来源、使用方法及验证边界见 [适配说明](docs/UPSTREAM_ADAPTATIONS.md)。
 
 `0.9.2-test.1` 修正点阵卡片文字边界，统一面板与占位封面背景；「添加本地音乐」移动到主页「本地音乐」子菜单。歌曲缺失封面时批量查询详情补齐，专辑搜索和专辑曲目保留封面，网易云 HTTP 图片升级为 HTTPS；图片失败后短暂回退占位，避免永久屏蔽。
 
 `npm run dist` 用 electron-builder 打一个 Windows x64 zip，里面是 `Tide.exe` 和依赖。不签名。产物在 `release/`，已忽略，不要提交。
 
-`npm run dist:setup` 打 NSIS 安装包。这需要 Windows，或装了 Wine 的机器。这台 Linux 云主机只验证 zip。
+`npm run dist:setup` 打 NSIS 安装包。这需要 Windows，或装了 Wine 的机器。本次在 Windows 验证 portable ZIP。
 
 The zip is a portable folder, not an installer. Unzip it and run `Tide.exe`. The command bus token is created in `%APPDATA%\tide\bus-token` on first launch. `npm run dist:setup` builds the NSIS installer and needs Windows or Wine.
 

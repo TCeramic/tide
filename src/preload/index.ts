@@ -13,6 +13,8 @@ function listen<T>(channel: string, listener: (payload: T) => void): () => void 
 }
 
 const tide: TideBridge = {
+  aiStatus: () => ipcRenderer.invoke("tide:ai-status"),
+  aiGenerate: (input) => ipcRenderer.invoke("tide:ai-generate", input),
   mediaKeys: mediaKeyMode(process.platform),
   getHealth: () => ipcRenderer.invoke(Ipc.healthGet) as Promise<HealthStatus>,
   onHealth: (listener) => listen<HealthStatus>(Ipc.health, listener),
@@ -72,6 +74,7 @@ const tide: TideBridge = {
   reportProgress: (positionMs) => {
     ipcRenderer.send(Ipc.progress, positionMs);
   },
+  reportDuration: (id, durationMs) => ipcRenderer.send(Ipc.duration, id, durationMs),
   ended: () => ipcRenderer.invoke(Ipc.ended) as Promise<PlaybackSnapshot>,
   failPlayback: (code) => ipcRenderer.invoke(Ipc.fail, code) as Promise<PlaybackSnapshot>,
   onAppearance: (listener) => listen<Appearance>(Ipc.appearance, listener),

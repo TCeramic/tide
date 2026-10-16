@@ -18,6 +18,7 @@ import { ICON_SIZE, iconButton, setIcon } from "../icons";
 import { applyLike, isLiked, onLiked } from "../liked";
 import { paintCover } from "../cover";
 import { openNowPlaying } from "../view";
+import { mountMarquee } from "../marquee";
 
 const STATUS_LABEL: Record<PlaybackSnapshot["status"], string> = {
   idle: "空闲",
@@ -111,6 +112,7 @@ export function mountChrome(root: HTMLElement): {
   like.classList.add("like");
   const title = document.createElement("span");
   title.className = "track-title";
+  const marquee = mountMarquee(title);
   titleRow.append(like, title);
   const detail = document.createElement("span");
   detail.className = "track-detail";
@@ -123,15 +125,32 @@ export function mountChrome(root: HTMLElement): {
   seek.value = "0";
   seek.step = "100";
   seek.setAttribute("aria-label", "进度");
+  const seekPreview = document.createElement("output");
+  seekPreview.className = "seek-preview";
+  seekPreview.hidden = true;
+  const previewSeek = () => {
+    const duration = Number(seek.max);
+    seekPreview.textContent = `${formatTime(Number(seek.value))} / ${formatTime(duration)}`;
+    seek.setAttribute("aria-valuetext", seekPreview.textContent);
+    seekPreview.style.setProperty("--seek-at", `${duration > 0 ? Number(seek.value) / duration * 100 : 0}%`);
+  };
   let seeking = false;
   seek.addEventListener("pointerdown", () => {
     seeking = true;
+    seekPreview.hidden = false;
+    previewSeek();
   });
   seek.addEventListener("pointerup", () => {
     seeking = false;
+    seekPreview.hidden = true;
   });
+  seek.addEventListener("input", () => { seeking = true; seekPreview.hidden = false; previewSeek(); });
+  seek.addEventListener("pointercancel", () => { seeking = false; seekPreview.hidden = true; });
+  seek.addEventListener("blur", () => { seeking = false; seekPreview.hidden = true; });
+  seek.addEventListener("keyup", () => { seeking = false; seekPreview.hidden = true; });
   seek.addEventListener("change", () => {
     seeking = false;
+    seekPreview.hidden = true;
     void window.tide.seek(Number(seek.value));
   });
 
@@ -164,6 +183,7 @@ export function mountChrome(root: HTMLElement): {
   const seekRow = document.createElement("div");
   seekRow.className = "dock-seek";
   seekRow.append(seek);
+  seekRow.append(seekPreview);
   const dockMain = document.createElement("div");
   dockMain.className = "dock-main";
   dockMain.append(cover, meta, controls, volumeWrap);
@@ -173,7 +193,7 @@ export function mountChrome(root: HTMLElement): {
   const setPlayback = (snapshot: PlaybackSnapshot) => {
     latest = snapshot;
     const track = snapshot.index >= 0 ? snapshot.queue[snapshot.index] : undefined;
-    title.textContent = track?.title ?? "没有曲目";
+    marquee.set(track?.title ?? "没有曲目");
     if (cover.dataset.cover !== (track?.cover ?? "")) {
       cover.dataset.cover = track?.cover ?? "";
       paintCover(cover, track?.cover);
@@ -236,6 +256,7 @@ export function mountChrome(root: HTMLElement): {
     },
     destroy: () => {
       stopLiked();
+      marquee.destroy();
       root.replaceChildren();
     },
   };

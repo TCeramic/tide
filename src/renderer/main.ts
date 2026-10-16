@@ -9,6 +9,7 @@ import { installMediaSession, syncMediaSession } from "./media-session";
 import { mountPlayer } from "./player";
 import { mountStage } from "./layers/stage";
 import { mountNativeShell } from "./native-shell.js";
+import { updateCoverTheme } from "./generated-theme";
 
 declare global {
   interface Window {
@@ -36,7 +37,7 @@ const PLAYBACK_LABEL = {
 
 function showPlayback(snapshot: PlaybackSnapshot): void {
   const track = snapshot.index >= 0 ? (snapshot.queue[snapshot.index] ?? null) : null;
-  if (track) document.documentElement.style.setProperty("--cover-tint", coverTint(track.title));
+  if (track) updateCoverTheme(track.id, track.cover, track.title);
   playingNow = snapshot.status === "playing";
   document.documentElement.dataset.status = snapshot.status;
   stageLayer.setScene({ level: Number.parseFloat(document.documentElement.style.getPropertyValue("--tide-stage")) || 0, motion: motionAmount, playing: playingNow });
@@ -107,12 +108,6 @@ function installFace(family: string, dataUrl: string): void {
   style.textContent = `@font-face { font-family: "${safe}"; src: url("${dataUrl}"); font-display: swap; }`;
   document.head.append(style);
   document.documentElement.style.setProperty("--tide-font-custom", `"${safe}"`);
-}
-
-function coverTint(title: string): string {
-  let hash = 0;
-  for (const char of title) hash = (hash * 33 + char.charCodeAt(0)) >>> 0;
-  return `hsl(${hash % 360} 42% 16%)`;
 }
 
 function applyAppearance(appearance: Appearance): void {

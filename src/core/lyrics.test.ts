@@ -3,6 +3,9 @@ import { describe, it } from "node:test";
 import { currentLyricIndex, deskLineCue, immersiveProgress, lineEase, lyricPosition, nextLyricOffset, pairLyrics, parseLrc, parseYrc, sweepProgress } from "./lyrics";
 
 describe("lyrics", () => {
+  it("honors file offsets and multi-stamp lines while rejecting invalid seconds", () => {
+    assert.deepEqual(parseLrc("[offset:-500]\n[00:01.000][00:02.000]同一句\n[00:99.000]坏时间").map(row => row.timeMs), [500, 1500]);
+  });
   it("parses stamps and follows the playhead", () => {
     const lines = parseLrc("[00:01.00]第一句\n[00:05.50]第二句\n无时间\n");
     assert.deepEqual(lines.map((line) => line.text), ["第一句", "第二句"]);

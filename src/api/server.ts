@@ -8,6 +8,7 @@ import { isLocalId } from "../core/local-library";
 import { LocalLibrary } from "./local-library";
 import { asFailure, SessionError, SessionService } from "./session";
 import { API_READY_PREFIX, DEFAULT_API_PORT, TIDE_VERSION } from "../shared/contract";
+import { createCommunityLyrics } from "./community-lyrics";
 
 export interface TideApiOptions {
   /** `undefined` reads TIDE_COOKIE_FILE. `null` keeps the cookie in memory. */
@@ -46,7 +47,8 @@ export function createTideApiServer(options: TideApiOptions = {}): http.Server {
     likeSong: (id, like, cookie) => client().likeSong(id, like, cookie),
     likedIds: (uid, cookie) => client().likedIds(uid, cookie),
     collectSong: (playlistId, trackId, cookie) => client().collectSong(playlistId, trackId, cookie),
-  });
+    songArtwork: (ids, cookie) => client().songArtwork?.(ids, cookie) ?? Promise.resolve({}),
+  }, options.netease ? undefined : createCommunityLyrics());
 
   function client(): NeteaseClient {
     if (!netease) netease = createNeteaseClient();
@@ -168,6 +170,8 @@ async function route(
     writeJson(res, 200, {
       ok: true,
       trackId,
+      source: bundle.source ?? "netease",
+      credits: bundle.credits ?? [],
       lines: parseLrc(bundle.lyric),
       translation: ytlrc.length > 0
         ? ytlrc.map((row) => ({ timeMs: row.timeMs, text: row.text }))
@@ -175,6 +179,11 @@ async function route(
       romaji: parseLrc(bundle.romaji),
       yrc: parseYrc(bundle.yrc),
     });
+    return;
+  }
+  if (req.method === "GET" && pathname === "/artwork") {
+    const covers = await session.songArtwork((url.searchParams.get("ids") ?? "").split(","));
+    writeJson(res, 200, { ok: true, covers });
     return;
   }
   if (req.method === "GET" && pathname === "/personal/fm") {

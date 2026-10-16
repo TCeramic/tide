@@ -8,6 +8,13 @@ function track(id: string, durationMs = 1000): Track {
 }
 
 describe("PlaybackMachine", () => {
+  it("accepts current local metadata, ignores late metadata and bounds the duration", () => {
+    const machine = new PlaybackMachine(); machine.setQueue([{ ...track("local-one"), durationMs: 0 }]);
+    machine.reportDuration("local-old", 4000); assert.equal(machine.getState().queue[0]?.durationMs, 0);
+    machine.reportDuration("local-one", Infinity); assert.equal(machine.getState().queue[0]?.durationMs, 0);
+    machine.reportDuration("local-one", 4000); assert.equal(machine.getState().queue[0]?.durationMs, 4000);
+    machine.play(); assert.equal(machine.seek(2500).positionMs, 2500);
+  });
   it("starts idle", () => {
     const machine = new PlaybackMachine();
     assert.equal(machine.getState().status, "idle");

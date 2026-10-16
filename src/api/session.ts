@@ -29,6 +29,7 @@ export class SessionService {
   constructor(
     private readonly store: CookieStore,
     private readonly netease: NeteaseClient,
+    private readonly communityLyrics?: (id: string) => Promise<LyricBundle | null>,
   ) {}
 
   snapshot(): Promise<SessionSnapshot> {
@@ -148,13 +149,15 @@ export class SessionService {
         return await load();
       } catch (error) {
         if (error instanceof Error && (error.message === "signed_out" || error.message === "lyric_failed")) return empty;
-        throw new SessionError(502, "upstream", "歌词暂时没有拉到");
+        return empty;
       }
     };
     const cookie = this.optionalCookie();
     const fresh = await pull(() => this.netease.lyricNew(id, cookie));
     const needsLegacy = fresh.yrc.length === 0 || fresh.lyric.length === 0 || fresh.translation.length === 0;
     const legacy = needsLegacy ? await pull(() => this.netease.lyric(id, cookie)) : empty;
+    const community = !fresh.yrc && !legacy.yrc ? await this.communityLyrics?.(id).catch(() => null) : null;
+    if (community) return { ...community, translation: community.translation || fresh.translation || legacy.translation, romaji: community.romaji || fresh.romaji || legacy.romaji };
     return {
       lyric: fresh.lyric || legacy.lyric,
       translation: fresh.translation || legacy.translation,
@@ -162,6 +165,11 @@ export class SessionService {
       yrc: fresh.yrc || legacy.yrc,
       ytlrc: fresh.ytlrc || legacy.ytlrc,
     };
+  }
+
+  async songArtwork(ids: string[]): Promise<Record<string, string>> {
+    const valid = [...new Set(ids)].filter(id => /^\d{1,20}$/.test(id)).slice(0, 50);
+    return this.netease.songArtwork?.(valid, this.optionalCookie()) ?? {};
   }
 
   async personalFm(): Promise<SearchHit[]> {

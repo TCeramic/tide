@@ -24,9 +24,14 @@ const server = http.createServer((req,res)=>{if(req.url==='/fixture-cover.svg'){
   const desk={open:false,locked:false,x:null,y:null,fontSize:48,color:'#f7fbfc',opacity:1,highlightFollow:true,motion:true,glow:.72,pair:false,wave:false,orientation:'horizontal',motionLevel:1,backdrop:0};
   const data={getPlayback:snapshot,getHealth:{ok:true,service:'tide',version:'0.9.1',busPort:39272},getSession:{ok:true,state:'signed_out',playlists:[]},getMediaShortcuts:{shortcuts:{},messages:[],captureMediaKeys:true},getQuality:'standard',getDeskLyrics:desk,localTracks:[],likedIds:{ok:true,known:false,ids:[]},backdropUrl:null,fontFace:null,getAppearance:appearance};
   const cover='http://127.0.0.1:4179/fixture-cover.svg';
-  const tracks=[{id:'1',title:'长歌曲标题用于检查边框'.repeat(8),artist:'歌手名字'.repeat(6),album:'测试专辑',durationMs:200000,playable:true,cover}];
+  const tracks=[{id:'1',title:'长歌曲标题用于检查边框'.repeat(8),artist:'歌手名字'.repeat(6),album:'测试专辑',durationMs:232000,playable:true,cover}];
   snapshot.queue=tracks; snapshot.index=0;
-  window.fixtureAdds=0;
+  window.fixtureCover=cover; window.fixtureAdds=0;
+  const yrc=Array.from({length:12},(_,i)=>{const text=`测试歌词第${i+1}行 让文字跟随音乐`;return {timeMs:i*5000,durationMs:4500,text,words:Array.from(text).map((text,j)=>({text,timeMs:i*5000+j*180,durationMs:180}))};});
+  data.aiStatus={configured:false,provider:'openai-compatible',model:''};
+  data.lyric={ok:true,trackId:'1',lines:yrc.map(row=>({timeMs:row.timeMs,text:row.text})),translation:yrc.map(row=>({timeMs:row.timeMs,text:'Translation '+row.text})),romaji:[],yrc,source:'amll',credits:['QA fixture']};
+  window.fixtureSetPlayback=patch=>{Object.assign(snapshot,patch);listeners.onPlayback?.forEach(f=>f({...snapshot}));};
+
   window.tide=new Proxy({mediaKeys:{},
     search:async(keywords,type)=>type===10?{ok:true,kind:'albums',albums:[{id:'2',name:'专辑名称'.repeat(12),artist:'测试歌手',cover}]}:{ok:true,kind:'songs',hits:tracks},
     albumTracks:async()=>({ok:true,kind:'songs',hits:tracks}),
@@ -36,11 +41,43 @@ setAppearance:async patch=>{Object.assign(appearance,patch);listeners.onAppearan
  await page.goto('http://127.0.0.1:4179/');
  await page.waitForTimeout(1800);
  await page.screenshot({path:path.join(output,'lens-home.png')});
+ assert.equal(await page.locator('.queue-col').isVisible(),false);
+ await page.locator('.peek-queue').hover({position:{x:4,y:4}});
+ assert.equal(await page.locator('.queue-col').isVisible(),true);
+ await page.mouse.move(700,500);await page.waitForTimeout(500);
+ assert.equal(await page.locator('.queue-col').isVisible(),false);
+ const controlsBefore=await page.locator('.transport-controls').boundingBox();
+ await page.evaluate(()=>window.fixtureSetPlayback({queue:[{id:'1',title:'短歌名',artist:'歌手',durationMs:232000,cover:window.fixtureCover}],index:0}));
+ await page.waitForTimeout(150);
+ const controlsShort=await page.locator('.transport-controls').boundingBox();
+ assert.ok(Math.abs(controlsBefore.x-controlsShort.x)<1);
+ await page.evaluate(()=>window.fixtureSetPlayback({queue:[{id:'1',title:'长歌名滚动演示'.repeat(30),artist:'歌手',durationMs:232000,cover:window.fixtureCover}],index:0}));
+ await page.waitForTimeout(150);
+ assert.equal(await page.locator('.track-title.is-overflowing').count(),1);
+ assert.ok(await page.locator('.track-title-text').evaluate(el=>el.getAnimations().length>0));
+ const controlsLong=await page.locator('.transport-controls').boundingBox();
+ assert.ok(Math.abs(controlsShort.x-controlsLong.x)<1);
+ const seek=page.getByRole('slider',{name:'进度',exact:true});
+ const seekBounds=await seek.boundingBox(), dockBounds=await page.locator('.transport').boundingBox();
+ assert.ok(seekBounds.width>dockBounds.width*.7&&seekBounds.width<dockBounds.width*.95);
+ await seek.evaluate(el=>{el.value='154000';el.dispatchEvent(new Event('input',{bubbles:true}));});
+ assert.equal(await page.locator('.seek-preview').innerText(),'2:34 / 3:52');
+ await page.screenshot({path:path.join(output,'lens-progress-preview.png')});
+ await seek.evaluate(el=>el.dispatchEvent(new Event('change',{bubbles:true})));
+ console.log('QUEUE_HIDE_FIXED_CONTROLS_MARQUEE_SEEK','passed');
  console.log('LENS',await page.locator('#app').getAttribute('class'));
  assert.match(await page.locator('#app').getAttribute('class'),/webgl-ready/);
  await page.locator('.peek-settings').hover();
  await page.getByRole('button',{name:'设置',exact:true}).click();
  await page.screenshot({path:path.join(output,'lens-settings.png')});
+ for(let i=0;i<3;i++) {
+  if(i) {await page.evaluate(()=>window.tide.setAppearance({shell:'lattice'}));await page.evaluate(()=>window.tide.setAppearance({shell:'lens'}));}
+  await page.locator('.settings-pop').evaluate(el=>el.scrollTop=0);
+  await page.locator('.settings-pop').hover(); await page.mouse.wheel(0,800); await page.waitForTimeout(200);
+  assert.ok(await page.locator('.settings-pop').evaluate(el=>el.scrollTop>0),'Lens settings wheel must scroll after switches');
+ }
+ await page.locator('.settings-pop').evaluate(el=>el.scrollTop=0);
+ console.log('LENS_SETTINGS_WHEEL','passed');
  await page.locator('.native-lens-choices').first().getByRole('button',{name:'点阵',exact:true}).click();
  await page.waitForTimeout(2000);
  await page.screenshot({path:path.join(output,'lattice-settings.png')});
@@ -160,6 +197,47 @@ setAppearance:async patch=>{Object.assign(appearance,patch);listeners.onAppearan
   await page.screenshot({path:path.join(output,`lens-home-${size.width}.png`)});
  }
  console.log('LENS_TEXT_BOUNDS','passed');
+ await page.setViewportSize({width:1440,height:960});
+ await page.locator('.transport').getByRole('button',{name:'歌词',exact:true}).click();
+ await page.evaluate(()=>window.fixtureSetPlayback({positionMs:10500}));
+ await page.waitForFunction(()=>document.querySelectorAll('.lyric-word').length>0);
+ await page.waitForFunction(()=>document.querySelector('.lyric-current')?.textContent.includes('第3行'));
+ assert.ok(await page.locator('.lyric-current .lyric-word').count()>0);
+ await page.screenshot({path:path.join(output,'lens-lyrics.png')});
+ await page.locator('.lyric-list').hover(); await page.mouse.wheel(0,400); await page.waitForTimeout(200);
+ assert.equal(await page.getByRole('button',{name:'恢复歌词跟随',exact:true}).isVisible(),true);
+ await page.getByRole('button',{name:'恢复歌词跟随',exact:true}).click();
+ assert.equal(await page.getByRole('button',{name:'恢复歌词跟随',exact:true}).isVisible(),false);
+ await page.locator('.ai-assist summary').click();
+ await page.getByRole('button',{name:'生成封面配色',exact:true}).click();
+ await page.waitForFunction(()=>document.querySelector('.native-paper-source')?.dataset.ready==='true');
+ await page.waitForTimeout(300);
+ await page.screenshot({path:path.join(output,'paper-generated-lyrics.png')});
+ await page.getByRole('textbox',{name:'AI 生成结果 JSON'}).fill(JSON.stringify({name:'测试主题',colors:['#112233','#557799','#ccaa99'],accent:'#aabbcc'}));
+ await page.getByRole('button',{name:'应用主题 JSON',exact:true}).click();
+ assert.equal(await page.locator('html').getAttribute('data-generated-theme'),'model');
+ await page.getByRole('textbox',{name:'AI 生成结果 JSON'}).fill(JSON.stringify({segments:Array.from({length:12},(_,i)=>[`测试歌词第${i+1}行 `,'让文字跟随音乐'])}));
+ await page.getByRole('button',{name:'应用分词 JSON',exact:true}).click();
+ assert.equal(await page.locator('.lyric-word').count(),24);
+ await page.evaluate(()=>window.fixtureSetPlayback({positionMs:15500}));
+ await page.waitForFunction(()=>document.querySelector('.lyric-current')?.textContent.includes('第4行'));
+ assert.equal(await page.locator('.lyric-list li').nth(2).locator('.lyric-word').first().evaluate(el=>el.style.getPropertyValue('--word-fill')),'100%');
+ await page.evaluate(()=>window.fixtureSetPlayback({positionMs:5500}));
+ await page.waitForFunction(()=>document.querySelector('.lyric-current')?.textContent.includes('第2行'));
+ assert.equal(await page.locator('.lyric-list li').nth(3).locator('.lyric-word').first().evaluate(el=>el.style.getPropertyValue('--word-fill')),'0%');
+ await page.evaluate(()=>window.tide.setAppearance({shell:'lattice'}));await page.waitForTimeout(300);
+ await page.screenshot({path:path.join(output,'lattice-lyrics.png')});
+ for(const shell of ['lens','lattice']) {
+  await page.setViewportSize({width:800,height:560});
+  await page.evaluate(shell=>window.tide.setAppearance({shell}),shell);
+  await page.waitForTimeout(900);
+  const box=await page.locator('.lyrics-block').boundingBox(),dock=await page.locator('.transport').boundingBox();
+  assert.ok(box.x>=0&&box.x+box.width<=800&&box.y+box.height<=dock.y,`${shell} small lyrics bounds`);
+  const visible=await page.locator('.lyric-list').evaluate(list=>{const item=list.querySelector('.lyric-current'); const a=list.getBoundingClientRect(),b=item.getBoundingClientRect();return b.bottom>a.top+12&&b.top<a.bottom-12;});
+  assert.ok(visible,`${shell} current lyric visible after resize`);
+  await page.screenshot({path:path.join(output,`${shell}-small-lyrics.png`)});
+ }
+ console.log('LYRICS_WORDS_FOLLOW_PAPER_AI_IMPORT','passed');
  console.log('ERRORS',JSON.stringify(errors));
  assert.deepEqual(errors,[]);
  console.log('UI_SMOKE_PASS');

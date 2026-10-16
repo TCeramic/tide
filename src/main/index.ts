@@ -28,6 +28,7 @@ import { attachSession, loopbackJson } from "./session-host";
 import { attachDeskLyrics } from "./desk-host";
 import { SettingsStore } from "./settings";
 import { loadTideToday } from "./tide-today";
+import { createAiAssistant } from "./ai-assist";
 
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
 if (process.env.TIDE_SOFTWARE_GL === "1") {
@@ -57,6 +58,9 @@ function windowIcon(): string {
 }
 
 const machine = new PlaybackMachine();
+const aiAssistant = createAiAssistant();
+ipcMain.handle("tide:ai-status", () => aiAssistant.status());
+ipcMain.handle("tide:ai-generate", (_event, input: unknown) => aiAssistant.generate(input));
 
 function bindHardwareWindow(win: BrowserWindow): void {
   win.on("app-command", (event, command) => {
