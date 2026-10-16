@@ -28,3 +28,5 @@ html[data-orient="vertical"] .mask,html[data-orient="vertical"] .sweep { transfo
 html[data-orient="vertical"] .is-scrolling { animation-name:desk-scroll-y; }
 @keyframes desk-scroll-y { 0%,15% { transform:translateY(0); } 85%,100% { transform:translateY(calc(-1*var(--desk-overflow))); } }
 @media(prefers-reduced-motion:reduce) { .current.enter,.is-scrolling { animation:none; } }
+
+.stack[hidden] { display:none; }

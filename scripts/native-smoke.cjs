@@ -80,6 +80,7 @@ let app;
   });
   await deskPage.waitForTimeout(600);
   assert.ok(await deskPage.locator('#current').evaluate(el=>el.offsetWidth > document.querySelector('#viewport').clientWidth),'long lyrics use a clipped scrolling viewport');
+  assert.ok(await deskPage.locator('#current').evaluate(el=>el.getAnimations().some(a=>a.playState==='running')),'new lyric lines replay the entry animation');
   await deskPage.screenshot({path:path.join(out,'desktop-lyrics-rebuilt.png')});
   await deskPage.getByRole('button',{name:'锁定歌词',exact:true}).click();
   await page.waitForFunction(async ()=>(await window.tide.getDeskLyrics()).locked);

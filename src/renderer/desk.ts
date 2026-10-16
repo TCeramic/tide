@@ -19,6 +19,7 @@ let easeFrame = 0;
 let shown = "";
 let shownProgress = 1;
 let targetProgress = 1;
+let entrance: Animation | null = null;
 const viewport = document.querySelector<HTMLElement>("#viewport")!;
 const scroller = document.querySelector<HTMLElement>("#scroller")!;
 let overflow = 0;
@@ -101,8 +102,13 @@ function paint(cue: DeskCue): void {
   if (ink.textContent !== line) {
     ink.textContent = line;
     sweep.textContent = line;
-    currentEl.classList.remove("enter");
-    if (cue.motion && line.length > 0 && shown !== line) currentEl.classList.add("enter");
+    entrance?.cancel(); entrance = null;
+    if (cue.motion && line.length > 0 && shown !== line && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      entrance = currentEl.animate([
+        { opacity: 0, transform: `translate3d(0,${8 * level}px,-120px) rotateX(24deg) rotateY(-18deg) scale(.78)`, filter: `blur(${10 * level}px)` },
+        { opacity: cue.opacity, transform: "none", filter: "blur(0)" },
+      ], { duration: 820, easing: "cubic-bezier(.16,.84,.32,1.02)" });
+    }
     shown = line;
     requestAnimationFrame(() => { measureLine(); writeSweep(shownProgress); });
   }
