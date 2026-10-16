@@ -176,6 +176,8 @@ Playback commands cover get, play, pause, seek, volume, next, previous, queue, p
 
 ## Windows 包 / Windows package
 
+`0.9.2-test.4` 包含 test.3 的所有修复，并直接复用原版 Lens 搜索组件重做搜索框；分类默认隐藏，聚焦展开，失焦或 Esc 收起。
+
 `0.9.2-test.3` 重建透镜适配层，保留原版 Lens 光学与组件；逐字歌词改为真实音频时钟逐帧驱动，删除歌词页半透明底板，选歌只播放而不跳转。界面文字不再被拖动选中，指针保持箭头，按钮/标签提供悬停和选中反馈。
 
 `0.9.2-test.2` 修复透镜设置滚动、队列自动隐藏、长歌名挤动按钮和今日潮汐封面；加长进度条并显示拖动时间。新增逐字歌词与跟随交互、AMLL TTML 回退、Pretext 测量和 Paper 流动背景。无密钥可用本地封面配色；AI 自动调用接口与手动 JSON 导入已完成，尚未调用真实模型。来源、使用方法及验证边界见 [适配说明](docs/UPSTREAM_ADAPTATIONS.md)。

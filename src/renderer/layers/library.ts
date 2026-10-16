@@ -21,6 +21,7 @@ import {
 import type { IconNode } from "../icons";
 import { ICON_SIZE, iconButton, prependIcon, setIcon } from "../icons";
 import { showHome } from "../view";
+import { createNativeSearch } from "../native-shell.js";
 import { mountDeskForm } from "./desk-form";
 import { mountHome } from "./home";
 import { mountPresetForm } from "./preset-form";
@@ -51,10 +52,10 @@ export function mountLibrary(root: HTMLElement): {
 
   const searchForm = document.createElement("form");
   searchForm.className = "search";
-  const searchInput = document.createElement("input");
-  searchInput.type = "search";
+  const searchControl = createNativeSearch();
+  const searchInput = searchControl.input as HTMLInputElement;
   searchInput.className = "search-input";
-  searchInput.placeholder = "关键词";
+  searchInput.placeholder = "搜索音乐、歌手或专辑";
   searchInput.maxLength = 80;
   searchInput.setAttribute("aria-label", "搜索");
   const searchButton = iconButton("搜索", "Search", Search, ICON_SIZE.control);
@@ -63,12 +64,30 @@ export function mountLibrary(root: HTMLElement): {
   searchInput.disabled = true;
   const tabs = document.createElement("div");
   tabs.className = "search-tabs";
+  tabs.id = "search-categories";
+  tabs.hidden = true;
+  tabs.setAttribute("role", "group");
+  tabs.setAttribute("aria-label", "搜索分类");
+  searchInput.setAttribute("aria-controls", tabs.id);
+  searchInput.setAttribute("aria-expanded", "false");
   const tabSong = button("单曲");
   const tabArtist = button("歌手");
   const tabAlbum = button("专辑");
   const tabLyric = button("歌词");
   tabs.append(tabSong, tabArtist, tabAlbum, tabLyric);
-  searchForm.append(searchInput, searchButton, tabs);
+  searchForm.append(searchControl.element, searchButton, tabs);
+  const expandSearch = (open: boolean) => {
+    tabs.hidden = !open;
+    searchForm.classList.toggle("search-active", open);
+    searchInput.setAttribute("aria-expanded", String(open));
+  };
+  searchForm.addEventListener("focusin", () => expandSearch(true));
+  searchForm.addEventListener("focusout", () => window.setTimeout(() => {
+    if (!searchForm.contains(document.activeElement)) expandSearch(false);
+  }));
+  searchForm.addEventListener("keydown", event => {
+    if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); searchInput.blur(); expandSearch(false); }
+  });
 
   const searchNote = document.createElement("p");
   searchNote.className = "library-note";
@@ -965,6 +984,7 @@ export function mountLibrary(root: HTMLElement): {
       stopPoll();
       stopLiked();
       deskForm.destroy();
+      searchControl.destroy();
       proof.stop();
       panel.remove();
     },

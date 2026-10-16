@@ -241,3 +241,21 @@ html[data-shell="lens"][data-theme="tide"]:not([data-background="paper"]) #lyric
 
 #lyrics .lyrics-block { --tide-fg:var(--lyric-ink); --tide-muted:var(--lyric-base); color:var(--lyric-ink); }
 html[data-shell="lens"] :is(.lg-choice,.lyric-toggle,summary):not([aria-pressed="true"]):not([aria-selected="true"]) { color:inherit; }
+
+/* A compact search row; categories occupy a second row only while editing. */
+#app .topbar { padding:6px 10px; gap:10px; align-items:flex-start; border-radius:28px; }
+#app .topbar > .icon-button { margin-top:2px; width:40px; height:40px; flex:none; }
+#app .topbar .search { display:grid; grid-template-columns:minmax(0,1fr) 40px; align-items:center; gap:4px 8px; min-width:0; margin:0; }
+#app .native-search-control { min-width:0; width:100%; padding:0 14px; border-radius:22px; }
+#app .native-search-control input { display:block; height:42px; width:100%; padding:0; border:0; border-radius:0; background:none; font-size:14px; outline:none; }
+#app .search > .icon-button { width:40px; height:40px; }
+#app .search-tabs { grid-column:1/-1; flex:none; gap:6px; height:28px; align-items:center; margin:0; padding:0 4px; }
+#app .search-tabs .text-button { min-height:26px; padding:3px 12px; line-height:18px; }
+#app .search-active .search-tabs { animation:search-reveal 140ms ease-out; }
+#app .native-search-control:focus-within { box-shadow:inset 0 0 0 1px color-mix(in srgb,currentColor 28%,transparent); }
+html[data-view="playing"] #app .topbar { max-height:none; }
+@keyframes search-reveal { from { opacity:0; transform:translateY(-3px); } to { opacity:1; transform:translateY(0); } }
+@media(prefers-reduced-motion:reduce) { #app .search-active .search-tabs { animation:none; } }
+
+/* The viewport is a canvas, never a focus-scroll container. Menus scroll inside themselves. */
+#app { overflow:clip; }

@@ -11,6 +11,12 @@ import { mountDotText } from "./vendor/design-systems/lattice/src/dom/dottext.js
 import { mountLensShell } from "./lens-shell.js";
 import { mountPaperBackground } from "./paper-background.ts";
 
+export function createNativeSearch() {
+  const control = createComponent("search", { label:"搜索", placeholder:"搜索音乐、歌手或专辑" });
+  control.element.classList.add("native-search-control");
+  return { ...control, input:control.element.querySelector("input") };
+}
+
 export function createNativeChoiceRow(label, options, onPick) {
   const element = document.createElement("div");
   element.className = "native-choice-row";
