@@ -129,6 +129,8 @@ export function isStageBackground(value: unknown): value is StageBackground {
 
 /** Local UI knobs on #stage, #lyrics, and #chrome. No wallpaper engine and no particle clone. */
 export interface Appearance {
+  lensMode?: "light" | "dark";
+  latticeMode?: "light" | "dark";
   chromeVisible: boolean;
   stageLevel: number;
   theme: ThemeId;

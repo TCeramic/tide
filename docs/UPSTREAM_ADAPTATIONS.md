@@ -66,3 +66,9 @@ Folia 的 `useThemeController` 在缺少模型密钥时调用本地 `generateBui
 关闭交互改为播放器主题菜单与系统托盘。灵感模式按每次切歌随机插入一首实现，今日潮汐新增 20 首上限与刷新替换。前台渲染减少无效时钟、过滤歌词 DOM 噪声、限制背景预算并销毁退出主题的 GPU 资源。逐字歌词改用遮罩合成，保留音频时间驱动。
 
 原版 vendor 未修改；源码核验、功能说明与性能测量分别见 `verify:design-systems`、[TEST6.md](TEST6.md)、[PERFORMANCE_TEST6.md](PERFORMANCE_TEST6.md)。
+
+## 0.9.2-test.7 增量
+
+灵感续播按用户更正改为队尾单曲随机续接。点阵鼠标环直接复用原版 cursor.js 的圆环、轮廓采样和 Dots 弹簧；适配副本 lattice-cursor.js 增加事件/时钟/观察器清理和像素预算，原文件未改。明亮点阵采用原 WORLDS.paper，深色采用 WORLDS.night；透镜对应原 aurora/ocean。
+
+桌面歌词参考本机 Mineradio/resources/app/public/desktop-lyrics.html 的视觉与交互，自行实现 Tide 的 IPC、视窗滚动、逐字遮罩和悬停控制，未复制其脚本或依赖。测试说明见 TEST7.md。

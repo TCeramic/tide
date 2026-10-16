@@ -63,6 +63,8 @@ export function settingsFromUnknown(value: unknown): TideSettings {
   const captureMediaKeys = typeof record.captureMediaKeys === "boolean" ? record.captureMediaKeys : true;
   const deskLyrics = deskSettingsFromUnknown(record.deskLyrics);
   return {
+    lensMode: record.lensMode === "dark" ? "dark" : record.lensMode === "light" ? "light" : theme === "dusk" ? "dark" : "light",
+    latticeMode: record.latticeMode === "light" ? "light" : "dark",
     volume,
     chromeVisible,
     stageLevel,

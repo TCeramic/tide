@@ -8,8 +8,15 @@ import { DEFAULT_MEDIA_SHORTCUTS } from "../core/media-keys";
 import { SettingsStore, settingsFromUnknown } from "./settings";
 
 describe("settings", () => {
+  it("persists independent modes and migrates old scenes", () => {
+    assert.equal(settingsFromUnknown({theme:"dusk"}).lensMode,"dark");
+    const value = settingsFromUnknown({lensMode:"dark",latticeMode:"light"});
+    assert.equal(value.lensMode,"dark"); assert.equal(value.latticeMode,"light");
+    assert.equal(settingsFromUnknown({lensMode:"invalid"}).lensMode,"light");
+  });
   it("keeps only a clamped volume and the local ui knobs", () => {
     assert.deepEqual(settingsFromUnknown({ volume: 2, cookie: "MUSIC_U=secret", theme: "wallpaper" }), {
+      lensMode: "light", latticeMode: "dark",
       volume: 1,
       chromeVisible: true,
       stageLevel: 1,
@@ -29,6 +36,7 @@ describe("settings", () => {
       fontFile: "",
     });
     assert.deepEqual(settingsFromUnknown({ volume: -1, stageLevel: 2, chromeVisible: false, theme: "dusk", motion: 2, quality: "hires" }), {
+      lensMode: "dark", latticeMode: "dark",
       volume: 0,
       chromeVisible: false,
       stageLevel: 1,
@@ -48,6 +56,7 @@ describe("settings", () => {
       fontFile: "",
     });
     assert.deepEqual(settingsFromUnknown({ volume: "0.2", motion: 0, quality: "surround" }), {
+      lensMode: "light", latticeMode: "dark",
       volume: 0.8,
       chromeVisible: true,
       stageLevel: 1,
@@ -80,6 +89,7 @@ describe("settings", () => {
     store.write({ volume: 0.2 });
     const saved = JSON.parse(fs.readFileSync(file, "utf8")) as Record<string, unknown>;
     assert.deepEqual(saved, {
+      lensMode: "light", latticeMode: "dark",
       volume: 0.2,
       chromeVisible: true,
       stageLevel: 1,

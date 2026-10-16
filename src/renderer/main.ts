@@ -109,6 +109,7 @@ function applyAppearance(appearance: Appearance): void {
   const root = document.documentElement;
   root.dataset.theme = isThemeId(appearance.theme) ? appearance.theme : "tide";
   root.dataset.shell = appearance.shell === "lattice" ? "lattice" : "lens";
+  root.dataset.colorMode = appearance.shell === "lattice" ? appearance.latticeMode ?? "dark" : appearance.lensMode ?? (appearance.theme === "dusk" ? "dark" : "light");
   root.dataset.preset = appearance.preset;
   root.dataset.performance = appearance.performance;
   root.dataset.background = appearance.background;

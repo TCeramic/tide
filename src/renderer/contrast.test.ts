@@ -15,7 +15,7 @@ describe("lyric contrast under the brightest wash", () => {
     const duskMuted = hex(readVar(css, "--tide-muted", "[data-theme=\"dusk\"]"));
     const duskFg = hex(readVar(css, "--tide-fg", "[data-theme=\"dusk\"]"));
     const native = fs.readFileSync("src/renderer/native-shell.css", "utf8");
-    const lensLyrics = 'html[data-shell="lens"][data-theme="tide"] .lyrics-block';
+    const lensLyrics = 'html[data-shell="lens"][data-color-mode="light"] .lyrics-block';
     assert.deepEqual(hex(readVar(native, "--tide-fg", lensLyrics)), tideFg);
     assert.deepEqual(hex(readVar(native, "--tide-muted", lensLyrics)), tideMuted);
     const pointTokens = fs.readFileSync("src/renderer/vendor/design-systems/lattice/src/tokens.css", "utf8");

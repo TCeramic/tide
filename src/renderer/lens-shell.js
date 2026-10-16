@@ -81,13 +81,13 @@ export function mountLensShell(root, portals, artwork) {
   return {
     sync(next) {
       appearance = next; system.renderer?.resize();
-      system.setScene(next.theme === "dusk" ? "ocean" : "aurora");
+      system.setScene((next.lensMode ?? (next.theme === "dusk" ? "dark" : "light")) === "dark" ? "ocean" : "aurora");
       system.renderer?.set({motion:next.motion > 0});
       if (system.renderer) system.renderer.canvas.style.opacity = String(next.stageLevel);
       system.jelly.setIntensity(next.motion > 0 ? next.motion * 0.7 : 0);
-      portals.dataset.scene = next.theme === "dusk" ? "ocean" : "aurora";
+      portals.dataset.scene = (next.lensMode ?? (next.theme === "dusk" ? "dark" : "light")) === "dark" ? "ocean" : "aurora";
     },
-    invalidateScene() { system.setScene(appearance?.theme === "dusk" ? "ocean" : "aurora"); },
+    invalidateScene() { system.setScene((appearance?.lensMode ?? (appearance?.theme === "dusk" ? "dark" : "light")) === "dark" ? "ocean" : "aurora"); },
     destroy() {
       dead = true; clearTimeout(renderTimer); for (const event of ["pointermove", "pointerdown", "wheel", "focusin"]) root.removeEventListener(event, interactive); document.removeEventListener("visibilitychange", activity); cancelAnimationFrame(frame); observer.disconnect(); system.destroy();
       root.classList.remove("lg-stage","fallback","webgl-ready");

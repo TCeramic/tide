@@ -6,7 +6,7 @@
 #app > #lyrics { z-index:1; }
 #app > #chrome { z-index:2; }
 html[data-shell="lens"] { --lens-radius:var(--lg-radius-panel); --lens-spring:var(--lg-ease-spring); }
-html[data-shell="lens"][data-theme="tide"] {
+html[data-shell="lens"][data-color-mode="light"] {
   --tide-bg:#d3e8e3; --tide-fg:var(--lg-color-text); --tide-muted:#4d5969;
   --tide-accent:var(--lg-color-accent); --tide-line:#273e5933; --tide-panel:#f5faff4d;
 }
@@ -14,7 +14,7 @@ html[data-shell="lens"][data-theme="tide"] {
 html[data-shell="lens"] .tide-titlebar { background:transparent; color:var(--tide-fg); }
 html[data-shell="lens"] .search-input { color:var(--tide-fg); }
 html[data-shell="lens"] .search-input::placeholder { color:var(--tide-muted); }
-html[data-shell="lens"][data-theme="tide"] .lyrics-block {
+html[data-shell="lens"][data-color-mode="light"] .lyrics-block {
   --tide-fg:#f7fbff; --tide-muted:#d7e6f2;
 }
 html[data-shell="lattice"] .lyrics-block { --lyric-plate:7,8,11; }
@@ -229,12 +229,12 @@ html[data-shell="lens"] :is(button[aria-pressed="true"],button[aria-selected="tr
   --glass-selection:1; color:var(--lg-optical-color,#215887); background:color-mix(in srgb,var(--lg-optical-color,#49709b) 18%,transparent);
   outline:1px solid var(--lg-optical-color,#49709b75); outline-offset:-1px;
 }
-html[data-shell="lens"][data-theme="dusk"] :is(button[aria-pressed="true"],button[aria-selected="true"],.hit.is-selected) { color:#e4fff1; outline-color:#a9c8e4; }
+html[data-shell="lens"][data-color-mode="dark"] :is(button[aria-pressed="true"],button[aria-selected="true"],.hit.is-selected) { color:#e4fff1; outline-color:#a9c8e4; }
 #lyrics { z-index:5; --lyric-ink:#f7fbff; --lyric-base:#a8b6c6; }
 .lyrics-block { background:none!important; box-shadow:none!important; border:0!important; backdrop-filter:none!important; border-radius:0; }
 .lyric-word { background:linear-gradient(to right,var(--lyric-ink) var(--word-fill,0%),var(--lyric-base) var(--word-fill,0%)); background-clip:text; -webkit-background-clip:text; }
-html[data-shell="lens"][data-theme="tide"]:not([data-background="paper"]) #lyrics { --lyric-ink:#163044; --lyric-base:#506478; }
-html[data-shell="lens"][data-theme="tide"]:not([data-background="paper"]) #lyrics :is(.lyrics-title,.lyrics-artist,.lyrics-source,.lyric-trans,.lyric-list li,.lyric-current,.lyrics-kicker,.lyric-tools,.lyric-offset-menu) { color:#163044; text-shadow:none; }
+html[data-shell="lens"][data-color-mode="light"]:not([data-background="paper"]) #lyrics { --lyric-ink:#163044; --lyric-base:#506478; }
+html[data-shell="lens"][data-color-mode="light"]:not([data-background="paper"]) #lyrics :is(.lyrics-title,.lyrics-artist,.lyrics-source,.lyric-trans,.lyric-list li,.lyric-current,.lyrics-kicker,.lyric-tools,.lyric-offset-menu) { color:#163044; text-shadow:none; }
 @media(prefers-reduced-motion:reduce) { button,[role="tab"],summary { transition:none; } }
 
 [hidden] { display:none!important; }
@@ -269,10 +269,10 @@ html[data-view="playing"] #app .topbar { max-height:none; }
 .track-context-menu .text-button:hover { background:#ffffff16; }
 .track-context-menu .collect { display:flex; flex-direction:column; align-items:stretch; margin:4px 0; padding:7px 6px; border-block:1px solid #ffffff20; color:inherit; }
 .track-context-menu .collect select { width:100%; min-height:32px; padding:4px 6px; color:inherit; background:transparent; border:1px solid #ffffff40; border-radius:6px; }
-html[data-shell="lens"][data-theme="tide"] .track-context-menu { background:#e8eff5; color:#163044; border-color:#16304430; }
-html[data-shell="lens"][data-theme="tide"] .track-context-menu .text-button:hover { background:#16304412; }
-html[data-shell="lens"][data-theme="tide"] .track-context-menu .collect { border-color:#16304420; }
-html[data-shell="lens"][data-theme="tide"] .track-context-menu select { border-color:#16304440; }
+html[data-shell="lens"][data-color-mode="light"] .track-context-menu { background:#e8eff5; color:#163044; border-color:#16304430; }
+html[data-shell="lens"][data-color-mode="light"] .track-context-menu .text-button:hover { background:#16304412; }
+html[data-shell="lens"][data-color-mode="light"] .track-context-menu .collect { border-color:#16304420; }
+html[data-shell="lens"][data-color-mode="light"] .track-context-menu select { border-color:#16304440; }
 select option,optgroup { color:#f1f6fc; background-color:#152233; }
 /* Music lineage is a library page, with persistent navigation and a readable directory. */
 #app .proof-host { background:transparent!important; border:0!important; box-shadow:none!important; backdrop-filter:none!important; color:var(--tide-fg); padding:0; border-radius:0; z-index:3; }
@@ -305,11 +305,11 @@ html[data-render-active="false"] :not(.desk-body) * { animation-play-state:pause
 .window-close-menu p { margin:0 0 16px; font-size:13px; line-height:1.6; opacity:.8; }
 .window-close-menu .text-button { width:100%; display:block; padding:12px 16px; margin-top:8px; color:inherit; text-align:left; background:transparent; border:1px solid #16304430; border-radius:14px; transition:background .18s,transform .18s; }
 .window-close-menu .text-button:hover { background:#ffffff70; }
-html[data-shell="lens"][data-theme="dusk"] .window-close-menu { background:#153047; color:#f7fbff; border-color:#ffffff40; }
+html[data-shell="lens"][data-color-mode="dark"] .window-close-menu { background:#153047; color:#f7fbff; border-color:#ffffff40; }
 html[data-shell="lattice"] .window-close-menu { background:var(--bg-2); color:var(--text); border:1px solid var(--line-strong); border-radius:var(--r-2); box-shadow:none; }
 html[data-shell="lattice"] .window-close-menu .text-button:hover { background:var(--bg); color:var(--hot); }
-html[data-shell="lens"][data-theme="dusk"] .window-close-menu .text-button { border-color:#ffffff30; }
-html[data-shell="lens"][data-theme="dusk"] .window-close-menu .text-button:hover { background:#ffffff18; }
+html[data-shell="lens"][data-color-mode="dark"] .window-close-menu .text-button { border-color:#ffffff30; }
+html[data-shell="lens"][data-color-mode="dark"] .window-close-menu .text-button:hover { background:#ffffff18; }
 html[data-shell="lattice"] .window-close-menu .text-button { border-color:var(--line-strong); }
 /* Clip cached glyph layers with compositor transforms instead of repainting gradients. */
 .lyric-list li { filter:none; transition:opacity .55s,transform .65s cubic-bezier(.2,.8,.2,1); }
@@ -320,3 +320,21 @@ html[data-shell="lattice"] .window-close-menu .text-button { border-color:var(--
 .lyric-current .word-mask { will-change:transform; }
 .lyric-list li.lyric-current,.word-base,.word-hot { text-shadow:none; }
 .lyric-word,.word-hot { white-space:pre-wrap; overflow-wrap:anywhere; max-width:100%; }
+
+/* The system pointer remains identical over all controls; particles are decorative. */
+html.has-cursor, html.has-cursor * { cursor:default!important; }
+html[data-shell="lens"][data-color-mode="dark"] {
+ --tide-bg:#193f64; --tide-fg:#f7fbff; --tide-muted:#c3d7e6; --tide-panel:#153047d9; --tide-line:#ffffff30; --tide-accent:#7fd8ff;
+}
+html[data-shell="lens"][data-color-mode="light"] { color-scheme:light; }
+html[data-shell="lattice"][data-color-mode="light"] { color-scheme:light; --bg-2:#e3e5df; --line-strong:#15171b44; }
+html[data-color-mode="light"] #lyrics { --lyric-ink:#163044; --lyric-base:#506478; }
+html[data-color-mode="dark"] #lyrics { --lyric-ink:#f7fbff; --lyric-base:#a8b6c6; }
+html[data-color-mode="dark"] #lyrics :is(.lyrics-title,.lyrics-artist,.lyrics-source,.lyric-trans,.lyric-list li,.lyric-current,.lyrics-kicker,.lyric-tools,.lyric-offset-menu) { color:var(--lyric-ink); }
+html[data-shell="lens"][data-color-mode="dark"] .track-context-menu { background:#153047; color:#f7fbff; border-color:#ffffff40; }
+html[data-shell="lattice"] :is(.track-context-menu,.window-close-menu) { background:var(--bg); color:var(--text); border-color:var(--line-strong); }
+html[data-shell="lattice"][data-color-mode="light"] #lyrics :is(.lyrics-title,.lyrics-artist,.lyrics-source,.lyric-trans,.lyric-list li,.lyric-current,.lyrics-kicker,.lyric-tools,.lyric-offset-menu) { color:var(--lyric-ink); }
+
+html[data-shell="lattice"] .tide-titlebar { background:transparent; color:var(--text); }
+html[data-shell="lattice"] #app .transport { color:var(--text); }
+html[data-shell="lattice"][data-color-mode="light"] .native-set-caption { color:var(--text-dim); }

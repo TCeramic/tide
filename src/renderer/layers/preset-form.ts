@@ -11,9 +11,9 @@ const PRESETS: { id: VisualPresetId; title: string; detail: string }[] = [
 ];
 
 const TIERS: { id: PerformanceTier; label: string }[] = [
-  { id: "smooth", label: "流畅" },
-  { id: "balanced", label: "均衡" },
-  { id: "vivid", label: "炫酷" },
+  { id: "smooth", label: "低" },
+  { id: "balanced", label: "中" },
+  { id: "vivid", label: "高" },
 ];
 
 const BACKGROUNDS: { id: StageBackground; label: string }[] = [
@@ -75,6 +75,8 @@ export function mountPresetForm(): {
   const tierRow = createNativeChoiceRow("性能", TIERS, (id) => void window.tide.setAppearance({ performance: id as PerformanceTier }));
   const backgroundRow = createNativeChoiceRow("背景", BACKGROUNDS, (id) => void window.tide.setAppearance({ background: id as StageBackground }));
   const shellRow = createNativeChoiceRow("设计系统", SHELLS, (id) => void window.tide.setAppearance({ shell: id as ShellId }));
+  let currentShell: ShellId = "lens";
+  const modeRow = createNativeChoiceRow("明暗模式", [{ id: "light", label: "明亮" }, { id: "dark", label: "深色" }], id => void window.tide.setAppearance(currentShell === "lens" ? { lensMode: id as "light" | "dark" } : { latticeMode: id as "light" | "dark" }));
   const fontRow = createNativeChoiceRow("字体", FONTS, (id) => void window.tide.setAppearance({ fontPreset: id as FontPresetId }));
   const catalogs = document.createElement("div");
   catalogs.className = "preset-catalogs";
@@ -116,11 +118,13 @@ export function mountPresetForm(): {
   const later = document.createElement("p");
   later.className = "library-note";
   later.textContent = "Lens / Lattice · DayDreamInAReverie · MIT";
-  root.append(kicker, hint, shellRow.element, catalogs, grid, detailHeading, tierRow.element, backgroundRow.element, fontRow.element, family, importFont, imageButton, later);
+  root.append(kicker, hint, shellRow.element, modeRow.element, catalogs, grid, detailHeading, tierRow.element, backgroundRow.element, fontRow.element, family, importFont, imageButton, later);
 
   return {
     element: root,
     sync(appearance) {
+      currentShell = appearance.shell;
+      modeRow.sync(appearance.shell === "lens" ? appearance.lensMode ?? (appearance.theme === "dusk" ? "dark" : "light") : appearance.latticeMode ?? "dark");
       shellRow.sync(appearance.shell);
       tierRow.sync(appearance.performance);
       backgroundRow.sync(appearance.background);

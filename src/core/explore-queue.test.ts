@@ -26,10 +26,10 @@ describe("explore queue", () => {
     assert.equal(shouldInspireNow(10, 4, "off", false, true), false);
     assert.equal(shouldInspireNow(10, 9, "off", false, true), true);
     assert.equal(shouldInspireNow(10, 9, "all", false, true), false);
-    assert.equal(shouldInspireNow(10, 6, "off", true, true), true);
+    assert.equal(shouldInspireNow(10, 6, "off", true, true), false);
     assert.equal(shouldInspireNow(10, 2, "off", true, true), false);
     assert.equal(shouldInspireNow(10, 9, "off", true, false), false);
-    assert.equal(shouldInspireNow(8, 5, "one", true, true), true);
+    assert.equal(shouldInspireNow(8, 5, "one", true, true), false);
   });
 });
 

@@ -345,7 +345,7 @@ export function attachPlayback(
   async function extendExplore(): Promise<void> {
     await extendPlaylist();
     const state = machine.getState();
-    if (!state.explore || state.index < 0) return;
+    if (!state.explore || state.repeat !== "off" || state.index < 0 || state.index !== state.queue.length - 1 || source?.hasMore) return;
     const key = `${queueVersion}:${recommendationVersion}`;
     if (inspiredKey === key) return inspiring ?? undefined;
     inspiredKey = key;
@@ -366,7 +366,7 @@ export function attachPlayback(
       if (!hit) { send(Ipc.notice, "暂时没有更多相似歌曲，灵感模式保留现有队列。"); return; }
       recommendedIds.add(hit.id); recentRecommendations.add(hit.id);
       if (recentRecommendations.size > 100) recentRecommendations.delete(recentRecommendations.values().next().value!);
-      publish(machine.insertNext(asTrack(hit)));
+      publish(machine.appendTracks([asTrack(hit)]));
     })();
     inspiring = job;
     try { await job; } finally { if (inspiring === job) inspiring = null; }

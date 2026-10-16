@@ -19,6 +19,18 @@ let easeFrame = 0;
 let shown = "";
 let shownProgress = 1;
 let targetProgress = 1;
+const viewport = document.querySelector<HTMLElement>("#viewport")!;
+const scroller = document.querySelector<HTMLElement>("#scroller")!;
+let overflow = 0;
+function measureLine(): void {
+  overflow = root.dataset.orient === "vertical" ? Math.max(0, currentEl.offsetHeight - viewport.clientHeight) : Math.max(0, currentEl.offsetWidth - viewport.clientWidth);
+  scroller.style.setProperty("--desk-overflow", `${overflow}px`);
+}
+new ResizeObserver(measureLine).observe(viewport);
+window.tide.getDeskLyrics().then(settings => root.dataset.locked = String(settings.locked));
+window.tide.onDeskState(settings => root.dataset.locked = String(settings.locked));
+document.querySelector("#desk-lock")?.addEventListener("click", () => void window.tide.setDeskLyrics({ locked: true }));
+document.querySelector("#desk-close")?.addEventListener("click", () => void window.tide.setDeskLyrics({ open: false }));
 
 const ink = document.createElement("span");
 ink.className = "ink";
@@ -33,6 +45,7 @@ currentEl.replaceChildren(ink, mask);
 function writeSweep(value: number): void {
   const amount = Math.min(1, Math.max(0, value));
   const vertical = root.dataset.orient === "vertical";
+  scroller.style.transform = `translate${vertical ? "Y" : "X"}(${-overflow * amount}px)`;
   const axis = vertical ? "Y" : "X";
   if (amount <= 0.001) {
     mask.style.opacity = "0";
@@ -58,6 +71,7 @@ function easeSweep(): void {
 }
 
 function paint(cue: DeskCue): void {
+  root.style.setProperty("--desk-color", cue.color);
   root.style.setProperty("--desk-size", `${cue.fontSize}px`);
   root.style.setProperty("--desk-opacity", String(cue.opacity));
   root.style.setProperty("--glow", cue.farGlow ? String(cue.glow) : String(Math.min(cue.glow, 0.28)));
@@ -90,8 +104,9 @@ function paint(cue: DeskCue): void {
     currentEl.classList.remove("enter");
     if (cue.motion && line.length > 0 && shown !== line) currentEl.classList.add("enter");
     shown = line;
+    requestAnimationFrame(() => { measureLine(); writeSweep(shownProgress); });
   }
-  currentEl.classList.toggle("is-long", line.length > 18);
+  scroller.classList.toggle("is-scrolling", !cue.wordLevel && cue.motion && cue.playing && overflow > 0);
   const translation = cue.pair && !cue.empty ? cue.translation : "";
   transEl.hidden = translation.length === 0;
   transEl.textContent = translation;

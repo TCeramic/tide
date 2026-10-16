@@ -5,9 +5,9 @@ import type { ShellId } from "../shared/contract";
  * Lens follows the original aurora / ocean scene palette.
  * Lattice uses the ink ground (`#07080b`) and bone symbols (`#ece7da`).
  */
-export function titleBarChrome(shell: ShellId, theme = "tide"): { color: string; symbolColor: string; height: number } {
+export function titleBarChrome(shell: ShellId, theme = shell === "lattice" ? "dusk" : "tide"): { color: string; symbolColor: string; height: number } {
   if (shell === "lattice") {
-    return { color: "#00000000", symbolColor: "#ece7da", height: 36 };
+    return { color: "#00000000", symbolColor: theme === "tide" ? "#22252b" : "#ece7da", height: 36 };
   }
   return theme === "dusk"
     ? { color: "#00000000", symbolColor: "#f2f7fc", height: 36 }

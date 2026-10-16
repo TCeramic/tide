@@ -83,14 +83,16 @@ function applyTitleBar(win: BrowserWindow, shell: "lens" | "lattice", theme = "t
 
 function createWindow(): BrowserWindow {
   const shell = settingsStore?.read().shell ?? "lens";
-  const theme = settingsStore?.read().theme ?? "tide";
+  const savedAppearance = settingsStore?.read();
+  const mode = shell === "lens" ? savedAppearance?.lensMode : savedAppearance?.latticeMode;
+  const theme = mode === "dark" ? "dusk" : "tide";
   const win = new BrowserWindow({
     width: 1100,
     height: 720,
     minWidth: 800,
     minHeight: 560,
     show: false,
-    backgroundColor: windowBackground(shell, theme),
+    backgroundColor: shell === "lattice" && mode === "light" ? "#eff0ec" : windowBackground(shell, theme),
     title: "潮汐 Tide",
     icon: windowIcon(),
     autoHideMenuBar: true,
@@ -179,6 +181,7 @@ function stopApi(): void {
 
 function appearanceOf(value: Appearance): Appearance {
   return {
+    lensMode: value.lensMode, latticeMode: value.latticeMode,
     chromeVisible: value.chromeVisible,
     stageLevel: value.stageLevel,
     theme: value.theme,
@@ -199,8 +202,8 @@ function pushAppearance(): void {
   const win = mainWindow;
   if (win && !win.isDestroyed()) {
     win.webContents.send(Ipc.appearance, appearance);
-    applyTitleBar(win, appearance.shell, appearance.theme);
-    win.setBackgroundColor(windowBackground(appearance.shell, appearance.theme));
+    applyTitleBar(win, appearance.shell, (appearance.shell === "lens" ? appearance.lensMode : appearance.latticeMode) === "light" ? "tide" : "dusk");
+    win.setBackgroundColor(appearance.shell === "lattice" ? appearance.latticeMode === "light" ? "#eff0ec" : "#07080b" : windowBackground("lens", appearance.lensMode === "dark" ? "dusk" : "tide"));
   }
   commandServer?.publish({ type: "appearance", appearance });
 }

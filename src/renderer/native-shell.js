@@ -7,9 +7,10 @@ import { createGlassSystem, createComponent } from "./vendor/design-systems/lens
 import { clock as latticeClock } from "./vendor/design-systems/lattice/src/core/motion.js";
 import { Field } from "./vendor/design-systems/lattice/src/gl/field.js";
 import * as sets from "./vendor/design-systems/lattice/src/gl/sets.js";
-import { WORLDS } from "./vendor/design-systems/lattice/src/core/theme.js";
+import { WORLDS, applyWorldCss } from "./vendor/design-systems/lattice/src/core/theme.js";
 import { mountTabs, mountSlider } from "./vendor/design-systems/lattice/src/dom/controls.js";
 import { mountDotText } from "./vendor/design-systems/lattice/src/dom/dottext.js";
+import { mountCursor } from "./lattice-cursor.js";
 import { mountLensShell } from "./lens-shell.js";
 import { mountPaperBackground } from "./paper-background.ts";
 
@@ -95,6 +96,7 @@ export function openDesignCatalog(shell) {
 }
 
 export function mountNativeShell(root) {
+  let cursor = null;
   let appearance, glass = null, points = null, pointTier = "", destroyed = false;
   let widgetFrame = 0, widgetTimer = 0, widgetLast = 0;
   const widgetTick = now => {
@@ -139,7 +141,10 @@ export function mountNativeShell(root) {
   }
   function sync(next) {
     if (destroyed) return;
-    appearance = next; clockActivity();
+    appearance = next;
+    applyWorldCss(next.shell === "lattice" && next.latticeMode === "light" ? "paper" : "night");
+    if (next.shell === "lens") document.documentElement.style.colorScheme = document.documentElement.dataset.colorMode;
+    clockActivity();
     paper.sync(next);
     popupLayer.hidden = !next.chromeVisible;
     const cssImage = document.documentElement.style.getPropertyValue("--tide-image");
@@ -151,11 +156,13 @@ export function mountNativeShell(root) {
     }
     delete root.dataset.nativeFallback;
     if (next.shell === "lens") {
+      cursor?.destroy?.(); cursor = null;
       points?.destroy(); points = null;
       startLens();
       glass.sync(next);
     } else stopLens();
     if (next.shell === "lattice") {
+      cursor ||= mountCursor();
       if (points && pointTier !== next.performance) { points.destroy(); points = null; }
       if (!points) {
         try { points = mountPointField(root, next.performance); pointTier = next.performance; }
@@ -187,7 +194,7 @@ export function mountNativeShell(root) {
     wrap.className = "lx-slider native-point-range";
     input.before(wrap); wrap.append(input); mountSlider(input);
   }
-  return { sync, destroy() { destroyed = true; document.removeEventListener("visibilitychange", clockActivity); cancelAnimationFrame(latticeClock._raf); cancelAnimationFrame(widgetFrame); clearTimeout(widgetTimer); stopLens(); points?.destroy(); paper.destroy(); rangeObserver.disconnect(); popupLayer.remove(); } };
+  return { sync, destroy() { destroyed = true; cursor?.destroy?.(); document.removeEventListener("visibilitychange", clockActivity); cancelAnimationFrame(latticeClock._raf); cancelAnimationFrame(widgetFrame); clearTimeout(widgetTimer); stopLens(); points?.destroy(); paper.destroy(); rangeObserver.disconnect(); popupLayer.remove(); } };
 }
 
 // Embed the original Field and set generators into a desktop viewport. This host supplies
@@ -350,7 +357,9 @@ function mountPointField(root, tier = "balanced") {
     sync(appearance) {
       paused = appearance.motion === 0 || matchMedia("(prefers-reduced-motion: reduce)").matches;
       stage.dpr = appearance.performance === "vivid" ? Math.min(2, devicePixelRatio || 1) : appearance.performance === "smooth" ? 1 : Math.min(1.5, devicePixelRatio || 1);
-      scene.background = appearance.shell === "lens" || appearance.background === "paper" ? null : new THREE.Color(WORLDS.night.bg);
+      const world = appearance.latticeMode === "light" ? WORLDS.paper : WORLDS.night;
+      field.setWorld(world);
+      scene.background = appearance.shell === "lens" || appearance.background === "paper" ? null : new THREE.Color(world.bg);
       canvas.style.opacity = String(appearance.stageLevel * (appearance.shell === "lens" ? 0.3 : 1));
       resize(); wake();
     },

@@ -140,7 +140,7 @@ export function mountProof(host: HTMLElement, onSong: (id: string, name: string)
         tree.setWorld({ ink: css.getPropertyValue("--tide-fg").trim() || "#ece7da", hot: css.getPropertyValue("--tide-accent").trim() || "#ff5a1f", hot2: css.getPropertyValue("--tide-muted").trim() || "#7fd8ff", blend: "normal", gridAlpha: 0 });
       };
       palette();
-      const theme = new MutationObserver(palette); theme.observe(document.documentElement, { attributes: true, attributeFilter: ["data-shell", "data-theme"] });
+      const theme = new MutationObserver(palette); theme.observe(document.documentElement, { attributes: true, attributeFilter: ["data-shell", "data-theme", "data-color-mode", "data-world"] });
       tree.grow(current.id);
       const loop = (now: number) => {
         frame = 0;

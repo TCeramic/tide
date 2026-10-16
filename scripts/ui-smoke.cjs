@@ -45,8 +45,18 @@ setAppearance:async patch=>{Object.assign(appearance,patch);listeners.onAppearan
  });
  await page.goto('http://127.0.0.1:4179/');
  await page.waitForTimeout(1800);
+ for(const shell of ['lens','lattice']) for(const mode of ['light','dark']) {
+  await page.evaluate(({shell,mode})=>window.tide.setAppearance({shell,[shell+'Mode']:mode}),{shell,mode});
+  await page.waitForTimeout(250);
+  assert.equal(await page.locator('html').getAttribute('data-color-mode'),mode);
+  assert.equal(await page.locator('.lx-cursor').count(),shell==='lattice'?1:0);
+  await page.mouse.move(300,80); await page.waitForTimeout(100);
+  assert.equal(await page.locator('body').evaluate(el=>getComputedStyle(el).cursor),'default');
+  await page.screenshot({path:path.join(output,`${shell}-${mode}.png`)});
+ }
+ await page.evaluate(()=>window.tide.setAppearance({shell:'lens',lensMode:'light',latticeMode:'dark'}));
  await page.screenshot({path:path.join(output,'lens-home.png')});
- assert.equal(await page.locator('.search-tabs').isVisible(),false);
+ await page.locator('.search-tabs').waitFor({state:"hidden"});
  await page.getByRole('searchbox',{name:'搜索',exact:true}).focus();
  assert.equal(await page.locator('.search-tabs').isVisible(),true);
  await page.getByRole('button',{name:'歌手',exact:true}).click();
@@ -55,12 +65,12 @@ setAppearance:async patch=>{Object.assign(appearance,patch);listeners.onAppearan
  await page.waitForTimeout(200);
  await page.screenshot({path:path.join(output,'lens-search-focused.png')});
  await page.getByRole('button',{name:'主页',exact:true}).click();
- assert.equal(await page.locator('.search-tabs').isVisible(),false);
+ await page.locator('.search-tabs').waitFor({state:"hidden"});
  await page.getByRole('searchbox',{name:'搜索',exact:true}).focus();
  await page.getByRole('button',{name:'单曲',exact:true}).click();
  await page.getByRole('searchbox',{name:'搜索',exact:true}).focus();
  await page.keyboard.press('Escape');
- assert.equal(await page.locator('.search-tabs').isVisible(),false);
+ await page.locator('.search-tabs').waitFor({state:"hidden"});
  console.log('SEARCH_FOCUS_CATEGORY_SELECTION_COLLAPSE passed');
  assert.equal(await page.locator('.queue-col').isVisible(),false);
  await page.locator('.peek-queue').hover({position:{x:4,y:4}});

@@ -174,6 +174,12 @@ function readMode(record: Record<string, unknown>, host: CommandHost): Promise<u
 export function appearancePatchFromArgs(args: unknown): Partial<Appearance> | null {
   const record = args && typeof args === "object" && !Array.isArray(args) ? args as Record<string, unknown> : {};
   const patch: Partial<Appearance> = {};
+  for (const key of ["lensMode", "latticeMode"] as const) {
+    if (key in record) {
+      if (record[key] !== "light" && record[key] !== "dark") return null;
+      patch[key] = record[key];
+    }
+  }
   if ("chromeVisible" in record) {
     if (typeof record.chromeVisible !== "boolean") return null;
     patch.chromeVisible = record.chromeVisible;
@@ -219,7 +225,7 @@ export function appearancePatchFromArgs(args: unknown): Partial<Appearance> | nu
     patch.fontFamily = record.fontFamily;
   }
   if (
-    patch.chromeVisible === undefined
+    patch.lensMode === undefined && patch.latticeMode === undefined && patch.chromeVisible === undefined
     && patch.stageLevel === undefined
     && patch.theme === undefined
     && patch.motion === undefined
