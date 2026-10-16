@@ -264,6 +264,14 @@ export class PlaybackMachine {
     return snapshot;
   }
 
+  replaceUpcoming(tracks: readonly Track[]): PlaybackSnapshot {
+    const history = this.snapshot.queue.slice(0, this.snapshot.index + 1);
+    const currentId = history.at(-1)?.id;
+    const fresh = [...new Map(tracks.map(cloneTrack).filter(track => track.id !== currentId).map(track => [track.id, track])).values()];
+    this.snapshot = { ...this.snapshot, queue: [...history, ...fresh] };
+    const snapshot = this.getState(); this.events.emit("queue", { snapshot }); return snapshot;
+  }
+
   /** Place a track so it plays after the current one. */
   insertNext(track: Track): PlaybackSnapshot {
     const clean = cloneTrack(track);

@@ -89,16 +89,16 @@ export function mountLyrics(root: HTMLElement): {
   let positionMs = 0;
   let bundles = { original: [] as LyricLine[], translation: [] as LyricLine[], romaji: [] as LyricLine[], yrc: [] as YrcLine[] };
   let pendingPosition = 0;
-  let paintFrame = 0;
+  let paintFrame = 0, lastPaint = 0;
   let disposed = false;
-  const tick = () => {
+  const tick = (now: number) => {
     paintFrame = 0;
     if (disposed || !isRenderingActive() || document.documentElement.dataset.view !== "playing") return;
     const clock = readAudioClock(shownId);
-    paint(clock?.positionMs ?? pendingPosition);
+    if (!clock?.playing || now - lastPaint >= 13) { lastPaint = now; paint(clock?.positionMs ?? pendingPosition); }
     if (clock?.playing) paintFrame = requestAnimationFrame(tick);
   };
-  const wake = () => { if (!disposed && !paintFrame) paintFrame = requestAnimationFrame(tick); };
+  const wake = () => { if (!disposed && isRenderingActive() && !paintFrame) paintFrame = requestAnimationFrame(tick); };
   const stopView = onShellView(wake);
   const stopAudioClock = onAudioClockChange(wake);
   document.addEventListener("visibilitychange", wake);
@@ -115,7 +115,8 @@ export function mountLyrics(root: HTMLElement): {
 
   const usingYrc = (): boolean => (view === "both" || view === "original") && bundles.yrc.length > 0;
 
-  const timedRows = (): LyricLine[] => {
+  let cachedRows: LyricLine[] | null = null;
+  const computeRows = (): LyricLine[] => {
     if (usingYrc()) return bundles.yrc.map((row) => ({ timeMs: row.timeMs, text: row.text }));
     if (view === "both") {
       return pairLyrics(bundles.original, bundles.translation).map((row) => ({
@@ -125,6 +126,9 @@ export function mountLyrics(root: HTMLElement): {
     }
     return bundles[view];
   };
+
+  const timedRows = () => cachedRows ??= computeRows();
+  const wordPaint = new WeakMap<HTMLElement, string>();
 
   const publishDesk = () => {
     window.tide.pushDeskLines({
@@ -151,7 +155,11 @@ export function mountLyrics(root: HTMLElement): {
     if (wordNodes.length && wordLine) {
       wordNodes.forEach((node, cursor) => {
         const word = wordLine.words[cursor]; const fill = word ? wordFill(word, at) : 0;
-        node.style.setProperty("--word-fill", `${(fill * 100).toFixed(2)}%`);
+        const value = `${(fill * 100).toFixed(2)}%`;
+        if (wordPaint.get(node) === value) return;
+        wordPaint.set(node, value); node.style.setProperty("--word-fill", value);
+        const mask = node.querySelector<HTMLElement>(".word-mask"), hot = node.querySelector<HTMLElement>(".word-hot");
+        if (mask && hot) writeLyricSweep(mask, hot, fill);
         node.classList.toggle("is-singing", fill > 0 && fill < 1);
       });
       return;
@@ -186,7 +194,12 @@ export function mountLyrics(root: HTMLElement): {
         item.classList.toggle("lyric-passed", index < next);
         item.style.setProperty("--lyric-distance", String(Math.min(4, Math.abs(index - next))));
         if (index !== next) item.querySelectorAll<HTMLElement>(".lyric-word").forEach(word => {
-          word.style.setProperty("--word-fill", index < next ? "100%" : "0%");
+          const value = index < next ? "100%" : "0%";
+          if (wordPaint.get(word) !== value) {
+            wordPaint.set(word, value); word.style.setProperty("--word-fill", value);
+            const mask = word.querySelector<HTMLElement>(".word-mask"), hot = word.querySelector<HTMLElement>(".word-hot");
+            if (mask && hot) writeLyricSweep(mask, hot, index < next ? 1 : 0);
+          }
           word.classList.remove("is-singing");
         });
       });
@@ -208,6 +221,7 @@ export function mountLyrics(root: HTMLElement): {
   };
 
   const renderLines = () => {
+    cachedRows = null;
     active = -1;
     list.replaceChildren();
     both.setAttribute("aria-pressed", view === "both" ? "true" : "false");
@@ -245,7 +259,13 @@ export function mountLyrics(root: HTMLElement): {
         hot.textContent = row.original;
         mask.append(hot);
         if (words.length > 0) {
-          for (const word of words) { const span = document.createElement("span"); span.className = "lyric-word"; span.textContent = word.text; origin.append(span); }
+          for (const word of words) {
+            const span = document.createElement("span"); span.className = "lyric-word";
+            const base = document.createElement("span"); base.className = "word-base"; base.textContent = word.text;
+            const mask = document.createElement("span"); mask.className = "word-mask"; mask.setAttribute("aria-hidden", "true");
+            const hot = document.createElement("span"); hot.className = "word-hot"; hot.textContent = word.text;
+            mask.append(hot); span.append(base, mask); origin.append(span);
+          }
         } else origin.append(run, mask);
         if (words.length > 0) origin.dataset.widths = words.map((word) => String(measureWord(word.text))).join(",");
         item.append(origin);
@@ -274,14 +294,19 @@ export function mountLyrics(root: HTMLElement): {
     }
     paint();
   };
+  const measurements = new WeakMap<HTMLElement, string>();
   const measureLines = () => {
+    let changed = false;
     for (const origin of Array.from(list.querySelectorAll<HTMLElement>(".lyric-origin"))) {
       const style = getComputedStyle(origin), height = Number.parseFloat(style.lineHeight) || 52;
+      const key = `${origin.clientWidth}:${style.font}:${origin.dataset.text}`;
+      if (measurements.get(origin) === key) continue;
+      measurements.set(origin, key); changed = true;
       const measured = measureTextLayout(origin.dataset.text ?? "", style.font || "40px sans-serif", origin.clientWidth, height);
       origin.style.minHeight = `${measured.height}px`;
       origin.dataset.measuredLines = String(measured.lineCount);
     }
-    if (performance.now() >= manualUntil) { active = -1; paint(); }
+    if (changed && performance.now() >= manualUntil) { active = -1; paint(); }
   };
   const layoutObserver = new ResizeObserver(measureLines); layoutObserver.observe(list);
   resume.addEventListener("click", () => { manualUntil = 0; active = -1; paint(); });
@@ -329,10 +354,9 @@ export function mountLyrics(root: HTMLElement): {
     const id = track?.id ?? null;
     if (id === shownId) {
       if (track) {
-        title.textContent = track.title; artist.textContent = track.artist;
+        if (title.textContent !== track.title) title.textContent = track.title; if (artist.textContent !== track.artist) artist.textContent = track.artist;
         if (artCover.dataset.cover !== (track.cover ?? "")) { paintCover(artCover, track.cover); artCover.dataset.cover = track.cover ?? ""; }
       }
-      publishDesk();
       return;
     }
     shownId = id;

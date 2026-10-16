@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { SearchHit } from "../shared/contract";
-import { profileSeeds, rankProfileMatches, exploreSeedIds, pickExploreAdditions, shouldExtendQueue, shouldInspireNow } from "./explore-queue";
+import { randomProfileMatch, profileSeeds, rankProfileMatches, exploreSeedIds, pickExploreAdditions, shouldExtendQueue, shouldInspireNow } from "./explore-queue";
 
 function hit(id: string, playable = true): SearchHit {
   return { id, title: id, artist: "相似", durationMs: 1000, playable };
@@ -42,4 +42,11 @@ it("samples the whole original playlist and gives liked songs three votes", () =
   assert.notDeepEqual(profileSeeds(profile, new Set(), 1), profileSeeds(profile, new Set(), 0));
   const ranked = rankProfileMatches([{ weight: 1, hits: [hit("200")] }, { weight: 3, hits: [hit("201")] }]);
   assert.equal(ranked[0].id, "201");
+});
+
+it("draws a single random candidate, preserves weights and skips queued/recent songs", () => {
+  const groups = [{ weight: 3, hits: [hit("201")] }, { weight: 1, hits: [hit("202"), hit("203")] }];
+  assert.equal(randomProfileMatch(groups, new Set(), new Set(), () => 0)?.id, "201");
+  assert.equal(randomProfileMatch(groups, new Set(), new Set(), () => .999)?.id, "203");
+  assert.equal(randomProfileMatch(groups, new Set(["201"]), new Set(["202"]), () => 0)?.id, "203");
 });

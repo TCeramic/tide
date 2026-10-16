@@ -46,12 +46,12 @@ export function mountProof(host: HTMLElement, onSong: (id: string, name: string)
   let nodes = new Map<string, LatticeNode>();
   let path: string[] = [];
   let page = 0;
-  let frame = 0;
+  let frame = 0, drawTimer = 0;
   let disposeGl = () => {};
   let running = false;
   let restart = () => {};
 
-  function stopGl() { cancelAnimationFrame(frame); frame = 0; disposeGl(); disposeGl = () => {}; }
+  function stopGl() { cancelAnimationFrame(frame); clearTimeout(drawTimer); drawTimer = 0; frame = 0; disposeGl(); disposeGl = () => {}; }
   function stop() { running = false; stopGl(); }
   function navigate(id: string) {
     const node = nodes.get(id);
@@ -149,9 +149,9 @@ export function mountProof(host: HTMLElement, onSong: (id: string, name: string)
         if (w !== width || h !== height) { width = w; height = h; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
         tree.update(last ? Math.min(.05, (now - last) / 1000) : 1 / 60, now / 1000, stage); last = now;
         renderer.render(scene, camera);
-        frame = requestAnimationFrame(loop);
+        drawTimer = window.setTimeout(() => { drawTimer = 0; frame = requestAnimationFrame(loop); }, document.documentElement.dataset.performance === "vivid" ? 1000 / 60 : 1000 / 30);
       };
-      restart = () => { if (!frame && running && isRenderingActive() && !host.hidden && document.documentElement.dataset.view !== "playing") { last = 0; frame = requestAnimationFrame(loop); } };
+      restart = () => { if (!frame && running && isRenderingActive() && !host.hidden && document.documentElement.dataset.view !== "playing") { clearTimeout(drawTimer); drawTimer = 0; last = 0; frame = requestAnimationFrame(loop); } };
       disposeGl = () => { abort.abort(); theme.disconnect(); tree.trees.forEach(t => t.dispose()); renderer.dispose(); labels.replaceChildren(); };
       restart();
     } catch {
@@ -160,7 +160,7 @@ export function mountProof(host: HTMLElement, onSong: (id: string, name: string)
     }
   }
   onShellView(() => restart());
-  document.addEventListener("visibilitychange", () => { if (!isRenderingActive()) { cancelAnimationFrame(frame); frame = 0; } else restart(); });
+  document.addEventListener("visibilitychange", () => { if (!isRenderingActive()) { cancelAnimationFrame(frame); clearTimeout(drawTimer); drawTimer = 0; frame = 0; } else restart(); });
   return {
     show: (_playlists: readonly PlaylistSummary[], hits: readonly SearchHit[]) => {
       stop(); running = true;

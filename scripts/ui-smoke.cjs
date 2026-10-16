@@ -30,9 +30,14 @@ const server = http.createServer((req,res)=>{if(req.url==='/fixture.wav'){const 
   const yrc=Array.from({length:12},(_,i)=>{const text=`测试歌词第${i+1}行 让文字跟随音乐`;return {timeMs:i*5000,durationMs:4500,text,words:Array.from(text).map((text,j)=>({text,timeMs:i*5000+j*180,durationMs:180}))};});
   data.aiStatus={configured:false,provider:'openai-compatible',model:''};
   data.lyric={ok:true,trackId:'1',lines:yrc.map(row=>({timeMs:row.timeMs,text:row.text})),translation:yrc.map(row=>({timeMs:row.timeMs,text:'Translation '+row.text})),romaji:[],yrc,source:'amll',credits:['QA fixture']};
+  window.fixtureClose=()=>listeners.onCloseRequest?.forEach(f=>f()); window.fixtureActions=[];
   window.fixtureSetPlayback=patch=>{Object.assign(snapshot,patch);listeners.onPlayback?.forEach(f=>f({...snapshot}));};
 
+  window.fixtureTodayGeneration=0; window.fixtureReplaced=0;
   window.tide=new Proxy({mediaKeys:{},
+    tideToday:async refresh=>{if(refresh)window.fixtureTodayGeneration++;window.fixtureTodayRows=Array.from({length:20},(_,i)=>({...tracks[0],id:String(500+window.fixtureTodayGeneration*20+i),title:`潮汐 ${window.fixtureTodayGeneration}-${i+1}`}));return {ok:true,hits:window.fixtureTodayRows,message:null};},
+    replaceUpcoming:async rows=>{window.fixtureReplaced++;const current=snapshot.queue[snapshot.index];snapshot.queue=[current,...rows.filter(h=>h.id!==current.id)];snapshot.index=0;listeners.onPlayback?.forEach(f=>f({...snapshot}));return {...snapshot};},
+    windowAction:async action=>window.fixtureActions.push(action),
     search:async(keywords,type)=>type===10?{ok:true,kind:'albums',albums:[{id:'2',name:'专辑名称'.repeat(12),artist:'测试歌手',cover}]}:{ok:true,kind:'songs',hits:keywords==='保留状态'?Array.from({length:30},(_,i)=>({...tracks[0],id:String(i+1),title:`保留曲目 ${i+1}`})):tracks},
     albumTracks:async()=>({ok:true,kind:'songs',hits:tracks}),
     addLocalTracks:async()=>{window.fixtureAdds++;data.localTracks=tracks;return tracks;},
@@ -219,7 +224,7 @@ setAppearance:async patch=>{Object.assign(appearance,patch);listeners.onAppearan
   await page.evaluate(i=>window.tide.setAppearance({shell:i%2?'lens':'lattice'}),i);
   await page.waitForTimeout(100);
  }
- assert.equal(await page.locator('.native-point-field').count(),1);
+ assert.equal(await page.locator('.native-point-field').count(),0);
  assert.equal(await page.locator('#app > .lg-canvas').count(),1);
  assert.equal(await page.locator('.native-point-range').count(),2);
  await page.evaluate(()=>window.tide.setAppearance({shell:'lattice',motion:0}));
@@ -232,10 +237,21 @@ setAppearance:async patch=>{Object.assign(appearance,patch);listeners.onAppearan
  await page.screenshot({path:path.join(output,'lens-small.png')});
  await page.evaluate(()=>window.tide.setAppearance({shell:'lens',lattice:true,motion:1}));
  await page.waitForTimeout(300);
- assert.equal(await page.locator('.native-point-field').isVisible(),true);
+ assert.equal(await page.locator('.native-point-field').count(),0);
  await page.evaluate(()=>window.tide.setAppearance({lattice:false}));
- assert.equal(await page.locator('.native-point-field').isVisible(),false);
+ assert.equal(await page.locator('.native-point-field').count(),0);
  console.log('REPEATED_SWITCH_AND_SMALL_WINDOW','passed');
+ await page.evaluate(()=>window.fixtureClose());
+ assert.equal(await page.getByRole('dialog',{name:'关闭 Tide',exact:true}).isVisible(),true);
+ await page.screenshot({path:path.join(output,'themed-close-lens.png')});
+ await page.getByRole('button',{name:'取消',exact:true}).click();
+ assert.equal(await page.getByRole('dialog',{name:'关闭 Tide',exact:true}).count(),0);
+ await page.evaluate(()=>{window.tide.setAppearance({shell:'lattice'});window.fixtureClose();});
+ await page.screenshot({path:path.join(output,'themed-close-lattice.png')});
+ await page.getByRole('button',{name:'收起到系统托盘',exact:true}).click();
+ assert.equal(await page.evaluate(()=>window.fixtureActions.at(-1)),'tray');
+ await page.evaluate(()=>window.tide.setAppearance({shell:'lens',lattice:false}));
+
  await page.getByRole('button',{name:'设置',exact:true}).click();
  await page.getByRole('button',{name:'主页',exact:true}).click();
  for(const size of [{width:1440,height:960},{width:1100,height:720},{width:800,height:560}]) {
@@ -303,6 +319,7 @@ setAppearance:async patch=>{Object.assign(appearance,patch);listeners.onAppearan
  await page.waitForFunction(()=>document.querySelector('.lyric-current')?.textContent.includes('第3行'));
  console.log('CONTINUOUS_AUDIO_CLOCK',samples,'distinct frames');
  await page.waitForTimeout(700);
+ assert.equal(await page.locator('.word-hot').first().evaluate(el=>getComputedStyle(el).color),'rgb(22, 48, 68)');
  await page.screenshot({path:path.join(output,'lens-lyrics.png')});
  await page.locator('.lyric-list').hover(); await page.mouse.wheel(0,400); await page.waitForTimeout(200);
  assert.equal(await page.getByRole('button',{name:'恢复歌词跟随',exact:true}).isVisible(),true);
@@ -342,6 +359,23 @@ setAppearance:async patch=>{Object.assign(appearance,patch);listeners.onAppearan
   await page.screenshot({path:path.join(output,`${shell}-small-lyrics.png`)});
  }
  console.log('LYRICS_WORDS_FOLLOW_PAPER_AI_IMPORT','passed');
+ await page.setViewportSize({width:1440,height:960});
+ await page.getByRole('button',{name:'主页',exact:true}).click();
+ await page.locator('.home-card').filter({has:page.locator('h2',{hasText:'今日潮汐'})}).click();
+ await page.waitForFunction(()=>document.querySelectorAll('.hits .hit-row').length===20);
+ const todayBefore=await page.locator('.hit-title').first().innerText();
+ await page.evaluate(()=>window.fixtureSetPlayback({queue:window.fixtureTodayRows,index:0,positionMs:1234,status:'paused'}));
+ await page.getByRole('button',{name:'刷新今日潮汐',exact:true}).click();
+ await page.waitForFunction(()=>window.fixtureReplaced===1);
+ assert.equal(await page.locator('.hit-row').count(),20);
+ assert.notEqual(await page.locator('.hit-title').first().innerText(),todayBefore);
+ const refreshedState=await page.evaluate(()=>window.tide.getPlayback());
+ assert.equal(refreshedState.queue[refreshedState.index].id,'500');
+ assert.equal(refreshedState.positionMs,1234);
+ assert.equal(refreshedState.queue[1].id,'520');
+ await page.screenshot({path:path.join(output,'today-20-refresh.png')});
+ console.log('TODAY_20_REFRESH_PRESERVES_CURRENT_AUDIO_REPLACES_UPCOMING','passed');
+
  console.log('ERRORS',JSON.stringify(errors));
  assert.deepEqual(errors,[]);
  console.log('UI_SMOKE_PASS');

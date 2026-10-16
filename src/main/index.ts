@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, globalShortcut, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, Menu, Tray, globalShortcut, ipcMain } from "electron";
 import { titleBarChrome, windowBackground } from "../core/titlebar";
 import fs from "node:fs";
 import path from "node:path";
@@ -40,6 +40,7 @@ if (process.env.TIDE_SOFTWARE_GL === "1") {
 if (process.env.TIDE_USER_DATA) app.setPath("userData", process.env.TIDE_USER_DATA);
 
 let mainWindow: BrowserWindow | null = null;
+let tray: Tray | null = null;
 let activeBusPort = DEFAULT_BUS_PORT;
 let apiProcess: ApiProcess | null = null;
 let apiPort: number | null = null;
@@ -113,22 +114,36 @@ function createWindow(): BrowserWindow {
     event.preventDefault();
     if (closePrompt) return;
     closePrompt = true;
-    void dialog.showMessageBox(win, {
-      type: "question", title: "潮汐 Tide", message: "要如何离开 Tide？",
-      detail: "最小化到任务栏后音乐会继续播放。", buttons: ["最小化到任务栏", "退出 Tide", "取消"], defaultId: 0, cancelId: 2, noLink: true,
-    }).then(({ response }) => {
-      if (win.isDestroyed()) return;
-      if (response === 0) win.minimize();
-      else if (response === 1) shutdown();
-    }).finally(() => { closePrompt = false; });
+    win.webContents.send(Ipc.closeRequest);
+
+  });
+  const restoreFromTray = () => {
+    if (win.isDestroyed()) return;
+    win.setSkipTaskbar(false); win.show(); win.restore(); win.focus();
+    tray?.destroy(); tray = null;
+  };
+  ipcMain.removeHandler(Ipc.windowAction);
+  ipcMain.handle(Ipc.windowAction, (event, action: unknown) => {
+    if (event.sender !== win.webContents) return;
+    closePrompt = false;
+    if (action === "quit") { shutdown(); return; }
+    if (action !== "tray") return;
+    if (!tray) {
+      tray = new Tray(windowIcon()); tray.setToolTip("潮汐 Tide · 点击恢复播放器");
+      tray.on("click", restoreFromTray); tray.on("double-click", restoreFromTray);
+      tray.setContextMenu(Menu.buildFromTemplate([{ label: "打开 Tide", click: restoreFromTray }, { type: "separator" }, { label: "退出 Tide", click: shutdown }]));
+    }
+    win.setSkipTaskbar(true); win.hide();
   });
   const sendActivity = () => { if (!win.isDestroyed()) win.webContents.send(Ipc.renderActive, win.isVisible() && !win.isMinimized()); };
+  win.on("show", () => { if (tray) { win.setSkipTaskbar(false); tray.destroy(); tray = null; } });
   win.on("minimize", sendActivity); win.on("restore", sendActivity); win.on("show", sendActivity); win.on("hide", sendActivity);
   win.on("closed", () => {
     if (mainWindow === win) mainWindow = null;
   });
   win.webContents.on("did-finish-load", () => {
     sendActivity();
+    if (closePrompt) win.webContents.send(Ipc.closeRequest);
     win.webContents.send(Ipc.playback, machine.getState());
     const current = settingsStore?.read();
     if (current) win.webContents.send(Ipc.appearance, appearanceOf(current));
@@ -301,6 +316,7 @@ app.whenReady().then(async () => {
   ipcMain.handle(Ipc.appearanceSet, (_event, patch: unknown) => {
     const parsed = appearancePatchFromArgs(patch);
     if (!parsed || !settingsStore) return appearanceOf(settings.read());
+    if (parsed.shell === "lens") parsed.lattice = false;
     const next = settings.write(parsed);
     pushAppearance();
     return appearanceOf(next);
@@ -515,6 +531,7 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   quitting = true;
+  tray?.destroy(); tray = null;
   closeDesk();
   globalShortcut.unregisterAll();
   ipcMain.removeHandler(Ipc.qualityGet);

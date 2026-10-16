@@ -95,10 +95,19 @@ export function openDesignCatalog(shell) {
 }
 
 export function mountNativeShell(root) {
-  let appearance, glass = null, points = null, destroyed = false;
+  let appearance, glass = null, points = null, pointTier = "", destroyed = false;
+  let widgetFrame = 0, widgetTimer = 0, widgetLast = 0;
+  const widgetTick = now => {
+    widgetFrame = 0;
+    if (destroyed || !isRenderingActive() || appearance?.shell !== "lattice") return;
+    const dt = widgetLast ? Math.min(.05, (now - widgetLast) / 1000) : 1 / 30; widgetLast = now;
+    latticeClock.time += dt; latticeClock._emit(dt);
+    widgetTimer = setTimeout(() => { widgetTimer = 0; widgetFrame = requestAnimationFrame(widgetTick); }, 1000 / 30);
+  };
   const clockActivity = () => {
     cancelAnimationFrame(latticeClock._raf); latticeClock._raf = 0; latticeClock._last = 0;
-    if (!destroyed && isRenderingActive() && !latticeClock.manual) latticeClock._raf = requestAnimationFrame(latticeClock._tick);
+    cancelAnimationFrame(widgetFrame); clearTimeout(widgetTimer); widgetFrame = 0; widgetTimer = 0; widgetLast = 0;
+    if (!destroyed && appearance?.shell === "lattice" && isRenderingActive() && !latticeClock.manual) widgetFrame = requestAnimationFrame(widgetTick);
   };
   document.addEventListener("visibilitychange", clockActivity); clockActivity();
   const popupLayer = document.createElement("div");
@@ -130,7 +139,7 @@ export function mountNativeShell(root) {
   }
   function sync(next) {
     if (destroyed) return;
-    appearance = next;
+    appearance = next; clockActivity();
     paper.sync(next);
     popupLayer.hidden = !next.chromeVisible;
     const cssImage = document.documentElement.style.getPropertyValue("--tide-image");
@@ -142,13 +151,14 @@ export function mountNativeShell(root) {
     }
     delete root.dataset.nativeFallback;
     if (next.shell === "lens") {
-      points?.setActive(false);
+      points?.destroy(); points = null;
       startLens();
       glass.sync(next);
     } else stopLens();
-    if (next.shell === "lattice" || next.lattice) {
+    if (next.shell === "lattice") {
+      if (points && pointTier !== next.performance) { points.destroy(); points = null; }
       if (!points) {
-        try { points = mountPointField(root); }
+        try { points = mountPointField(root, next.performance); pointTier = next.performance; }
         catch (error) {
           root.dataset.nativeFallback = "lattice";
           console.warn("Lattice WebGL unavailable; native DOM controls remain available", error);
@@ -177,17 +187,19 @@ export function mountNativeShell(root) {
     wrap.className = "lx-slider native-point-range";
     input.before(wrap); wrap.append(input); mountSlider(input);
   }
-  return { sync, destroy() { destroyed = true; document.removeEventListener("visibilitychange", clockActivity); cancelAnimationFrame(latticeClock._raf); stopLens(); points?.destroy(); paper.destroy(); rangeObserver.disconnect(); popupLayer.remove(); } };
+  return { sync, destroy() { destroyed = true; document.removeEventListener("visibilitychange", clockActivity); cancelAnimationFrame(latticeClock._raf); cancelAnimationFrame(widgetFrame); clearTimeout(widgetTimer); stopLens(); points?.destroy(); paper.destroy(); rangeObserver.disconnect(); popupLayer.remove(); } };
 }
 
 // Embed the original Field and set generators into a desktop viewport. This host supplies
 // the same Stage contract without the showcase's page scrolling or permanent global listeners.
-function mountPointField(root) {
+function mountPointField(root, tier = "balanced") {
   const canvas = document.createElement("canvas");
   canvas.className = "native-point-field";
   canvas.setAttribute("aria-hidden", "true");
   root.prepend(canvas);
   let renderer, field, frame = 0, paused = false, active = true, dead = false, last = 0, time = 0, setIndex = -1;
+  let renderTimer = 0, lastPaint = 0, interactionUntil = 0;
+  const targetFps = tier === "vivid" ? 60 : tier === "smooth" ? 20 : 30;
   const abort = new AbortController();
   const signal = abort.signal;
   const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 400);
@@ -209,7 +221,7 @@ function mountPointField(root) {
     renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: false, powerPreference: "high-performance" });
     stage.renderer = renderer;
     scene.background = new THREE.Color(WORLDS.night.bg);
-    field = new Field(stage); field.useSets(sets); field.setWorld(WORLDS.night);
+    field = new Field(stage, { size: tier === "vivid" ? 160 : tier === "smooth" ? 96 : 128 }); field.useSets(sets); field.setWorld(WORLDS.night);
     scene.add(field.object);
   } catch (error) {
     renderer?.dispose(); renderer?.forceContextLoss(); canvas.remove(); throw error;
@@ -293,6 +305,7 @@ function mountPointField(root) {
     stage.ray.o.copy(raycaster.ray.origin); stage.ray.d.copy(raycaster.ray.direction);
   }
   const move = event => {
+    interactionUntil = performance.now() + 500;
     const rect = root.getBoundingClientRect();
     pointer.x = event.clientX - rect.left; pointer.y = event.clientY - rect.top;
     pointer.ndc.set(pointer.x / stage.w * 2 - 1, -(pointer.y / stage.h) * 2 + 1);
@@ -313,19 +326,25 @@ function mountPointField(root) {
   function loop(now) {
     frame = 0;
     if (dead || !active || !isRenderingActive()) { last = 0; return; }
+    lastPaint = now;
     const dt = last ? Math.min(0.05, (now - last) / 1000) : 1 / 60; last = now;
     time += paused ? 0 : dt;
     updateRay(); field.update(paused ? 0 : dt, time, stage); renderer.render(scene, camera);
-    if (!paused && !frame) frame = requestAnimationFrame(loop);
+    if (!paused) wake();
   }
-  function wake() { if (!dead && active && isRenderingActive() && !frame) frame = requestAnimationFrame(loop); }
-  document.addEventListener("visibilitychange", () => { if (!isRenderingActive()) { cancelAnimationFrame(frame); frame = 0; last = 0; } else wake(); }, { signal });
+  function wake() {
+    if (dead || !active || !isRenderingActive() || frame || renderTimer) return;
+    const fps = performance.now() < interactionUntil ? 60 : targetFps;
+    const wait = Math.max(0, 1000 / fps - (performance.now() - lastPaint));
+    renderTimer = setTimeout(() => { renderTimer = 0; if (!dead && active && isRenderingActive()) frame = requestAnimationFrame(loop); }, wait);
+  }
+  document.addEventListener("visibilitychange", () => { if (!isRenderingActive()) { cancelAnimationFrame(frame); clearTimeout(renderTimer); renderTimer = 0; frame = 0; last = 0; } else wake(); }, { signal });
   const resizeObserver = new ResizeObserver(resize); resizeObserver.observe(root);
   resize(); showSet(0);
   return {
     setActive(on) {
       active = on; canvas.hidden = !on; badge.hidden = !on; hero.hidden = !on; stage.visible = on;
-      if (!on) { field.holding = false; pointer.down = false; cancelAnimationFrame(frame); frame = 0; last = 0; }
+      if (!on) { field.holding = false; pointer.down = false; cancelAnimationFrame(frame); clearTimeout(renderTimer); renderTimer = 0; frame = 0; last = 0; }
       else wake();
     },
     sync(appearance) {
@@ -336,7 +355,7 @@ function mountPointField(root) {
       resize(); wake();
     },
     destroy() {
-      dead = true; abort.abort(); resizeObserver.disconnect(); cancelAnimationFrame(frame);
+      dead = true; abort.abort(); resizeObserver.disconnect(); clearTimeout(renderTimer); cancelAnimationFrame(frame);
       field.gpu.dispose(); field.tSeed.dispose(); field.tTarget.dispose(); field.tPrev.dispose();
       field.points.geometry.dispose(); field.drawMat.dispose(); field.shadow.material.dispose();
       renderer.dispose(); renderer.forceContextLoss(); canvas.remove(); badge.remove(); hero.remove();

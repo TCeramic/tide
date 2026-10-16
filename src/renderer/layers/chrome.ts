@@ -202,9 +202,8 @@ export function mountChrome(root: HTMLElement): {
     const error = snapshot.error ? ERROR_LABEL[snapshot.error] : "";
     const position = formatTime(snapshot.positionMs);
     const duration = formatTime(track?.durationMs ?? 0);
-    detail.textContent = error
-      ? `${status} · ${error}`
-      : `${track?.artist ?? "潮汐"} · ${status} · ${position} / ${duration}`;
+    const detailText = error ? `${status} · ${error}` : `${track?.artist ?? "潮汐"} · ${status} · ${position} / ${duration}`;
+    if (detail.textContent !== detailText) detail.textContent = detailText;
 
     like.hidden = !track;
     const liked = track ? isLiked(track.id) : false;

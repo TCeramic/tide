@@ -89,3 +89,13 @@ export function rankProfileMatches(groups: readonly { weight: number; hits: read
   }
   return [...votes.values()].sort((a, b) => b.score - a.score).map(v => v.hit);
 }
+/** Draw one candidate using all profile votes rather than always taking the highest score. */
+export function randomProfileMatch(groups: readonly { weight: number; hits: readonly SearchHit[] }[], queued: ReadonlySet<string>, recent: ReadonlySet<string>, random = Math.random): SearchHit | null {
+  const candidates = rankProfileMatches(groups).filter(hit => hit.playable && /^\d{1,20}$/.test(hit.id) && !queued.has(hit.id));
+  const fresh = candidates.filter(hit => !recent.has(hit.id));
+  const pool = fresh.length ? fresh : candidates;
+  const weighted = pool.map(hit => ({ hit, weight: groups.reduce((sum, group) => { const rank = group.hits.findIndex(row => row.id === hit.id); return sum + (rank < 0 ? 0 : group.weight / (1 + rank * .12)); }, 0) }));
+  let remaining = Math.min(.999999999, Math.max(0, random())) * weighted.reduce((sum, row) => sum + row.weight, 0);
+  for (const row of weighted) { remaining -= row.weight; if (remaining < 0) return row.hit; }
+  return weighted.at(-1)?.hit ?? null;
+}

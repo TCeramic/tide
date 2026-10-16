@@ -25,10 +25,10 @@ export function mountPlayer(): () => void {
   };
 
   let energyOn = false;
-  let energyFrame = 0;
+  let energyFrame = 0, energyTimer = 0;
   let context: AudioContext | null = null;
   let energyTick = () => {};
-  const wakeEnergy = () => { cancelAnimationFrame(energyFrame); energyFrame = 0; if (isRenderingActive() && !audio.paused) energyFrame = requestAnimationFrame(energyTick); };
+  const wakeEnergy = () => { cancelAnimationFrame(energyFrame); clearTimeout(energyTimer); energyTimer = 0; energyFrame = 0; if (isRenderingActive() && !audio.paused) energyFrame = requestAnimationFrame(energyTick); };
   document.addEventListener("visibilitychange", wakeEnergy);
   audio.addEventListener("playing", wakeEnergy);
   audio.addEventListener("pause", wakeEnergy);
@@ -51,7 +51,7 @@ export function mountPlayer(): () => void {
         let sum = 0;
         for (const value of bins) sum += value;
         pushAudioEnergy(bins.length === 0 ? 0 : sum / (bins.length * 255));
-        energyFrame = requestAnimationFrame(tick);
+        energyTimer = window.setTimeout(() => { energyTimer = 0; energyFrame = requestAnimationFrame(tick); }, 1000 / 30);
       };
       energyTick = tick; wakeEnergy();
     } catch {
@@ -141,7 +141,7 @@ export function mountPlayer(): () => void {
   });
 
   return () => {
-    cancelAnimationFrame(energyFrame);
+    cancelAnimationFrame(energyFrame); clearTimeout(energyTimer);
     document.removeEventListener("visibilitychange", wakeEnergy);
     audio.removeEventListener("playing", wakeEnergy); audio.removeEventListener("pause", wakeEnergy);
     void context?.close();

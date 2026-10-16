@@ -25,6 +25,8 @@ async function until(fn) { for (let i = 0; i < 100; i++) { if (fn()) return; awa
     const url = new URL(req.url, 'http://localhost'); calls.push(req.url);
     let body = { ok: true };
     if (url.pathname === '/song/url') body = { ok: true, url: 'http://127.0.0.1/song.mp3' };
+    if (url.pathname === '/session') body = {ok:true,state:'logged_in',user:{id:'1',nickname:'QA'},playlists:[{id:'7',name:'我喜欢的音乐',specialType:5}]};
+    if (url.pathname === '/recommend/daily') body = {ok:true,hits:Array.from({length:100},(_,i)=>hit(20000+i))};
     if (url.pathname === '/liked') body = { ok: true, known: true, ids: ['1'] };
     if (url.pathname === '/similar') { const id = url.searchParams.get('id'); seeds.push(id); body = { ok: true, hits: [hit(9000 + Number(id))] }; }
     if (url.pathname === '/playlist/tracks') {
@@ -44,13 +46,27 @@ async function until(fn) { for (let i = 0; i < 100; i++) { if (fn()) return; awa
     assert.equal(calls.filter(c => c.startsWith('/playlist/tracks')).length, 1);
     assert.equal(control.get().queue[149].albumTitle, 'Album');
     control.setMode({ explore: true, repeat: 'off', shuffle: false });
-    await control.track(149); await control.next();
-    assert.equal(control.get().queue.length, 158);
-    assert.equal(control.get().queue[150].id, '9001');
-    assert.ok(!seeds.includes('2'), 'fresh unlike overrides initial liked hint');
+    await until(() => control.get().queue.length === 151);
+    assert.ok(Number(control.get().queue[90].id) >= 9000);
+    const firstRandom = control.get().queue[90].id;
+    await control.track(0); await until(() => Number(control.get().queue[1].id) >= 9000);
+    assert.equal(control.get().queue.length, 151, 'only one future generated song remains');
+    assert.notEqual(control.get().queue[1].id, firstRandom, 'recent recommendations are avoided');
+    const nextSong = control.get().queue[1].id;
+    await control.next(); assert.equal(control.get().queue[control.get().index].id, nextSong);
+    await until(() => control.get().queue.length === 152);
     assert.ok(seeds.includes('1') && seeds.some(id => Number(id) > 100) && seeds.some(id => Number(id) > 40 && Number(id) < 100));
-    assert.equal(control.get().index, 150);
-    console.log('PLAYLIST_PREFETCH_100_AT_10_REMAINING_PROFILE_LIKED_WEIGHT passed');
+    console.log('PLAYLIST_PREFETCH_AND_SINGLE_RANDOM_NEXT_WITH_FULL_PROFILE passed');
+    const today = await handlers.get('tide:today')({}, false);
+    const refreshed = await handlers.get('tide:today')({}, true);
+    assert.equal(today.hits.length,20); assert.equal(refreshed.hits.length,20);
+    assert.ok(refreshed.hits.every(h=>!today.hits.some(old=>old.id===h.id)));
+    control.setMode({explore:false}); control.seek(500);
+    const currentBefore=control.get().queue[control.get().index].id;
+    const replaced=await handlers.get('tide:replace-upcoming')({},refreshed.hits);
+    assert.equal(replaced.queue[replaced.index].id,currentBefore); assert.equal(replaced.positionMs,500);
+    assert.equal(replaced.queue[replaced.index+1].id,refreshed.hits[0].id);
+    console.log('TODAY_REAL_HOST_REFRESH_20_AND_REPLACE_PRESERVES_CURRENT passed');
     delayed = true;
     await control.playHits(Array.from({ length: 100 }, (_, i) => hit(i + 1)), 99, source);
     await until(() => releasePage !== null);

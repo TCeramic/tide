@@ -7,7 +7,7 @@ import type { GeneratedTheme } from "../core/generated-theme";
 export function mountPaperBackground(root: HTMLElement, invalidate: () => void) {
   const host = document.createElement("div"); host.className = "native-paper-source"; host.setAttribute("aria-hidden", "true"); root.prepend(host);
   let shader: ShaderMount | null = null;
-  let frame = 0, lastCopy = 0, dead = false, current: Appearance | null = null;
+  let frame = 0, copyTimer = 0, shaderTime = 0, lastTick = 0, lastCopy = 0, dead = false, current: Appearance | null = null;
   let colors = ["#101a27", "#427d92", "#ad91af", "#23394b"];
   const uniforms = () => ({
     u_colors: colors.map(color => { const [r, g, b, a] = getShaderColorFromString(color); return [r * 0.4, g * 0.4, b * 0.4, a]; }), u_colorsCount: colors.length, u_distortion: 0.35, u_swirl: 0.3, u_grainMixer: 0.03, u_grainOverlay: 0.025,
@@ -20,10 +20,13 @@ export function mountPaperBackground(root: HTMLElement, invalidate: () => void) 
   const copyFrame = (time: number) => {
     frame = 0;
     if (dead || current?.background !== "paper") return;
-    if (isRenderingActive() && (time - lastCopy > (current.performance === "smooth" ? 500 : 200) || lastCopy === 0)) { invalidate(); lastCopy = time; }
-    if (current.motion > 0 && isRenderingActive() && !matchMedia("(prefers-reduced-motion: reduce)").matches) frame = requestAnimationFrame(copyFrame);
+    if (!isRenderingActive()) { lastTick = 0; return; }
+    shaderTime += (lastTick ? Math.min(100, time - lastTick) : 0) * current.motion * .2; lastTick = time;
+    const interval = current.shell === "lens" ? 200 : current.performance === "smooth" ? 100 : 1000 / 30;
+    if (time - lastCopy >= interval || lastCopy === 0) { shader?.setFrame(shaderTime); invalidate(); lastCopy = time; }
+    if (current.motion > 0 && !matchMedia("(prefers-reduced-motion: reduce)").matches) copyTimer = window.setTimeout(() => { copyTimer = 0; frame = requestAnimationFrame(copyFrame); }, interval);
   };
-  const wake = () => { shader?.setSpeed(isRenderingActive() && current?.background === "paper" ? (current.motion * .2) : 0); lastCopy = 0; if (!dead && !frame) frame = requestAnimationFrame(copyFrame); };
+  const wake = () => { shader?.setSpeed(0); cancelAnimationFrame(frame); clearTimeout(copyTimer); copyTimer = 0; frame = 0; lastTick = 0; lastCopy = 0; if (!dead && isRenderingActive()) frame = requestAnimationFrame(copyFrame); };
   document.addEventListener("visibilitychange", wake);
   window.addEventListener("tide:palette", palette);
   return {
@@ -35,16 +38,16 @@ export function mountPaperBackground(root: HTMLElement, invalidate: () => void) 
         try {
           const stored = JSON.parse(document.documentElement.style.getPropertyValue("--generated-colors") || "null");
           if (Array.isArray(stored)) colors = stored;
-          shader = new ShaderMount(host, meshGradientFragmentShader, uniforms(), { alpha: false, preserveDrawingBuffer: true }, next.motion * 0.2, 0, 1, next.performance === "smooth" ? 500000 : 1000000);
+          shader = new ShaderMount(host, meshGradientFragmentShader, uniforms(), { alpha: false, preserveDrawingBuffer: true }, 0, 0, 1, next.performance === "smooth" ? 500000 : 1000000);
           host.dataset.ready = "true";
         } catch { host.dataset.ready = "fallback"; }
       }
       host.dataset.active = String(active);
       host.style.opacity = active && next.shell === "lattice" ? "0.45" : "0";
-      shader?.setSpeed(active && isRenderingActive() && next.motion > 0 && !matchMedia("(prefers-reduced-motion: reduce)").matches ? next.motion * 0.2 : 0);
+      shader?.setSpeed(0);
       shader?.setMaxPixelCount(next.performance === "smooth" ? 500000 : 1000000);
       wake();
     },
-    destroy() { dead = true; cancelAnimationFrame(frame); document.removeEventListener("visibilitychange", wake); window.removeEventListener("tide:palette", palette); shader?.dispose(); host.remove(); },
+    destroy() { dead = true; clearTimeout(copyTimer); cancelAnimationFrame(frame); document.removeEventListener("visibilitychange", wake); window.removeEventListener("tide:palette", palette); shader?.dispose(); host.remove(); },
   };
 }

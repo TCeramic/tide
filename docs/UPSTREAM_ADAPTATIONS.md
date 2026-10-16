@@ -60,3 +60,9 @@ Folia 的 `useThemeController` 在缺少模型密钥时调用本地 `generateBui
 音乐脉络直接使用同一固定提交的 `lattice/src/gl/prooftree.js`，仅在 Tide 适配层限制可见层级、分页、添加导航与文字。独立页面跟随主题，当前播放队列按歌手、专辑、单曲展开。原始 vendor 文件保持原样。
 
 主窗口视觉活动通过 Electron 显隐事件与浏览器可见性联合控制；音频播放和桌面歌词不依赖主窗口视觉帧。其余改动及确定性回归范围见 [TEST5.md](TEST5.md)。
+
+## 0.9.2-test.6 增量
+
+关闭交互改为播放器主题菜单与系统托盘。灵感模式按每次切歌随机插入一首实现，今日潮汐新增 20 首上限与刷新替换。前台渲染减少无效时钟、过滤歌词 DOM 噪声、限制背景预算并销毁退出主题的 GPU 资源。逐字歌词改用遮罩合成，保留音频时间驱动。
+
+原版 vendor 未修改；源码核验、功能说明与性能测量分别见 `verify:design-systems`、[TEST6.md](TEST6.md)、[PERFORMANCE_TEST6.md](PERFORMANCE_TEST6.md)。

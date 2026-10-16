@@ -107,9 +107,12 @@ export function mountLibrary(root: HTMLElement): {
 
   const tideHeading = heading("今日潮汐 · 探索", "Compass", Compass);
   const tideButton = button("查看探索");
+  const tideRefresh = button("刷新今日潮汐");
+  let todayRows: SearchHit[] = [];
   const tideActions = document.createElement("div");
   tideActions.className = "library-actions";
   tideActions.append(tideButton);
+  tideRefresh.hidden = true; viewBar.append(tideRefresh);
 
   const recommendHeading = heading("推荐", "Radio", Radio);
   recommendHeading.hidden = true;
@@ -613,6 +616,7 @@ export function mountLibrary(root: HTMLElement): {
   const showCatalog = (rows: SearchHit[], label: string) => {
     viewBar.hidden = false;
     viewTitle.textContent = `${label} · 已载 ${rows.length} 首`;
+    tideRefresh.hidden = label !== "今日潮汐";
     showSearchNote("", false);
     renderHits(rows);
   };
@@ -828,25 +832,27 @@ export function mountLibrary(root: HTMLElement): {
     if ((AUDIO_LEVELS as readonly string[]).includes(level)) quality.value = level;
   });
 
-  tideButton.addEventListener("click", () => {
-    void (async () => {
-      if (opening || disposed) return;
-      opening = true;
-      tideButton.disabled = true;
-      showSearchNote("正在整理今日潮汐…", false);
-      const result = await window.tide.tideToday();
-      opening = false;
+  const refreshToday = async (refresh: boolean) => {
+    if (opening || disposed) return;
+    opening = true; tideButton.disabled = true; tideRefresh.disabled = true;
+    showSearchNote("正在整理今日潮汐…", false);
+    try {
+      const result = await window.tide.tideToday(refresh);
       if (disposed) return;
-      tideButton.disabled = false;
-      if (!result.ok) {
-        hits.replaceChildren();
-        showSearchNote(result.message, true);
-        return;
-      }
+      if (!result.ok) { showSearchNote(result.message, true); return; }
+      const rows = result.hits.slice(0, 20);
+      if (refresh && !rows.length) { showSearchNote("暂时没有新的可用歌曲，已保留当前列表", true); return; }
+      const currentId = lastQueue?.queue[lastQueue.index]?.id;
+      if (refresh && rows.length && currentId && todayRows.some(hit => hit.id === currentId)) await window.tide.replaceUpcoming(rows);
+      todayRows = rows;
+      showCatalog(rows, "今日潮汐");
       showSearchNote(result.message ?? "今日潮汐 · 探索", false);
-      renderHits(result.hits);
-    })();
-  });
+      home.setDiscover(rows.length, rows[0] ? `${rows[0].title} · ${rows[0].artist}` : "暂时没有可用歌曲");
+    } catch { showSearchNote("刷新失败，已保留当前列表", true); }
+    finally { opening = false; tideButton.disabled = false; tideRefresh.disabled = false; }
+  };
+  tideButton.addEventListener("click", () => void refreshToday(false));
+  tideRefresh.addEventListener("click", () => void refreshToday(true));
 
   const showSearchNote = (message: string, warn: boolean) => {
     searchNote.textContent = message;
@@ -960,7 +966,8 @@ export function mountLibrary(root: HTMLElement): {
       home.setQueue(snapshot);
     },
     setAppearance(appearance) {
-      latticeBox.checked = appearance.lattice;
+      latticeBox.checked = appearance.shell === "lattice" && appearance.lattice;
+      latticeBox.disabled = appearance.shell === "lens";
       presets.sync(appearance);
     },
     showHome() {

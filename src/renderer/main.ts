@@ -1,8 +1,8 @@
 import { isRenderingActive, setRenderingActive } from "./render-activity";
+import { mountCloseMenu } from "./close-menu";
 import { EventBus } from "../core/events";
 import type { PlaybackEvents } from "../core/playback/types";
 import { isThemeId, type Appearance, type PlaybackBusEvent, type PlaybackSnapshot, type TideBridge } from "../shared/contract";
-import { createRafClock } from "./clock";
 import { mountChrome } from "./layers/chrome";
 import { mountLibrary } from "./layers/library";
 import { mountLyrics } from "./layers/lyrics";
@@ -67,6 +67,7 @@ const chromeLayer = mountChrome(chrome);
 const library = mountLibrary(chrome);
 const nativeShell = mountNativeShell(document.querySelector<HTMLElement>("#app")!);
 const stopPlayer = mountPlayer();
+const stopCloseMenu = mountCloseMenu();
 
 const bus = new EventBus<PlaybackEvents>();
 bus.on("track-change", (payload) => {
@@ -74,9 +75,8 @@ bus.on("track-change", (payload) => {
   lyricsLayer.setTrack(track);
 });
 
-const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
 let stopClock = (): void => undefined;
-let motionOn = false;
 let motionAmount = 1;
 let playingNow = false;
 
@@ -90,23 +90,8 @@ function setStageMotion(level: number, motion: number): void {
   motionAmount = clamp01(motion, 1);
   document.documentElement.style.setProperty("--tide-stage", String(stage));
   stageLayer.setScene({ level: stage, motion: motionAmount, playing: playingNow });
-  const wantMotion = stage > 0 && motionAmount > 0 && !reduceMotion;
-  if (wantMotion === motionOn) {
-    if (!wantMotion) document.documentElement.style.setProperty("--tide-phase", "0.5");
-    return;
-  }
-  motionOn = wantMotion;
   stopClock();
-  if (!wantMotion) {
-    document.documentElement.style.setProperty("--tide-phase", "0.5");
-    stopClock = () => undefined;
-    return;
-  }
-  stopClock = createRafClock((frame) => {
-    const raw = (frame.elapsedMs % 12000) / 12000;
-    const phase = 0.5 + (raw - 0.5) * motionAmount;
-    document.documentElement.style.setProperty("--tide-phase", phase.toFixed(4));
-  });
+  document.documentElement.style.setProperty("--tide-phase", "0.5");
 }
 
 function installFace(family: string, dataUrl: string): void {
@@ -207,6 +192,7 @@ void window.tide.getHealth().then((status) => {
 });
 
 window.addEventListener("beforeunload", () => {
+  stopCloseMenu();
   nativeShell.destroy();
   stopClock();
   stageLayer.destroy();

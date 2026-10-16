@@ -9,14 +9,14 @@ import { normalizeArtworkUrl } from "../core/artwork";
  * Daily recommend is only a spare filler when similar songs are scarce.
  * 私人雷达 is not called from here.
  */
-export async function loadTideToday(port: number | null, events: readonly ListenEvent[]): Promise<TideToday> {
+export async function loadTideToday(port: number | null, events: readonly ListenEvent[], refresh = false, previous: readonly string[] = []): Promise<TideToday> {
   const session = port == null ? null : await loopbackJson(port, "GET", "/session");
   const target = likedTargetFromSession(session);
   const heard = new Set(events.filter((event) => event.kind === "play").map((event) => event.id));
-  let seeds = [...heard].slice(0, 3);
+  let seeds = (refresh ? shuffled([...heard]) : [...heard]).slice(0, 6);
   if (target.signedIn && seeds.length === 0 && target.playlistId) {
     const liked = await likedTracks(port, target.playlistId);
-    seeds = liked.filter((hit) => hit.playable).slice(0, 3).map((hit) => hit.id);
+    seeds = (refresh ? shuffled(liked) : liked).filter((hit) => hit.playable).slice(0, 6).map((hit) => hit.id);
   }
 
   const similar: SearchHit[] = [];
@@ -32,7 +32,7 @@ export async function loadTideToday(port: number | null, events: readonly Listen
 
   const unheardSimilar = similar.filter((hit) => !heard.has(hit.id));
   let daily: SearchHit[] = [];
-  if (target.signedIn && unheardSimilar.length < 8) {
+  if (target.signedIn && unheardSimilar.length < 20) {
     const body = await loopbackJson(port, "GET", "/recommend/daily");
     if (isOk(body)) daily = readTideHits(body);
   }
@@ -43,6 +43,11 @@ export async function loadTideToday(port: number | null, events: readonly Listen
     similarFailed,
     signedIn: target.signedIn,
   });
+  if (refresh) {
+    const old = new Set(previous);
+    const pool = [...new Map([...list.hits, ...similar, ...daily].filter(hit => hit.playable).map(hit => [hit.id, hit])).values()];
+    list.hits = [...shuffled(pool.filter(hit => !old.has(hit.id))), ...shuffled(pool.filter(hit => old.has(hit.id)))].slice(0, 20);
+  }
   const missing = list.hits.filter(hit => !hit.cover).map(hit => hit.id);
   if (port != null && missing.length > 0) {
     const response = await loopbackJson(port, "GET", `/artwork?ids=${missing.join(",")}`).catch(() => null);
@@ -63,4 +68,10 @@ async function likedTracks(port: number | null, playlistId: string): Promise<Sea
 
 function isOk(body: unknown): boolean {
   return Boolean(body && typeof body === "object" && (body as { ok?: unknown }).ok === true);
+}
+
+function shuffled<T>(values: readonly T[]): T[] {
+  const result = [...values];
+  for (let i = result.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [result[i], result[j]] = [result[j], result[i]]; }
+  return result;
 }

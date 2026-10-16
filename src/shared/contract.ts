@@ -13,6 +13,9 @@ export const DEFAULT_BUS_PORT = 39272;
 export const API_READY_PREFIX = "TIDE_API_READY ";
 
 export const Ipc = {
+  replaceUpcoming: "tide:replace-upcoming",
+  closeRequest: "tide:close-request",
+  windowAction: "tide:window-action",
   renderActive: "tide:render-active",
   healthGet: "tide:health:get",
   health: "tide:health",
@@ -320,6 +323,9 @@ export interface QueueRequest {
 
 /** Surface exposed on `window.tide` by the preload script. */
 export interface TideBridge {
+  onCloseRequest?(listener: () => void): () => void;
+  replaceUpcoming(hits: SearchHit[]): Promise<PlaybackSnapshot>;
+  windowAction(action: "tray" | "quit" | "cancel"): Promise<void>;
   onRenderActive?(listener: (active: boolean) => void): () => void;
   aiStatus(): Promise<import("../core/ai-assist").AiStatus>;
   aiGenerate(input: import("../core/ai-assist").AiInput): Promise<import("../core/ai-assist").AiReply>;
@@ -374,7 +380,7 @@ export interface TideBridge {
   playlistTracks(id: string, offset?: number): Promise<SearchResult | ApiFailure>;
   dailyRecommend(): Promise<SearchResult | ApiFailure>;
   radar(): Promise<SearchResult | ApiFailure>;
-  tideToday(): Promise<TideToday | ApiFailure>;
+  tideToday(refresh?: boolean): Promise<TideToday | ApiFailure>;
   playHits(hits: SearchHit[], index: number, source?: PlaylistCursor): Promise<PlaybackSnapshot>;
   onMedia(listener: (cue: MediaCue) => void): () => void;
   reportProgress(positionMs: number): void;

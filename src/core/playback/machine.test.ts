@@ -198,3 +198,12 @@ describe("PlaybackMachine", () => {
     assert.equal(machine.getState().queue[0]?.title, "a");
   });
 });
+
+it("refreshes upcoming songs while preserving the current track, playback status and position", () => {
+  const machine = new PlaybackMachine();
+  machine.setQueue([{ id: "1", title: "Current", artist: "A", durationMs: 10000 }, { id: "2", title: "Old", artist: "B", durationMs: 10000 }]);
+  machine.beginLoad(); machine.completeLoad(); machine.seek(2500);
+  const state = machine.replaceUpcoming([{ id: "3", title: "Fresh", artist: "C", durationMs: 10000 }]);
+  assert.deepEqual(state.queue.map(track => track.id), ["1", "3"]);
+  assert.equal(state.positionMs, 2500); assert.equal(state.status, "playing"); assert.equal(state.index, 0);
+});
