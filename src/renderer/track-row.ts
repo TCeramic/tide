@@ -1,7 +1,6 @@
 import { Heart, MoreHorizontal, Play } from "lucide";
 import type { PlaylistSummary, SearchHit } from "../shared/contract";
 import { paintCover } from "./cover";
-import { openNowPlaying } from "./view";
 import { ICON_SIZE, iconButton, setIcon } from "./icons";
 import { applyLike, isLiked } from "./liked";
 
@@ -30,7 +29,6 @@ export function fillTrackList(
       note("没有可播放的地址", true);
       return;
     }
-    openNowPlaying();
     void window.tide.playHits([...hits], index);
   });
   start.append(startButton);
@@ -43,7 +41,6 @@ export function fillTrackList(
     play.disabled = !hit.playable;
     play.addEventListener("click", () => {
       if (!hit.playable) return;
-      openNowPlaying();
       void window.tide.playHits([...hits], index);
     });
 
@@ -68,7 +65,6 @@ export function fillTrackList(
         main.classList.add("is-selected");
       });
       main.addEventListener("dblclick", () => {
-        openNowPlaying();
         void window.tide.playHits([...hits], index);
       });
     }
@@ -102,7 +98,6 @@ export function fillTrackList(
         note("没有可播放的地址", true);
         return;
       }
-      openNowPlaying();
       void window.tide.playHits([...hits], index);
     });
     playItem.disabled = !hit.playable;

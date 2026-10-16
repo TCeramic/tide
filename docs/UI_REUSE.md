@@ -10,7 +10,7 @@
 固定这批文件为 LF，避免 Windows checkout 改写校验值。
 
 - 透镜：原版 GlassRenderer、JellyController、材质参数、背景绘制、choices
-  工厂及音效。设置 / 登录面板各用独立原版 stage，避免重复手势绑定和底层文字透出。
+  工厂及音效。test.3 重建为单一光学 stage，设置 / 登录面板采用原版 token 和原生滚动，移除业务按钮的全量拖动绑定；歌词在 stage 外独立绘制。
 - 点阵：原版 GPU Field、sets、点阵 tabs / sliders / dot text。支持 TIDE
   文字、Lorenz 吸引子、三叶结、FCC 晶格、Klein 瓶及按住熔化 / 松开重组。
 - 完整组件：设置中两颗按钮打开原版完整展示，包含透镜 18 类和点阵 14 类

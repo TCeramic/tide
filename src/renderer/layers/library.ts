@@ -20,7 +20,7 @@ import {
 } from "lucide";
 import type { IconNode } from "../icons";
 import { ICON_SIZE, iconButton, prependIcon, setIcon } from "../icons";
-import { openNowPlaying, showHome } from "../view";
+import { showHome } from "../view";
 import { mountDeskForm } from "./desk-form";
 import { mountHome } from "./home";
 import { mountPresetForm } from "./preset-form";
@@ -374,7 +374,6 @@ export function mountLibrary(root: HTMLElement): {
     if (!numeric) return;
     const index = shownHits.findIndex((hit) => hit.id === id);
     if (index >= 0) {
-      openNowPlaying();
       void window.tide.playHits(shownHits, index);
     }
   });
@@ -706,7 +705,6 @@ export function mountLibrary(root: HTMLElement): {
       name.className = "queue-title";
       name.textContent = `${track.title} · ${track.artist}`;
       name.addEventListener("click", () => {
-        openNowPlaying();
         void window.tide.changeTrack(index);
       });
       const up = iconButton("上移", "ChevronUp", ChevronUp, ICON_SIZE.row);

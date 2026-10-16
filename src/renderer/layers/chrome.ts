@@ -69,7 +69,6 @@ export function mountChrome(root: HTMLElement): {
   play.addEventListener("click", () => {
     if (latest?.status === "playing") void window.tide.pause();
     else {
-      openNowPlaying();
       void window.tide.play();
     }
   });

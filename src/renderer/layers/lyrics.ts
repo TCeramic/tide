@@ -8,6 +8,8 @@ import { paintCover } from "../cover";
 import { measureTextLayout } from "../text-metrics";
 import { mountAiAssist } from "../ai-assist";
 import { segmentLyricLines } from "../../core/ai-assist";
+import { readAudioClock, onAudioClockChange } from "../audio-clock";
+import { onShellView } from "../view";
 
 type LyricView = "both" | "original" | "translation" | "romaji";
 
@@ -85,6 +87,18 @@ export function mountLyrics(root: HTMLElement): {
   let bundles = { original: [] as LyricLine[], translation: [] as LyricLine[], romaji: [] as LyricLine[], yrc: [] as YrcLine[] };
   let pendingPosition = 0;
   let paintFrame = 0;
+  let disposed = false;
+  const tick = () => {
+    paintFrame = 0;
+    if (disposed || document.hidden || document.documentElement.dataset.view !== "playing") return;
+    const clock = readAudioClock(shownId);
+    paint(clock?.positionMs ?? pendingPosition);
+    if (clock?.playing) paintFrame = requestAnimationFrame(tick);
+  };
+  const wake = () => { if (!disposed && !paintFrame) paintFrame = requestAnimationFrame(tick); };
+  const stopView = onShellView(wake);
+  const stopAudioClock = onAudioClockChange(wake);
+  document.addEventListener("visibilitychange", wake);
   let active = -1;
   let deskOpen = false;
   const assist = mountAiAssist(task => ({ task, title: title.textContent ?? "", lines: (bundles.yrc.length ? bundles.yrc : bundles.original).map(row => row.text) }), () => artCover.dataset.cover, result => {
@@ -371,13 +385,10 @@ export function mountLyrics(root: HTMLElement): {
     setTrack,
     setPosition(positionMs: number) {
       pendingPosition = positionMs;
-      if (paintFrame !== 0) return;
-      paintFrame = requestAnimationFrame(() => {
-        paintFrame = 0;
-        paint(pendingPosition);
-      });
+      wake();
     },
     destroy: () => {
+      disposed = true; stopView(); stopAudioClock(); document.removeEventListener("visibilitychange", wake);
       if (paintFrame !== 0) cancelAnimationFrame(paintFrame);
       stopDesk();
       layoutObserver.disconnect();

@@ -9,10 +9,10 @@ const output = path.resolve(process.env.TIDE_UI_OUTPUT || path.join(__dirname,'.
 fs.mkdirSync(output,{recursive:true});
 const mime = {'.html':'text/html','.css':'text/css','.js':'text/javascript','.json':'application/json'};
 let browser;
-const server = http.createServer((req,res)=>{if(req.url==='/fixture-cover.svg'){res.setHeader('Content-Type','image/svg+xml');res.end('<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><rect width="96" height="96" fill="#d5ee7a"/><circle cx="48" cy="48" r="24" fill="#182018"/></svg>');return;}const file=path.resolve(root,'.'+decodeURIComponent(req.url.split('?')[0]==='/'?'/index.html':req.url.split('?')[0]));if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return;}fs.readFile(file,(e,b)=>{if(e){res.writeHead(404).end();return;}res.setHeader('Content-Type',mime[path.extname(file)]||'application/octet-stream');res.end(b);});});
+const server = http.createServer((req,res)=>{if(req.url==='/fixture.wav'){const wav=Buffer.alloc(44+32000*4);wav.write('RIFF');wav.writeUInt32LE(wav.length-8,4);wav.write('WAVEfmt ',8);wav.writeUInt32LE(16,16);wav.writeUInt16LE(1,20);wav.writeUInt16LE(1,22);wav.writeUInt32LE(16000,24);wav.writeUInt32LE(32000,28);wav.writeUInt16LE(2,32);wav.writeUInt16LE(16,34);wav.write('data',36);wav.writeUInt32LE(wav.length-44,40);res.setHeader('Content-Type','audio/wav');res.end(wav);return;}if(req.url==='/fixture-cover.svg'){res.setHeader('Content-Type','image/svg+xml');res.end('<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><rect width="96" height="96" fill="#d5ee7a"/><circle cx="48" cy="48" r="24" fill="#182018"/></svg>');return;}const file=path.resolve(root,'.'+decodeURIComponent(req.url.split('?')[0]==='/'?'/index.html':req.url.split('?')[0]));if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return;}fs.readFile(file,(e,b)=>{if(e){res.writeHead(404).end();return;}res.setHeader('Content-Type',mime[path.extname(file)]||'application/octet-stream');res.end(b);});});
 (async()=>{
  await new Promise(r=>server.listen(4179,'127.0.0.1',r));
- browser=await chromium.launch({channel:process.env.TIDE_BROWSER_CHANNEL || (process.platform === 'win32' ? 'msedge' : undefined),headless:true,args:['--enable-webgl','--ignore-gpu-blocklist']});
+ browser=await chromium.launch({channel:process.env.TIDE_BROWSER_CHANNEL || (process.platform === 'win32' ? 'msedge' : undefined),headless:true,args:['--enable-webgl','--ignore-gpu-blocklist','--autoplay-policy=no-user-gesture-required']});
  const page=await browser.newPage({viewport:{width:1440,height:960}});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.addInitScript(()=>{
@@ -26,7 +26,7 @@ const server = http.createServer((req,res)=>{if(req.url==='/fixture-cover.svg'){
   const cover='http://127.0.0.1:4179/fixture-cover.svg';
   const tracks=[{id:'1',title:'长歌曲标题用于检查边框'.repeat(8),artist:'歌手名字'.repeat(6),album:'测试专辑',durationMs:232000,playable:true,cover}];
   snapshot.queue=tracks; snapshot.index=0;
-  window.fixtureCover=cover; window.fixtureAdds=0;
+  window.fixtureMedia=cue=>listeners.onMedia?.forEach(f=>f(cue)); window.fixtureCover=cover; window.fixtureAdds=0;
   const yrc=Array.from({length:12},(_,i)=>{const text=`测试歌词第${i+1}行 让文字跟随音乐`;return {timeMs:i*5000,durationMs:4500,text,words:Array.from(text).map((text,j)=>({text,timeMs:i*5000+j*180,durationMs:180}))};});
   data.aiStatus={configured:false,provider:'openai-compatible',model:''};
   data.lyric={ok:true,trackId:'1',lines:yrc.map(row=>({timeMs:row.timeMs,text:row.text})),translation:yrc.map(row=>({timeMs:row.timeMs,text:'Translation '+row.text})),romaji:[],yrc,source:'amll',credits:['QA fixture']};
@@ -114,6 +114,10 @@ setAppearance:async patch=>{Object.assign(appearance,patch);listeners.onAppearan
  await page.getByRole('button',{name:'添加本地音乐',exact:true}).click();
  await page.waitForFunction(()=>window.fixtureAdds===1);
  await page.waitForFunction(()=>document.querySelector('.hits img')?.naturalWidth>0);
+ await page.getByRole('button',{name:'开始播放',exact:true}).click();
+ assert.equal(await page.locator('html').getAttribute('data-view'),'home');
+ await page.locator('.hit').first().dblclick();
+ assert.equal(await page.locator('html').getAttribute('data-view'),'home');
  await page.screenshot({path:path.join(output,'lattice-local.png')});
  await page.getByRole('button',{name:'主页',exact:true}).click();
  assert.equal(await page.getByRole('button',{name:'添加本地音乐',exact:true}).isVisible(),false);
@@ -203,11 +207,27 @@ setAppearance:async patch=>{Object.assign(appearance,patch);listeners.onAppearan
  await page.waitForFunction(()=>document.querySelectorAll('.lyric-word').length>0);
  await page.waitForFunction(()=>document.querySelector('.lyric-current')?.textContent.includes('第3行'));
  assert.ok(await page.locator('.lyric-current .lyric-word').count()>0);
+ assert.equal(await page.locator('.lyrics-block').evaluate(el=>getComputedStyle(el).backgroundColor),'rgba(0, 0, 0, 0)');
+ assert.equal(await page.locator('.lyric-current').evaluate(el=>getComputedStyle(el).userSelect),'none');
+ assert.equal(await page.locator('.transport .play').evaluate(el=>getComputedStyle(el).cursor),'default');
+ await page.evaluate(()=>{document.querySelector('audio').muted=true;window.fixtureMedia({trackId:'1',url:'http://127.0.0.1:4179/fixture.wav'});});
+ await page.waitForFunction(()=>!document.querySelector('audio').paused&&document.querySelector('audio').currentTime>0);
+ const samples=await page.evaluate(()=>new Promise(resolve=>{const values=new Set();const start=performance.now();function sample(){values.add([...document.querySelectorAll('.lyric-current .lyric-word')].map(el=>el.style.getPropertyValue('--word-fill')).join(','));if(performance.now()-start<700)requestAnimationFrame(sample);else resolve(values.size);}sample();}));
+ assert.ok(samples>12,`word fill must advance between IPC snapshots: ${samples}`);
+ await page.evaluate(()=>window.fixtureMedia({trackId:'1',url:null}));
+ await page.evaluate(()=>window.fixtureSetPlayback({positionMs:10500}));
+ await page.waitForFunction(()=>document.querySelector('.lyric-current')?.textContent.includes('第3行'));
+ console.log('CONTINUOUS_AUDIO_CLOCK',samples,'distinct frames');
+ await page.waitForTimeout(700);
  await page.screenshot({path:path.join(output,'lens-lyrics.png')});
  await page.locator('.lyric-list').hover(); await page.mouse.wheel(0,400); await page.waitForTimeout(200);
  assert.equal(await page.getByRole('button',{name:'恢复歌词跟随',exact:true}).isVisible(),true);
  await page.getByRole('button',{name:'恢复歌词跟随',exact:true}).click();
  assert.equal(await page.getByRole('button',{name:'恢复歌词跟随',exact:true}).isVisible(),false);
+ await page.getByRole('button',{name:'原文',exact:true}).click();
+ assert.equal(await page.getByRole('button',{name:'原文',exact:true}).getAttribute('aria-pressed'),'true');
+ assert.notEqual(await page.getByRole('button',{name:'原文',exact:true}).evaluate(el=>getComputedStyle(el).outlineStyle),'none');
+ await page.getByRole('button',{name:'双语',exact:true}).click();
  await page.locator('.ai-assist summary').click();
  await page.getByRole('button',{name:'生成封面配色',exact:true}).click();
  await page.waitForFunction(()=>document.querySelector('.native-paper-source')?.dataset.ready==='true');

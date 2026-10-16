@@ -38,6 +38,7 @@ let app;
   await page.waitForFunction(() => document.querySelector('.hits')?.textContent.includes('Silent'));
   await page.screenshot({ path: path.join(out, 'packaged-local-import.png') });
   await page.getByRole('button', { name: '开始播放', exact: true }).click();
+  assert.equal(await page.locator('html').getAttribute('data-view'), 'home');
   await page.waitForFunction(async () => { const state = await window.tide.getPlayback(); return state.status === 'playing' && state.positionMs > 200; }, null, { timeout: 20000 });
   await page.waitForFunction(async () => (await window.tide.getPlayback()).queue.some(track => track.durationMs === 4000));
   await page.evaluate(() => window.tide.pause());

@@ -8,6 +8,7 @@ import * as sets from "./vendor/design-systems/lattice/src/gl/sets.js";
 import { WORLDS } from "./vendor/design-systems/lattice/src/core/theme.js";
 import { mountTabs, mountSlider } from "./vendor/design-systems/lattice/src/dom/controls.js";
 import { mountDotText } from "./vendor/design-systems/lattice/src/dom/dottext.js";
+import { mountLensShell } from "./lens-shell.js";
 import { mountPaperBackground } from "./paper-background.ts";
 
 export function createNativeChoiceRow(label, options, onPick) {
@@ -86,92 +87,17 @@ export function openDesignCatalog(shell) {
 }
 
 export function mountNativeShell(root) {
-  let appearance, glass = null, points = null, observer, destroyed = false;
-  const popupSystems = new Map();
+  let appearance, glass = null, points = null, destroyed = false;
   const popupLayer = document.createElement("div");
   popupLayer.className = "native-popup-layer";
   document.body.append(popupLayer);
   for (const popup of root.querySelectorAll(".corner-panel")) popupLayer.append(popup);
-  const panelSelector = ".home-card,.queue-col,.browse-sheet,.corner-panel,.transport,.topbar,.proof-host,.risk";
-  const buttonSelector = "button:not(.lg-choice):not([role=tab]):not([data-lg-component])";
-  const decorated = new Map();
   const paper = mountPaperBackground(root, () => {
-    if (appearance?.background !== "paper") return;
-    glass?.renderer?.setScene(appearance.theme === "dusk" ? "ocean" : "aurora");
-    for (const [popup, system] of popupSystems) if (!popup.hidden) system.renderer?.setScene(appearance.theme === "dusk" ? "ocean" : "aurora");
+    if (appearance?.background === "paper") glass?.invalidateScene();
   });
-  const saved = (el) => {
-    if (!decorated.has(el)) decorated.set(el, { className: el.className, glass: el.getAttribute("data-glass"), drag: el.getAttribute("data-lg-drag"), sound: el.getAttribute("data-lg-sound") });
-  };
-  function decorate() {
-    if (!glass) return;
-    for (const scope of [root, popupLayer]) {
-    scope.querySelectorAll(panelSelector).forEach(el => {
-      if (el.closest(".native-point-choices")) return;
-      saved(el);
-      el.classList.add("lg-surface");
-      el.dataset.glass = el.matches(".transport") ? "dock" : "panel";
-    });
-    scope.querySelectorAll(buttonSelector).forEach(el => {
-      if (el.closest(".native-point-choices")) return;
-      saved(el);
-      el.classList.add("lg-surface");
-      el.dataset.glass = "button";
-      el.dataset.lgDrag = "press";
-      el.dataset.lgSound ||= "press";
-    });
-    }
-    glass.mount();
-    for (const popup of popupLayer.querySelectorAll(".corner-panel")) {
-      if (!popupSystems.has(popup)) {
-        popupSystems.set(popup, createGlassSystem(popup, {
-          material: "thick", scene: appearance.theme === "dusk" ? "ocean" : "aurora",
-          artwork: paintPlayerBackground, motion: appearance.motion > 0, audio: {},
-        }));
-      } else popupSystems.get(popup).mount();
-    }
-  }
-  function stopLens() {
-    observer?.disconnect();
-    observer = null;
-    for (const [popup, system] of popupSystems) {
-      system.destroy(); popup.classList.remove("lg-stage", "fallback", "webgl-ready");
-    }
-    popupSystems.clear();
-    glass?.destroy();
-    glass = null;
-    root.classList.remove("lg-stage", "fallback", "webgl-ready");
-    for (const [el, original] of decorated) {
-      // Keep business state classes added since decoration (e.g. selected/liked).
-      if (!original.className.split(/\s+/).includes("lg-surface")) el.classList.remove("lg-surface");
-      for (const [attr, value] of [["data-glass", original.glass], ["data-lg-drag", original.drag], ["data-lg-sound", original.sound]]) {
-        value === null ? el.removeAttribute(attr) : el.setAttribute(attr, value);
-      }
-    }
-    decorated.clear();
-  }
+  function stopLens() { glass?.destroy(); glass = null; }
   function startLens() {
-    if (glass) return;
-    glass = createGlassSystem(root, {
-      material: "thick", scene: "aurora", artwork: paintPlayerBackground, motion: appearance.motion > 0,
-      audio: {},
-      onFallback: error => { root.dataset.nativeFallback = "lens"; console.warn("Lens WebGL fallback", error); },
-    });
-    decorate();
-    // Business views are mounted lazily. Register their native surfaces on insertion.
-    observer = new MutationObserver(records => {
-      if (records.some(r => r.addedNodes.length || r.removedNodes.length)) {
-        for (const [el] of decorated) {
-          if (!el.isConnected) {
-            glass.jelly.bodies.delete(el);
-            decorated.delete(el);
-          }
-        }
-        decorate();
-        glass.renderer?.invalidate(350, true);
-      }
-    });
-    observer.observe(root, { childList: true, subtree: true });
+    glass ||= mountLensShell(root, popupLayer, paintPlayerBackground);
   }
   let image = null, imageUrl = "";
   function paintPlayerBackground(ctx, info) {
@@ -198,20 +124,14 @@ export function mountNativeShell(root) {
     const url = cssImage.match(/^url\(["']?(.*?)["']?\)$/)?.[1] || "";
     if (url && url !== imageUrl) {
       imageUrl = url; image = new Image();
-      image.onload = () => glass?.renderer?.setScene(next.theme === "dusk" ? "ocean" : "aurora");
+      image.onload = () => glass?.invalidateScene();
       image.src = url;
     }
     delete root.dataset.nativeFallback;
     if (next.shell === "lens") {
       points?.setActive(false);
       startLens();
-      glass.renderer?.set({ motion: next.motion > 0, scene: next.theme === "dusk" ? "ocean" : "aurora" });
-      if (glass.renderer) glass.renderer.canvas.style.opacity = String(next.stageLevel);
-      glass.jelly.setIntensity(next.motion > 0 ? 0.7 * next.motion : 0);
-      for (const system of popupSystems.values()) {
-        system.renderer?.set({ motion: next.motion > 0, scene: next.theme === "dusk" ? "ocean" : "aurora" });
-        system.jelly.setIntensity(next.motion > 0 ? 0.7 * next.motion : 0);
-      }
+      glass.sync(next);
     } else stopLens();
     if (next.shell === "lattice" || next.lattice) {
       if (!points) {

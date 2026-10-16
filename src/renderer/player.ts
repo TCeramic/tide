@@ -1,5 +1,6 @@
 import type { MediaCue, PlaybackBusEvent } from "../shared/contract";
 import { pushAudioEnergy } from "./audio-energy";
+import { bindAudioClock } from "./audio-clock";
 
 /** Hidden audio element. The main process resolves the URL; this element plays it. */
 export function mountPlayer(): () => void {
@@ -11,6 +12,7 @@ export function mountPlayer(): () => void {
   let loadedId: string | null = null;
   let activeUrl: string | null = null;
   let pendingSeek: number | null = null;
+  const stopClock = bindAudioClock(audio, () => loadedId);
 
   const stopAudio = () => {
     loadedId = null;
@@ -131,6 +133,7 @@ export function mountPlayer(): () => void {
   return () => {
     stopMedia();
     stopEvents();
+    stopClock();
     stopAudio();
     audio.remove();
   };

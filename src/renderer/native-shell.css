@@ -25,21 +25,14 @@ html[data-shell="lens"] #app.webgl-ready .lg-surface {
 }
 html[data-shell="lens"] #app .lg-surface { border-radius:var(--lg-radius-panel); }
 html[data-shell="lens"] #app button.lg-surface { border-radius:var(--lg-radius-pill); }
-/* Popup readers are separate original Lens stages, with a scene behind their
-   own refracting controls. This avoids trying to refract arbitrary underlying DOM. */
-html[data-shell="lens"] #app.webgl-ready .corner-panel.lg-stage { background:#cfdeed!important; }
-html[data-shell="lens"] #app.webgl-ready .corner-panel.lg-stage[data-scene="ocean"] { background:#193f64!important; }
 .native-popup-layer { position:fixed; inset:0; pointer-events:none; z-index:20; }
-.native-popup-layer .corner-panel { position:absolute; pointer-events:auto; }
-html[data-shell="lens"] .native-popup-layer .corner-panel.lg-stage {
-  overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; touch-action:pan-y;
+.native-popup-layer .corner-panel { position:absolute; pointer-events:auto; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; touch-action:pan-y; }
+html[data-shell="lens"] .native-popup-layer .corner-panel {
+  background:#d8e3ed; color:#163044; border:1px solid #ffffffa8;
+  border-radius:var(--lg-radius-panel); box-shadow:var(--lg-surface-shadow);
+  --tide-fg:#163044; --tide-muted:#506478; --tide-line:#16304430;
 }
-html[data-shell="lens"] .native-popup-layer .corner-panel.lg-stage { background:#cfdeed; }
-html[data-shell="lens"] .native-popup-layer .corner-panel.lg-stage[data-scene="ocean"] { background:#193f64; }
-html[data-shell="lens"] .native-popup-layer .webgl-ready .lg-surface {
-  background:transparent!important; background-image:none!important; box-shadow:none!important;
-  backdrop-filter:none!important; -webkit-backdrop-filter:none!important; border-color:transparent;
-}
+html[data-shell="lens"] .native-popup-layer[data-scene="ocean"] .corner-panel { background:#153047; color:#f7fbff; --tide-fg:#f7fbff; --tide-muted:#c3d7e6; --tide-line:#ffffff30; }
 html[data-shell="lens"] #app .lg-choice { border-radius:var(--lg-radius-pill); }
 html[data-shell="lens"] .native-point-choices { display:none; }
 html[data-shell="lens"] .native-point-range { display:contents; }
@@ -225,3 +218,26 @@ html[data-shell="lens"][data-background="paper"] { --lg-color-text:#f7fbff; --lg
   .lyric-tools { margin-top:0; gap:4px; }
   .lyrics-line:empty { margin:0; }
 }
+
+/* Interaction belongs to DOM; optical glass never moves native hit targets. */
+html, body, body * { cursor:default!important; user-select:none; -webkit-user-select:none; }
+input,textarea,[contenteditable="true"] { user-select:text; -webkit-user-select:text; }
+button, [role="tab"], summary { transition:filter 160ms,background-color 160ms,box-shadow 160ms; }
+button:not(:disabled):hover,[role="tab"]:hover,summary:hover { filter:brightness(1.16); box-shadow:inset 0 0 0 1px color-mix(in srgb,currentColor 30%,transparent); }
+button:not(:disabled):active { filter:brightness(1.24); }
+html[data-shell="lens"] :is(button[aria-pressed="true"],button[aria-selected="true"],.hit.is-selected,.queue-row.current) {
+  --glass-selection:1; color:var(--lg-optical-color,#215887); background:color-mix(in srgb,var(--lg-optical-color,#49709b) 18%,transparent);
+  outline:1px solid var(--lg-optical-color,#49709b75); outline-offset:-1px;
+}
+html[data-shell="lens"][data-theme="dusk"] :is(button[aria-pressed="true"],button[aria-selected="true"],.hit.is-selected) { color:#e4fff1; outline-color:#a9c8e4; }
+#lyrics { z-index:5; --lyric-ink:#f7fbff; --lyric-base:#a8b6c6; }
+.lyrics-block { background:none!important; box-shadow:none!important; border:0!important; backdrop-filter:none!important; border-radius:0; }
+.lyric-word { background:linear-gradient(to right,var(--lyric-ink) var(--word-fill,0%),var(--lyric-base) var(--word-fill,0%)); background-clip:text; -webkit-background-clip:text; }
+html[data-shell="lens"][data-theme="tide"]:not([data-background="paper"]) #lyrics { --lyric-ink:#163044; --lyric-base:#506478; }
+html[data-shell="lens"][data-theme="tide"]:not([data-background="paper"]) #lyrics :is(.lyrics-title,.lyrics-artist,.lyrics-source,.lyric-trans,.lyric-list li,.lyric-current,.lyrics-kicker,.lyric-tools,.lyric-offset-menu) { color:#163044; text-shadow:none; }
+@media(prefers-reduced-motion:reduce) { button,[role="tab"],summary { transition:none; } }
+
+[hidden] { display:none!important; }
+
+#lyrics .lyrics-block { --tide-fg:var(--lyric-ink); --tide-muted:var(--lyric-base); color:var(--lyric-ink); }
+html[data-shell="lens"] :is(.lg-choice,.lyric-toggle,summary):not([aria-pressed="true"]):not([aria-selected="true"]) { color:inherit; }
