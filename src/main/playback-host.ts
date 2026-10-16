@@ -337,7 +337,9 @@ export function attachPlayback(
     const job = (async () => {
       const likedBody = await loopbackJson(getPort(), "GET", "/liked");
       const liked = new Set<string>(Array.isArray((likedBody as { ids?: unknown } | null)?.ids) ? (likedBody as { ids: string[] }).ids : []);
-      const seeds = profileSeeds(profile.length ? profile : state.queue, liked, round++);
+      const likesKnown = (likedBody as { known?: boolean } | null)?.known === true;
+      const taste = profile.length ? profile.map(hit => ({ ...hit, liked: likesKnown ? liked.has(hit.id) : hit.liked })) : state.queue;
+      const seeds = profileSeeds(taste, liked, round++);
       const groups = await Promise.all(seeds.map(async seed => ({ weight: seed.weight,
         hits: readSimilarHits(await loopbackJson(getPort(), "GET", `/similar?id=${encodeURIComponent(seed.id)}`)) })));
       if (token !== queueVersion || !machine.getState().explore) return;
