@@ -344,7 +344,7 @@ html[data-shell="lattice"] .dock-seek { height:48px; }
 html[data-shell="lattice"] .native-point-progress input { cursor:default; z-index:1; }
 html[data-shell="lattice"] .transport { min-height:152px; }
 
-html[data-shell="lattice"][data-view="playing"] #lyrics { padding-bottom:180px; }
+html[data-shell="lattice"][data-view="playing"] #lyrics { padding-bottom:56px; }
 html[data-shell="lattice"] #app :is(.home-grid,.browse-sheet,.proof-host) { bottom:172px; }
 
 html[data-performance="smooth"] *,html[data-performance="smooth"] *::before,html[data-performance="smooth"] *::after { animation:none!important; transition:none!important; }
@@ -528,3 +528,24 @@ html[data-view="playing"] #lyrics{padding:clamp(88px,14vh,150px) clamp(24px,5vw,
 
 @media(max-height:760px){html[data-shell="lattice"] .native-set-control{top:104px;right:28px;}}
 .peek-login,.peek-settings{width:18px;}
+
+/* Center the composition independently of window size. */
+html[data-view="playing"] #lyrics{display:grid;place-items:center;padding:80px clamp(28px,6vw,120px) 56px;}
+#lyrics .lyrics-block{width:min(1400px,100%);height:min(720px,100%);grid-template-columns:minmax(180px,.8fr) minmax(0,1.4fr);gap:clamp(32px,5vw,80px);margin:auto;}
+#lyrics .lyrics-art{width:min(100%,400px);justify-self:center;}
+#lyrics .lyrics-cover.cover-slot{width:min(100%,400px,max(130px,calc(100dvh - 350px)));}
+#app .home-grid{left:50%;right:auto;width:min(1500px,calc(100% - 112px));top:calc(50% + 88px);bottom:auto!important;height:min(660px,calc(100dvh - 260px));transform:translate(-50%,-50%);grid-template-columns:minmax(200px,.9fr) repeat(2,minmax(140px,1fr));grid-template-rows:repeat(2,minmax(0,1fr));overflow:auto;}
+#app .home-card:first-child{min-height:0;grid-row:1 / span 2;align-items:center;}
+#app .home-card:not(:first-child){min-height:0;height:auto;}
+#app .home-card:first-child .home-cover{width:min(100%,max(140px,calc(100dvh - 390px)));}
+@media(max-height:680px){#app .home-grid{width:calc(100% - 56px);gap:14px;height:calc(100dvh - 240px);top:calc(50% + 96px);}#app .home-card{padding:16px}#app .home-card:first-child{padding:16px;gap:10px}#app .home-card:first-child h2{font-size:18px}}
+/* A useful corner target, clipped away from page and transport controls. */
+.peek-settings{width:64px;height:240px;right:0;bottom:54px;clip-path:polygon(38px 0,100% 0,100% 100%,0 100%,0 60%,38px 60%);}
+.tide-titlebar{position:fixed;z-index:60;-webkit-app-region:drag;}
+.fullscreen-toggle{pointer-events:auto!important;opacity:.65!important;}
+html[data-fullscreen="true"] .tide-titlebar{-webkit-app-region:no-drag;}
+.theme-reveal-frame{border:0;mask-image:none;}
+
+.liquid-metal-emblem{position:absolute;z-index:2;width:280px;height:88px;pointer-events:none;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 280 88'%3E%3Ctext x='140' y='68' text-anchor='middle' font-family='Arial' font-weight='900' font-size='74'%3ETIDE%3C/text%3E%3C/svg%3E");mask-repeat:no-repeat;mask-size:100% 100%;}
+.liquid-metal-emblem canvas{width:100%;height:100%;display:block;}
+html[data-shell] #app .home-grid{top:calc(50% + 88px);left:50%;right:auto;}@media(max-height:680px){html[data-shell] #app .home-grid{top:calc(50% + 96px);}}

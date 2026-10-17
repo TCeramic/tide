@@ -22,8 +22,8 @@ let savedMini=await page.evaluate(()=>window.tide.getMiniPlayer());assert.equal(
 await page.evaluate(()=>window.tide.setMiniPlayer({open:true}));await page.waitForTimeout(500);
 const restored=await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().find(w=>w.webContents.getURL().endsWith('/mini.html')).getBounds());assert.equal(restored.x,121);assert.equal(restored.y,137);
 console.log('FULLSCREEN_BEFORE',await app.evaluate(({BrowserWindow})=>{const w=BrowserWindow.getAllWindows().find(w=>w.getTitle()==='潮汐 Tide');return {min:w.isMinimized(),visible:w.isVisible(),allowed:w.isFullScreenable()};}));
-console.log('FULLSCREEN_RESULT',await page.evaluate(()=>window.tide.setFullscreen(true)));await page.waitForTimeout(500);console.log('FULLSCREEN_AFTER',await app.evaluate(({BrowserWindow})=>{const w=BrowserWindow.getAllWindows().find(w=>w.getTitle()==='潮汐 Tide');return {full:w.isFullScreen(),min:w.isMinimized()};}));await page.waitForFunction(()=>document.documentElement.dataset.fullscreen==='true');
+await page.getByRole('button',{name:'进入全屏',exact:true}).click();await page.waitForTimeout(500);console.log('FULLSCREEN_AFTER',await app.evaluate(({BrowserWindow})=>{const w=BrowserWindow.getAllWindows().find(w=>w.getTitle()==='潮汐 Tide');return {full:w.isFullScreen(),min:w.isMinimized()};}));await page.waitForFunction(()=>document.documentElement.dataset.fullscreen==='true');
 assert.equal(await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().find(w=>w.getTitle()==='潮汐 Tide').isFullScreen()),true);
-await page.evaluate(()=>window.tide.setFullscreen(false));await page.waitForFunction(()=>document.documentElement.dataset.fullscreen==='false');
+await page.getByRole('button',{name:'退出全屏',exact:true}).click();await page.waitForFunction(()=>document.documentElement.dataset.fullscreen==='false');
 assert.deepEqual(errors,[]);console.log('MINI_PERSIST_POSITION_FULLSCREEN_SKINS_TRANSPARENT_STOP_RESTORE_UNLOCK_DESKTOP_AXIS_CENTER_NATIVE_LIST_PERSIST_SYNC_FAILURE passed');
 }finally{await app.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

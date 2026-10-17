@@ -136,44 +136,28 @@ function commitAppearance(appearance: Appearance): void {
 }
 
 let desiredAppearance: Appearance | null = null;
-let appearanceGeneration = 0, revealFrame = 0, revealImage: HTMLImageElement | null = null;
-function clearThemeReveal(): void {
- cancelAnimationFrame(revealFrame); revealFrame = 0;
- revealImage?.remove(); revealImage = null;
-}
-async function applyAppearance(appearance: Appearance): Promise<void> {
- const prior = desiredAppearance; desiredAppearance = appearance;
- const generation = ++appearanceGeneration;
- const mode = (a: Appearance) => a.shell === "lattice" ? a.latticeMode ?? "dark" : a.lensMode ?? (a.theme === "dusk" ? "dark" : "light");
- const changed = prior && (prior.shell !== appearance.shell || mode(prior) !== mode(appearance));
- if (changed && appearance.performance !== "smooth" && appearance.motion > 0 && isRenderingActive() && !matchMedia("(prefers-reduced-motion: reduce)").matches && window.tide.captureThemeFrame) {
-  // Capture actual composited pixels, including WebGL, before changing either shell.
-  // Reveal the live new scene through the old frame; no ViewTransition snapshot
-  // lifecycle may remove the remaining corner before our radius reaches it.
-  const source = await window.tide.captureThemeFrame().catch(() => null);
-  if (generation !== appearanceGeneration) return;
-  if (source) {
-   const image = new Image(); image.className = "theme-reveal-frame"; image.alt = "";
-   image.src = source;
-   try { await image.decode(); } catch { clearThemeReveal(); commitAppearance(appearance); nativeShell.ready(); return; }
-   if (generation !== appearanceGeneration) return;
-   clearThemeReveal(); revealImage = image; document.body.append(image);
-   commitAppearance(appearance); nativeShell.ready();
-   const start = performance.now(), duration = appearance.performance === "vivid" ? 1800 : 1500;
-   const draw = (now: number) => {
-    if (revealImage !== image) return;
-    const t = Math.min(1, Math.max(0, (now - start) / duration));
-    const target = Math.hypot(innerWidth, innerHeight) + 4;
-    // Gentle deceleration keeps the final visible corner moving through the tail.
-    const radius = target * (1 - Math.pow(1 - t, 1.35));
-    image.dataset.radius = String(radius); image.dataset.target = String(target);
-    image.style.maskImage = `radial-gradient(circle at 0 0, transparent ${radius}px, #000 ${radius + 1}px)`;
-    if (t < 1) revealFrame = requestAnimationFrame(draw); else clearThemeReveal();
-   };
-   draw(start); return;
-  }
- }
- clearThemeReveal(); commitAppearance(appearance); nativeShell.ready();
+let appearanceGeneration=0, revealFrame=0, revealPreview:HTMLIFrameElement|null=null;
+let stopReveal=()=>{};
+function clearThemeReveal(){cancelAnimationFrame(revealFrame);revealFrame=0;stopReveal();stopReveal=()=>{};revealPreview?.remove();revealPreview=null;}
+async function applyAppearance(appearance:Appearance):Promise<void>{
+ const prior=desiredAppearance;desiredAppearance=appearance;const generation=++appearanceGeneration;
+ const mode=(a:Appearance)=>a.shell==="lattice"?a.latticeMode??"dark":a.lensMode??"light";
+ const changed=prior&&(prior.shell!==appearance.shell||mode(prior)!==mode(appearance));
+ clearThemeReveal();
+ if(!changed||appearance.performance==="smooth"||!appearance.motion||!isRenderingActive()||matchMedia('(prefers-reduced-motion: reduce)').matches){commitAppearance(appearance);nativeShell.ready();return;}
+ const preview=document.createElement('iframe');preview.className='theme-reveal-frame';preview.title='主题切换';preview.setAttribute('aria-hidden','true');preview.tabIndex=-1;preview.style.clipPath='circle(0px at 0px 0px)';
+ const token=crypto.randomUUID();let timer=0;
+ const loaded=new Promise<void>((resolve,reject)=>{const message=(event:MessageEvent)=>{if(event.source===preview.contentWindow&&event.data?.token===token&&event.data.type==='tide:preview-ready'){clearTimeout(timer);resolve();}};window.addEventListener('message',message);stopReveal=()=>{clearTimeout(timer);window.removeEventListener('message',message);reject(new Error('cancelled'));};timer=window.setTimeout(()=>reject(new Error('preview timeout')),3500);});
+ preview.onload=()=>preview.contentWindow?.postMessage({type:'tide:preview-init',token,appearance,html:document.body.innerHTML,attributes:Object.fromEntries(Array.from(document.documentElement.attributes).map(a=>[a.name,a.value])),style:document.documentElement.style.cssText,state:nativeShell.visualState()},'*');
+ preview.src='./theme-preview.html';revealPreview=preview;document.body.append(preview);
+ try{await loaded;}catch{if(generation===appearanceGeneration){clearThemeReveal();commitAppearance(appearance);nativeShell.ready();}return;}
+ if(generation!==appearanceGeneration)return;
+ const start=performance.now(),duration=appearance.performance==='vivid'?1800:1500;
+ const draw=(now:number)=>{if(preview!==revealPreview)return;const t=Math.min(1,(now-start)/duration),target=Math.hypot(innerWidth,innerHeight)+4,radius=target*(1-Math.pow(1-t,1.35));preview.dataset.radius=String(radius);preview.dataset.target=String(target);preview.style.clipPath=`circle(${radius}px at 0px 0px)`;
+  if(t<1){revealFrame=requestAnimationFrame(draw);return;}
+  const finish=(state?:unknown)=>{if(generation!==appearanceGeneration)return;commitAppearance(appearance);nativeShell.restoreVisualState(state);nativeShell.ready();requestAnimationFrame(()=>requestAnimationFrame(()=>{if(preview===revealPreview)clearThemeReveal();}));};
+  let finished=false;const receive=(e:MessageEvent)=>{if(e.source===preview.contentWindow&&e.data?.token===token&&e.data.type==='tide:preview-state'){window.removeEventListener('message',receive);finished=true;finish(e.data.state);}};window.addEventListener('message',receive);preview.contentWindow?.postMessage({type:'tide:preview-state',token},'*');window.setTimeout(()=>{window.removeEventListener('message',receive);if(!finished)finish();},120);
+ };draw(start);
 }
 installModuleMotion();
 const fullscreenButton=iconButton("进入全屏","Maximize2",Maximize2,ICON_SIZE.row);fullscreenButton.classList.add("fullscreen-toggle");document.body.append(fullscreenButton);

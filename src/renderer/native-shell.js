@@ -1,3 +1,5 @@
+import { tideShape } from "./point-formations.ts";
+import { mountLiquidMetal } from "./liquid-metal.ts";
 import { isRenderingActive } from "./render-activity.ts";
 // Tide lifecycle and business bindings. The two renderers and controls are upstream code,
 // vendored without edits at 7a424c93b9be13cf835b91ea67495fec2ec0584e (see NOTICE.md).
@@ -120,6 +122,7 @@ export function mountNativeShell(root) {
   popupLayer.className = "native-popup-layer";
   document.body.append(popupLayer);
   for (const popup of root.querySelectorAll(".corner-panel")) popupLayer.append(popup);
+  const metal=mountLiquidMetal(root);
   const paper = mountPaperBackground(root, () => {
     if (["paper","pixel-cover"].includes(appearance?.background)) {glass?.invalidateScene();dockGlass?.invalidateScene();}
   });
@@ -156,7 +159,7 @@ export function mountNativeShell(root) {
     applyWorldCss(next.shell === "lattice" && next.latticeMode === "light" ? "paper" : "night");
     if (next.shell === "lens") document.documentElement.style.colorScheme = document.documentElement.dataset.colorMode;
     clockActivity();
-    paper.sync(next);syncDock();
+    paper.sync(next);metal.sync(next);syncDock();
     popupLayer.hidden = !next.chromeVisible;
     const cssImage = document.documentElement.style.getPropertyValue("--tide-image");
     const url = cssImage.match(/^url\(["']?(.*?)["']?\)$/)?.[1] || "";
@@ -208,7 +211,7 @@ export function mountNativeShell(root) {
     if(records.some(r=>[...r.addedNodes].some(n=>n instanceof Element && (n.matches('.transport,input[type="range"]')||n.querySelector('.transport,input[type="range"]')))))enhanceRanges();
   });
   rangeObserver.observe(root,{childList:true,subtree:true});enhanceRanges();
-  return { sync, ready:()=>{glass?.ready();}, destroy() { destroyed = true; cursor?.destroy?.(); document.removeEventListener("visibilitychange", clockActivity); cancelAnimationFrame(latticeClock._raf); cancelAnimationFrame(widgetFrame); clearTimeout(widgetTimer); stopLens(); points?.destroy();dockWatch.disconnect();dockGlass?.destroy();dockGlass=null; paper.destroy(); for(const view of progressViews)view.destroy();rangeObserver.disconnect(); popupLayer.remove(); } };
+  return { sync, visualState:()=>({phase:paper.getPhase(),points:points?.state()}),restoreVisualState:state=>{if(state){paper.setPhase(state.phase);points?.restore(state.points);}}, ready:()=>{glass?.ready();}, destroy() { destroyed = true; cursor?.destroy?.(); document.removeEventListener("visibilitychange", clockActivity); cancelAnimationFrame(latticeClock._raf); cancelAnimationFrame(widgetFrame); clearTimeout(widgetTimer); stopLens(); points?.destroy();dockWatch.disconnect();dockGlass?.destroy();dockGlass=null; paper.destroy();metal.destroy(); for(const view of progressViews)view.destroy();rangeObserver.disconnect(); popupLayer.remove(); } };
 }
 
 // Embed the original Field and set generators into a desktop viewport. This host supplies
@@ -219,7 +222,7 @@ function mountPointField(root, tier = "balanced") {
   canvas.setAttribute("aria-hidden", "true");
   root.prepend(canvas);
   let renderer, field, frame = 0, paused = false, active = true, dead = false, last = 0, time = 0, setIndex = -1;
-  let renderTimer = 0, lastPaint = 0, interactionUntil = 0;
+  let renderTimer = 0, lastPaint = 0, interactionUntil = 0, nextFormationAt=22;
   let currentAppearance=null,targetInk=null,targetHot=null;
   const contrastWorld=()=>{if(!currentAppearance)return;const light=currentAppearance.latticeMode==="light",base=light?WORLDS.paper:WORLDS.night;let mean=[.5,.5,.5],accent='#66baff';try{const colors=JSON.parse(document.documentElement.style.getPropertyValue('--generated-colors'));if(colors?.[0])mean=colors[0].slice(1).match(/../g).map(v=>parseInt(v,16)/255);accent=document.documentElement.style.getPropertyValue('--cover-tint').trim()||accent;}catch{}
     const bg=mean.map(v=>v*(light?.65:.52)+(light?.32:.015)),linear=bg.map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4),lum=linear[0]*.2126+linear[1]*.7152+linear[2]*.0722;
@@ -267,7 +270,7 @@ function mountPointField(root, tier = "balanced") {
   hero.className = "native-point-hero";
   hero.setAttribute("role", "img"); hero.setAttribute("aria-label", "TIDE 点阵展示区");
   root.append(hero);
-  const alignHero=()=>{const cover=document.querySelector(document.documentElement.dataset.view==="playing"?".lyrics-cover":".home-cover"),box=cover?.getBoundingClientRect();if(box&&box.width>0){const width=Math.min(300,box.width),origin=root.getBoundingClientRect();hero.style.width=width+"px";hero.style.left=(box.left-origin.left+(box.width-width)/2)+"px";if(document.documentElement.dataset.view==="playing"){const h=Math.min(96,Math.max(40,box.top-52));hero.style.height=h+"px";hero.style.top=Math.max(36,Math.min(140,box.top-h-12))+"px";}else{hero.style.removeProperty("height");hero.style.removeProperty("top");}}};
+  const alignHero=()=>{const cover=document.querySelector(document.documentElement.dataset.view==="playing"?".lyrics-cover":".home-cover"),box=cover?.getBoundingClientRect();if(box&&box.width>0){const width=Math.min(360,Math.max(240,box.width)),origin=root.getBoundingClientRect();hero.style.width=width+"px";hero.style.left=(box.left-origin.left+(box.width-width)/2)+"px";if(document.documentElement.dataset.view==="playing"){const h=Math.min(96,Math.max(40,box.top-52));hero.style.height=h+"px";hero.style.top=Math.max(36,Math.min(140,box.top-h-12))+"px";}else{const grid=document.querySelector(".home-grid")?.getBoundingClientRect();hero.style.height="96px";hero.style.top=Math.max(108,(grid?.top??240)-112)+"px";}}};
   let layoutFrame=0;
   const layoutChange=new MutationObserver(()=>{cancelAnimationFrame(layoutFrame);layoutFrame=requestAnimationFrame(()=>{layoutFrame=0;if(dead)return;alignHero();if(setIndex===0)showSet(0);});});layoutChange.observe(document.documentElement,{attributes:true,attributeFilter:["data-view"]});
   const coverResize=new ResizeObserver(()=>{if(dead)return;alignHero();if(setIndex===0)showSet(0);});for(const el of document.querySelectorAll('.lyrics-cover,.home-cover'))coverResize.observe(el);
@@ -291,6 +294,7 @@ function mountPointField(root, tier = "balanced") {
       return data;
     }, options: { sweep: [1, 0, 0], span: 9, dur: 1.5, lit: 1.6, flow: 2.4, alpha: 0.42 } },
     ...[
+      ...[...["saturn","helix","shell","heart","orbit"].map(kind=>[kind.toUpperCase(),n=>tideShape(n,kind)])],
       ["LORENZ ATTRACTOR", n => sets.lorenz(n, 1.95)],
       ["TREFOIL KNOT", n => sets.torusKnot(n, 2, 3, 1.95)],
       ["FCC CRYSTAL", n => sets.crystal(n, 1.95)],
@@ -304,7 +308,7 @@ function mountPointField(root, tier = "balanced") {
   function showSet(index) {
     setIndex = (index + formations.length) % formations.length;
     const set = formations[setIndex];
-    field.keep(set.build, set.options); caption.textContent = set.caption;
+    field.keep(set.build, set.options); caption.textContent = set.caption;canvas.dataset.pointSet=String(setIndex);canvas.dataset.pointSetCount=String(formations.length);nextFormationAt=time+22;
     number.set(String(setIndex + 1).padStart(2, "0"));
     if (paused) snapStill();
     wake();
@@ -364,6 +368,7 @@ function mountPointField(root, tier = "balanced") {
     lastPaint = now;
     const dt = last ? Math.min(0.05, (now - last) / 1000) : 1 / 60; last = now;
     time += paused ? 0 : dt;
+    if(!paused&&!pointer.down&&time>=nextFormationAt)showSet(setIndex+1);
     if(targetInk){field.du.uInk.value.lerp(targetInk,1-Math.exp(-dt*7));field.du.uHot.value.lerp(targetHot,1-Math.exp(-dt*7));}
     updateRay(); field.onPointerMove(stage); field.update(paused ? 0 : dt, time, stage); renderer.render(scene, camera);
     if (!paused) wake();
@@ -379,6 +384,8 @@ function mountPointField(root, tier = "balanced") {
   const resizeObserver = new ResizeObserver(resize); resizeObserver.observe(root);
   resize(); showSet(0);
   return {
+    state:()=>({index:setIndex,time}),
+    restore(value){if(value){time=Number(value.time)||0;showSet(Number(value.index)||0);snapStill();}},
     setActive(on) {
       active = on; canvas.hidden = !on; badge.hidden = !on; hero.hidden = !on; stage.visible = on;
       if (!on) { field.holding = false; pointer.down = false; cancelAnimationFrame(frame); clearTimeout(renderTimer); renderTimer = 0; frame = 0; last = 0; }

@@ -59,6 +59,8 @@ await build({
   logLevel: "info",
 });
 
+await build({entryPoints:[path.join(root,"src/renderer/theme-preview.ts")],bundle:true,platform:"browser",format:"iife",target:"es2022",outfile:path.join(dist,"theme-preview.js"),logLevel:"info"});
+await cp(path.join(root,"src/renderer/theme-preview.html"),path.join(dist,"theme-preview.html"));
 await cp(path.join(root, "src/renderer/index.html"), path.join(dist, "index.html"));
 await cp(path.join(root, "src/renderer/styles.css"), path.join(dist, "styles.css"));
 await cp(path.join(root, "src/renderer/native-shell.css"), path.join(dist, "native-shell.css"));

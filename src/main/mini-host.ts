@@ -13,7 +13,7 @@ export function attachMiniPlayer(options:{file:string;machine:PlaybackMachine;cu
  const close=()=>{if(timer)clearInterval(timer);timer=null;if(moveTimer)clearTimeout(moveTimer);moveTimer=null;const old=win;if(old&&!old.isDestroyed()){const b=old.getBounds();settings={...settings,x:b.x,y:b.y};save();}win=null;old?.destroy();last="";};
  const ensure=()=>{
   if(!settings.open){close();return;}
-  if(!win){const area=screen.getPrimaryDisplay().workArea,width=Math.min(560,area.width),height=198;
+  if(!win){const area=screen.getPrimaryDisplay().workArea,width=Math.min(480,area.width),height=184;
    win=new BrowserWindow({width,height,x:settings.x??Math.round(area.x+(area.width-width)/2),y:settings.y??area.y+area.height-height-80,frame:false,transparent:true,alwaysOnTop:settings.topmost,skipTaskbar:true,focusable:false,resizable:false,show:false,hasShadow:false,backgroundColor:"#00000000",webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:true}});
    const areaFit=screen.getDisplayMatching(win.getBounds()).workArea,b=win.getBounds();win.setPosition(Math.max(areaFit.x,Math.min(b.x,areaFit.x+areaFit.width-b.width)),Math.max(areaFit.y,Math.min(b.y,areaFit.y+areaFit.height-b.height)));
    const current=win;current.on("closed",()=>{if(win===current){win=null;if(timer)clearInterval(timer);timer=null;settings={...settings,open:false};save();}});

@@ -18,7 +18,7 @@ uniform float u_previousCoverAspectRatio;
 uniform float u_coverFade;`).replace('vec2 uv = v_objectUV;',`vec2 uv = v_objectUV;
   vec2 tideCenter=uv-vec2(.1,-.08);
   float tideFalloff=exp(-dot(tideCenter,tideCenter)*2.8);
-  uv+=u_beat*.055*tideFalloff*vec2(sin(uv.y*5.+u_time*.3),cos(uv.x*4.-u_time*.25));
+  uv+=u_beat*mix(.055,.008,u_coverMix)*tideFalloff*vec2(sin(uv.y*5.+u_time*.3),cos(uv.x*4.-u_time*.25));
 `).replace('fragColor = vec4(color, opacity);',`
   if (u_coverMix > 0.) {
     vec2 screenUV=gl_FragCoord.xy/u_resolution;
@@ -36,10 +36,17 @@ uniform float u_coverFade;`).replace('vec2 uv = v_objectUV;',`vec2 uv = v_object
   float patches=smoothstep(.38,.66,valueNoise(uvRotated*3.7+vec2(t*.025,-t*.018)));
   float coverage=patches*(1.-smoothstep(.24,.75,abs(ridge)));
   float seam=1.-smoothstep(.035,.16,abs(sin(uvRotated.x*4.+sin(uvRotated.y*4.5+t*.07)*1.7)));
-  color=mix(color,color*.38,seam*.55);
+  color=mix(color,color*.38,seam*.55*(1.-u_coverMix*.85));
   float tideDotRadius=mix(.10,.40,clamp(luminance*1.1,0.,1.));
   float dotMask=1.-smoothstep(tideDotRadius-.06,tideDotRadius+.02,length(cell));
   color=mix(color,color*mix(.6,1.22,dotMask),coverage*u_pixels);
+  if(u_coverMix>.5){
+    vec2 pixel=floor(gl_FragCoord.xy/max(1.,2.*u_pixelRatio));
+    vec2 lo=mod(pixel,2.),hi=mod(floor(pixel/2.),2.);
+    float threshold=(4.*mod(2.*lo.x+3.*lo.y,4.)+mod(2.*hi.x+3.*hi.y,4.)+.5)/16.;
+    vec3 dithered=floor(clamp(color,0.,1.)*6.+threshold)/6.;
+    color=mix(color,dithered,.88);
+  }
   fragColor = vec4(color, opacity);`);
 
 /** Original Apache-2.0 Paper shader, with Tide lifecycle and bounded resolution. */
@@ -77,7 +84,7 @@ export function mountPaperBackground(root: HTMLElement, invalidate: () => void) 
     if (dead || !current || !isPaper(current)) return;
     if (!isRenderingActive()) { lastTick = 0; return; }
     if(current.performance!=='smooth'&&current.motion>0&&!matchMedia('(prefers-reduced-motion: reduce)').matches){const audio=sampleAudioReactivity(time);beat+=(audio.beat-beat)*.24;bass+=(audio.bass-bass)*.18;}else beat=bass=0;
-    shaderTime += (lastTick ? Math.min(100, time - lastTick) : 0) * current.motion * (.65+bass*.12); lastTick = time;
+    shaderTime += (lastTick ? Math.min(100, time - lastTick) : 0) * current.motion * (.65+bass*.12)*(current.background==="pixel-cover"?.18:1); lastTick = time;
     const interval=current.performance==="smooth"?1000:current.performance==="vivid"?1000/60:1000/30;
     if (time - lastCopy >= interval || lastCopy === 0) {
       batching=true;
@@ -87,8 +94,8 @@ export function mountPaperBackground(root: HTMLElement, invalidate: () => void) 
         shader?.setUniforms(uniforms());
       }
       if(coverFade<1){coverFade=Math.min(1,(time-coverStart)/900);if(coverFade===1)previousCover=cover;}
-      shader?.setUniforms({u_beat:beat,u_distortion:.72+beat*.10,u_swirl:.65+bass*.08,u_coverFade:coverFade});
-      host.dataset.beat=beat.toFixed(3);
+      shader?.setUniforms({u_beat:beat,u_distortion:current.background==="pixel-cover"?.18:.72+beat*.10,u_swirl:current.background==="pixel-cover"?.12:.65+bass*.08,u_coverFade:coverFade});
+      host.dataset.beat=beat.toFixed(3);host.dataset.phase=String(shaderTime);
       shader?.setFrame(shaderTime);batching=false;renderOnce?.(time); invalidate(); lastCopy = time;
     }
     if (current.performance!=="smooth" && current.motion > 0 && !matchMedia("(prefers-reduced-motion: reduce)").matches) copyTimer = window.setTimeout(() => { copyTimer = 0; frame = requestAnimationFrame(copyFrame); }, interval);
@@ -99,6 +106,8 @@ export function mountPaperBackground(root: HTMLElement, invalidate: () => void) 
   const artwork=(event:Event)=>{const url=(event as CustomEvent<{url:string}>).detail?.url;if(!url)return;const token=++coverRequest,image=new Image();image.crossOrigin='anonymous';image.onload=()=>{if(dead||token!==coverRequest)return;previousCover=cover;cover=image;coverFade=current?.performance==='smooth'?1:0;coverStart=performance.now();shader?.setUniforms({u_cover:cover,u_previousCover:previousCover,u_coverFade:coverFade});wake();};image.onerror=()=>{};image.src=url;};
   window.addEventListener('tide:artwork',artwork);
   const api = {
+    getPhase:()=>shaderTime,
+    setPhase:(phase:number)=>{if(Number.isFinite(phase)){shaderTime=phase;shader?.setFrame(phase);invalidate();}},
     get canvas() { return host.querySelector("canvas"); },
     sync(next: Appearance) {
       current = next;

@@ -54,7 +54,7 @@ export function mountChrome(root: HTMLElement): {
   const titlebar = document.createElement("header");
   titlebar.className = "tide-titlebar";
   titlebar.textContent = "潮汐";
-  root.append(titlebar);
+  document.body.append(titlebar);
 
   const transport = document.createElement("footer");
   transport.className = "transport";

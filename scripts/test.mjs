@@ -9,6 +9,7 @@ const outdir = path.join(root, "dist-test");
 const entryPoints = [
   "src/core/custom-palette.test.ts",
   "src/renderer/view.test.ts",
+  "src/renderer/point-formations.test.ts",
   "src/renderer/audio-clock.test.ts",
   "src/core/ttml.test.ts",
   "src/core/ai-assist.test.ts",

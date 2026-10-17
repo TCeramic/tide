@@ -32,7 +32,8 @@ window.tide.onMiniCue(value=>{const oldStyle=cue?.settings.style,oldPerformance=
  if(trackId!==(track?.id??"")){trackId=track?.id??"";liked=false;paintLike();const id=trackId;void window.tide.likedIds().then(result=>{if(result.ok&&trackId===id){liked=result.ids.includes(id);paintLike();}});}
  const playing=state.status==="playing";play.setAttribute("aria-label",playing?"暂停":"播放");setIcon(play,playing?"Pause":"Play",playing?Pause:Play,ICON_SIZE.control);const mode=state.shuffle?Shuffle:state.repeat==="one"?Repeat1:Repeat;setIcon(order,state.shuffle?"Shuffle":state.repeat==="one"?"Repeat1":"Repeat",mode,ICON_SIZE.control);order.title=state.shuffle?"随机":state.repeat==="one"?"单曲循环":state.repeat==="all"?"列表循环":"灵感续播";
  range.max=String(track?.durationMs??0);if(!seeking)range.value=String(state.positionMs);time.value=`${clock(Number(range.value))} / ${clock(Number(range.max))}`;range.disabled=!track;play.disabled=next.disabled=previous.disabled=like.disabled=!track;
- const text=value.lyrics.text||track?.title||"潮汐 Tide";if(lyric.textContent!==text)lyric.textContent=text;
+ const text=value.lyrics.text||track?.title||"潮汐 Tide",following=value.lyrics.next||"";
+ if(lyric.dataset.lines!==text+"\n"+following){lyric.dataset.lines=text+"\n"+following;const first=document.createElement('span'),second=document.createElement('span');first.textContent=text;second.textContent=following;lyric.replaceChildren(first,second);}
  if(oldStyle!==value.settings.style||oldPerformance!==value.performance)syncMotion();
 });
 window.tide.onRenderActive?.(value=>{active=value;root.dataset.active=String(value);syncMotion();});document.addEventListener('visibilitychange',syncMotion);
