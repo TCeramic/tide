@@ -352,6 +352,7 @@ export interface QueueRequest {
 /** Surface exposed on `window.tide` by the preload script. */
 export interface TideBridge {
   setFullscreen(value?:boolean):Promise<boolean>;
+  captureThemeFrame():Promise<string|null>;
   onFullscreen(listener:(fullscreen:boolean)=>void):()=>void;
   onLikeState?(listener: (value: {id:string;liked:boolean}) => void): () => void;
   getMiniPlayer():Promise<MiniPlayerSettings>;

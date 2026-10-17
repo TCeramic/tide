@@ -12,7 +12,7 @@ function paintLike(){like.setAttribute("aria-pressed",String(liked));setIcon(lik
 window.tide.onLikeState?.(value=>{if(value.id===trackId){liked=value.liked;paintLike();}});
 controls.append(previous,play,next,order,like);
 const skin=iconButton("切换小窗风格","Layers",Layers,ICON_SIZE.row),pin=iconButton("小窗置顶","Pin",Pin,ICON_SIZE.row),lock=iconButton("小窗鼠标穿透","Lock",Lock,ICON_SIZE.row),main=iconButton("呼出主界面","Maximize2",Maximize2,ICON_SIZE.row),close=iconButton("关闭小窗","X",X,ICON_SIZE.row);
-skin.onclick=()=>{const styles:MiniPlayerSettings["style"][]=["lens","lattice","transparent"];void window.tide.setMiniPlayer({style:styles[(styles.indexOf(cue?.settings.style??"lens")+1)%3]});};pin.onclick=()=>void window.tide.setMiniPlayer({topmost:!cue?.settings.topmost});lock.onclick=()=>void window.tide.setMiniPlayer({locked:!cue?.settings.locked});main.onclick=()=>void window.tide.miniShowMain();close.onclick=()=>void window.tide.setMiniPlayer({open:false});tools.append(skin,pin,lock,main,close);
+skin.onclick=()=>{const styles:MiniPlayerSettings["style"][]=["lens","lattice","transparent"];void window.tide.setMiniPlayer({style:styles[(styles.indexOf(cue?.settings.style??"lens")+1)%3]});};pin.onclick=()=>void window.tide.setMiniPlayer({topmost:!cue?.settings.topmost});lock.onclick=()=>{lock.blur();void window.tide.setMiniPlayer({locked:!cue?.settings.locked});};main.onclick=()=>void window.tide.miniShowMain();close.onclick=()=>void window.tide.setMiniPlayer({open:false});tools.append(skin,pin,lock,main,close);
 let lockHot=false;
 function lockHover(x:number,y:number){
  const rect=lock.getBoundingClientRect(),hot=Boolean(cue?.settings.locked&&x>=rect.left-10&&x<=rect.right+10&&y>=rect.top-10&&y<=rect.bottom+10);

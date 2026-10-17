@@ -15,7 +15,11 @@ uniform sampler2D u_cover;
 uniform float u_coverAspectRatio;
 uniform sampler2D u_previousCover;
 uniform float u_previousCoverAspectRatio;
-uniform float u_coverFade;`).replace('fragColor = vec4(color, opacity);',`
+uniform float u_coverFade;`).replace('vec2 uv = v_objectUV;',`vec2 uv = v_objectUV;
+  vec2 tideCenter=uv-vec2(.1,-.08);
+  float tideFalloff=exp(-dot(tideCenter,tideCenter)*2.8);
+  uv+=u_beat*.055*tideFalloff*vec2(sin(uv.y*5.+u_time*.3),cos(uv.x*4.-u_time*.25));
+`).replace('fragColor = vec4(color, opacity);',`
   if (u_coverMix > 0.) {
     vec2 screenUV=gl_FragCoord.xy/u_resolution;
     screenUV.y=1.-screenUV.y;
@@ -28,10 +32,14 @@ uniform float u_coverFade;`).replace('fragColor = vec4(color, opacity);',`
   }
   float luminance=dot(color,vec3(.2126,.7152,.0722));
   vec2 cell=fract(gl_FragCoord.xy/max(2.,5.*u_pixelRatio))-.5;
-  float tideDotRadius=mix(.12,.43,clamp(luminance*1.3+u_beat*.16,0.,1.));
+  float ridge=sin(uvRotated.x*8.+sin(uvRotated.y*6.+t*.13)*1.6);
+  float patches=smoothstep(.38,.66,valueNoise(uvRotated*3.7+vec2(t*.025,-t*.018)));
+  float coverage=patches*(1.-smoothstep(.24,.75,abs(ridge)));
+  float seam=1.-smoothstep(.035,.16,abs(sin(uvRotated.x*4.+sin(uvRotated.y*4.5+t*.07)*1.7)));
+  color=mix(color,color*.38,seam*.55);
+  float tideDotRadius=mix(.10,.40,clamp(luminance*1.1,0.,1.));
   float dotMask=1.-smoothstep(tideDotRadius-.06,tideDotRadius+.02,length(cell));
-  color*=mix(1.,mix(.55,1.25,dotMask),u_pixels);
-  color*=1.+u_beat*.18;
+  color=mix(color,color*mix(.6,1.22,dotMask),coverage*u_pixels);
   fragColor = vec4(color, opacity);`);
 
 /** Original Apache-2.0 Paper shader, with Tide lifecycle and bounded resolution. */
@@ -68,8 +76,8 @@ export function mountPaperBackground(root: HTMLElement, invalidate: () => void) 
     frame = 0;
     if (dead || !current || !isPaper(current)) return;
     if (!isRenderingActive()) { lastTick = 0; return; }
-    if(current.performance!=='smooth'&&current.motion>0&&!matchMedia('(prefers-reduced-motion: reduce)').matches){const audio=sampleAudioReactivity(time);beat=audio.beat;bass=audio.bass;}else beat=bass=0;
-    shaderTime += (lastTick ? Math.min(100, time - lastTick) : 0) * current.motion * (.65+bass*.5+beat*.45); lastTick = time;
+    if(current.performance!=='smooth'&&current.motion>0&&!matchMedia('(prefers-reduced-motion: reduce)').matches){const audio=sampleAudioReactivity(time);beat+=(audio.beat-beat)*.24;bass+=(audio.bass-bass)*.18;}else beat=bass=0;
+    shaderTime += (lastTick ? Math.min(100, time - lastTick) : 0) * current.motion * (.65+bass*.12); lastTick = time;
     const interval=current.performance==="smooth"?1000:current.performance==="vivid"?1000/60:1000/30;
     if (time - lastCopy >= interval || lastCopy === 0) {
       batching=true;
@@ -79,7 +87,7 @@ export function mountPaperBackground(root: HTMLElement, invalidate: () => void) 
         shader?.setUniforms(uniforms());
       }
       if(coverFade<1){coverFade=Math.min(1,(time-coverStart)/900);if(coverFade===1)previousCover=cover;}
-      shader?.setUniforms({u_beat:beat,u_distortion:.72+beat*.18,u_swirl:.65+bass*.2,u_coverFade:coverFade});
+      shader?.setUniforms({u_beat:beat,u_distortion:.72+beat*.10,u_swirl:.65+bass*.08,u_coverFade:coverFade});
       host.dataset.beat=beat.toFixed(3);
       shader?.setFrame(shaderTime);batching=false;renderOnce?.(time); invalidate(); lastCopy = time;
     }

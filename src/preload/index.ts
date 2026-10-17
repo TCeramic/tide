@@ -14,6 +14,7 @@ function listen<T>(channel: string, listener: (payload: T) => void): () => void 
 
 const tide: TideBridge = {
   setFullscreen:value=>ipcRenderer.invoke("tide:fullscreen",value),
+  captureThemeFrame:()=>ipcRenderer.invoke("tide:theme-frame"),
   onFullscreen:listener=>listen<boolean>("tide:fullscreen-state",listener),
   onLikeState: listener => listen<{id:string;liked:boolean}>("tide:like-state",listener),
   getMiniPlayer:()=>ipcRenderer.invoke("tide:mini-get"),

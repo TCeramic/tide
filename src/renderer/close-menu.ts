@@ -9,6 +9,9 @@ export function mountCloseMenu(): () => void {
     focusBefore = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     menu = document.createElement("div"); menu.className = "window-close-backdrop";
     const panel = document.createElement("section"); panel.className = "window-close-menu";
+    // Lens loads its surface rules dynamically; keep viewport anchoring independent
+    // of the generic .lg-surface { position:relative } rule and module transforms.
+    panel.style.cssText = "position:fixed;inset:42px 18px auto auto;max-height:calc(100dvh - 60px);overflow:auto;transform:none";
     panel.setAttribute("role", "dialog"); panel.setAttribute("aria-label", "关闭 Tide"); panel.setAttribute("aria-modal", "true");
     const heading = document.createElement("h2"); heading.textContent = "离开 Tide";
     const text = document.createElement("p"); text.textContent = "收起后音乐和桌面歌词会继续播放。";

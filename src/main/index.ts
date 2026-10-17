@@ -116,6 +116,8 @@ function createWindow(): BrowserWindow {
 
   applyTitleBar(win, shell, theme);
   ipcMain.removeHandler("tide:fullscreen");
+  ipcMain.removeHandler('tide:theme-frame');
+  ipcMain.handle('tide:theme-frame',async(event)=>{if(event.sender!==win.webContents||win.isDestroyed())return null;const frame=await win.webContents.capturePage();return frame.isEmpty()?null:frame.toDataURL();});
   ipcMain.handle("tide:fullscreen",(event,value:unknown)=>{if(event.sender!==win.webContents)return false;win.setFullScreen(typeof value==="boolean"?value:!win.isFullScreen());fullscreenState();return win.isFullScreen();});
   const fullscreenState=()=>win.webContents.send("tide:fullscreen-state",win.isFullScreen());
   win.on("enter-full-screen",fullscreenState);win.on("leave-full-screen",fullscreenState);

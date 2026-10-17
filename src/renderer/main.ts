@@ -1,4 +1,4 @@
-import { isRenderingActive, setRenderingActive, setThemeTransitionActive } from "./render-activity";
+import { isRenderingActive, setRenderingActive } from "./render-activity";
 import { installModuleMotion } from "./module-motion";
 import { mountCloseMenu } from "./close-menu";
 import { EventBus } from "../core/events";
@@ -136,21 +136,44 @@ function commitAppearance(appearance: Appearance): void {
 }
 
 let desiredAppearance: Appearance | null = null;
-let appearanceGeneration=0, themeTransition: ViewTransition | null=null;
-function applyAppearance(appearance: Appearance): Promise<void> {
- const prior=desiredAppearance;desiredAppearance=appearance;const generation=++appearanceGeneration;
- const mode=(a:Appearance)=>a.shell==="lattice"?a.latticeMode??"dark":a.lensMode??(a.theme==="dusk"?"dark":"light");
- const changed=prior&&(prior.shell!==appearance.shell||mode(prior)!==mode(appearance));
- if(changed){themeTransition?.skipTransition();themeTransition=null;setThemeTransitionActive(false);}
- if(changed&&appearance.performance!=="smooth"&&appearance.motion>0&&isRenderingActive()&&!matchMedia("(prefers-reduced-motion: reduce)").matches&&typeof document.startViewTransition==="function") {
-  document.documentElement.style.setProperty("--theme-duration",appearance.performance==="vivid"?"1400ms":"1000ms");
-  document.documentElement.style.setProperty("--theme-radius",`${Math.ceil(Math.hypot(innerWidth,innerHeight)+12)}px`);
-  const transition=document.startViewTransition(async()=>{if(generation===appearanceGeneration)commitAppearance(appearance);await new Promise(resolve=>setTimeout(resolve,100));if(themeTransition===transition)setThemeTransitionActive(true);});
-  themeTransition=transition;
-  void transition.finished.finally(()=>{if(themeTransition===transition){themeTransition=null;setThemeTransitionActive(false);}}).catch(()=>{});
-  return themeTransition.updateCallbackDone.catch(()=>{});
+let appearanceGeneration = 0, revealFrame = 0, revealImage: HTMLImageElement | null = null;
+function clearThemeReveal(): void {
+ cancelAnimationFrame(revealFrame); revealFrame = 0;
+ revealImage?.remove(); revealImage = null;
+}
+async function applyAppearance(appearance: Appearance): Promise<void> {
+ const prior = desiredAppearance; desiredAppearance = appearance;
+ const generation = ++appearanceGeneration;
+ const mode = (a: Appearance) => a.shell === "lattice" ? a.latticeMode ?? "dark" : a.lensMode ?? (a.theme === "dusk" ? "dark" : "light");
+ const changed = prior && (prior.shell !== appearance.shell || mode(prior) !== mode(appearance));
+ if (changed && appearance.performance !== "smooth" && appearance.motion > 0 && isRenderingActive() && !matchMedia("(prefers-reduced-motion: reduce)").matches && window.tide.captureThemeFrame) {
+  // Capture actual composited pixels, including WebGL, before changing either shell.
+  // Reveal the live new scene through the old frame; no ViewTransition snapshot
+  // lifecycle may remove the remaining corner before our radius reaches it.
+  const source = await window.tide.captureThemeFrame().catch(() => null);
+  if (generation !== appearanceGeneration) return;
+  if (source) {
+   const image = new Image(); image.className = "theme-reveal-frame"; image.alt = "";
+   image.src = source;
+   try { await image.decode(); } catch { clearThemeReveal(); commitAppearance(appearance); nativeShell.ready(); return; }
+   if (generation !== appearanceGeneration) return;
+   clearThemeReveal(); revealImage = image; document.body.append(image);
+   commitAppearance(appearance); nativeShell.ready();
+   const start = performance.now(), duration = appearance.performance === "vivid" ? 1800 : 1500;
+   const draw = (now: number) => {
+    if (revealImage !== image) return;
+    const t = Math.min(1, Math.max(0, (now - start) / duration));
+    const target = Math.hypot(innerWidth, innerHeight) + 4;
+    // Gentle deceleration keeps the final visible corner moving through the tail.
+    const radius = target * (1 - Math.pow(1 - t, 1.35));
+    image.dataset.radius = String(radius); image.dataset.target = String(target);
+    image.style.maskImage = `radial-gradient(circle at 0 0, transparent ${radius}px, #000 ${radius + 1}px)`;
+    if (t < 1) revealFrame = requestAnimationFrame(draw); else clearThemeReveal();
+   };
+   draw(start); return;
+  }
  }
- commitAppearance(appearance);return Promise.resolve();
+ clearThemeReveal(); commitAppearance(appearance); nativeShell.ready();
 }
 installModuleMotion();
 const fullscreenButton=iconButton("进入全屏","Maximize2",Maximize2,ICON_SIZE.row);fullscreenButton.classList.add("fullscreen-toggle");document.body.append(fullscreenButton);

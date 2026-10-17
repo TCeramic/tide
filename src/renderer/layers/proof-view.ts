@@ -121,7 +121,7 @@ export function mountProof(host: HTMLElement, onSong: (id: string, name: string)
       const motion=()=>document.documentElement.dataset.performance!=="smooth"&&!matchMedia("(prefers-reduced-motion: reduce)").matches;
       const commitGraph=(rows:LatticeNode[])=>{
         branchGraph(tree,rows,positions,path,motion());labels.replaceChildren();projectedLabels.clear();labelWidths.clear();
-        for(const node of rows){const label=button(node.name,()=>navigate(node.id));label.classList.add("proof-label");label.title=`${kinds[node.kind]} · ${node.name}`;
+        for(const node of rows){const label=button(node.name,()=>navigate(node.id));label.classList.add("proof-label");label.hidden=true;label.title=`${kinds[node.kind]} · ${node.name}`;
           label.style.opacity=path.length>1&&!path.includes(node.id)&&!node.id.startsWith(path.at(-1)!+'/')?'.3':'1';labels.append(label);projectedLabels.set(node.id,label);}
         canvas.dataset.nodes=String(rows.length);canvas.dataset.root=rows[0].id;
         fitTree();

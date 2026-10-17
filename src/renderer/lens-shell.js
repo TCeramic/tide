@@ -18,6 +18,8 @@ export function mountLensShell(root, portals, artwork) {
   const interactive = () => { interactionUntil = performance.now() + 700; renderer?.invalidate(); };
   for (const event of ["pointermove", "pointerdown", "wheel", "focusin"]) root.addEventListener(event, interactive, { passive: true });
   if (renderer) {
+    const resume=renderer.resumeGPU.bind(renderer);
+    renderer.resumeGPU=()=>{if(!renderer.suspended&&!renderer.lost&&renderer.gl&&renderer.programs)return;resume();};
     if(artwork)renderer.setScene=name=>{
       renderer.settings.scene=name;
       if(dead||renderer.suspended||!renderer.gl||renderer.gl.isContextLost?.())return;
@@ -92,6 +94,7 @@ export function mountLensShell(root, portals, artwork) {
   activity();
   portals.dataset.lens = "true";
   return {
+    ready() {if(dead||!renderer||!isRenderingActive())return;renderer.resumeGPU();if(!renderer.suspended&&!renderer.lost&&renderer.gl&&renderer.width>1&&renderer.targets?.length){renderer.visible=true;renderer.setScene(renderer.settings.scene);renderer.rectDirty=true;originalRender(performance.now());}},
     sync(next) {
       appearance = next; system.renderer?.resize();
       system.setScene((next.lensMode ?? (next.theme === "dusk" ? "dark" : "light")) === "dark" ? "ocean" : "aurora");

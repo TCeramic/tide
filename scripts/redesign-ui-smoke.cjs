@@ -16,6 +16,7 @@ const server = http.createServer((req,res)=>{if(req.url==='/fixture.wav'){const 
  const page=await browser.newPage({viewport:{width:1440,height:960}});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  page.on('console',message=>{if(message.type()==='error'&&/shader|program|WebGL/i.test(message.text()))console.error(message.text());});
+ await page.exposeFunction('__captureThemeFrame',async()=> 'data:image/png;base64,'+(await page.screenshot()).toString('base64'));
  await page.addInitScript(()=>{
   if(window.top !== window) return;
   localStorage.setItem('tide.risk.ack','1');
@@ -35,7 +36,7 @@ const server = http.createServer((req,res)=>{if(req.url==='/fixture.wav'){const 
   window.fixtureSetPlayback=patch=>{Object.assign(snapshot,patch);listeners.onPlayback?.forEach(f=>f({...snapshot}));};
 
   window.fixtureLists=[];window.fixtureSearchCalls=[];window.fixtureTodayGeneration=0; window.fixtureReplaced=0;
-  window.tide=new Proxy({mediaKeys:{},
+  window.tide=new Proxy({mediaKeys:{},captureThemeFrame:()=>window.__captureThemeFrame(),
     tidePlaylists:async()=>window.fixtureLists,
     dailyRecommend:async()=>({ok:true,kind:'songs',hits:tracks}),
     playlistTracks:async()=>({ok:true,kind:'songs',hits:Array.from({length:20},(_,i)=>({...tracks[0],id:String(i+1)}))}),
@@ -74,6 +75,19 @@ setAppearance:async patch=>{Object.assign(appearance,patch);for(const f of liste
  const beats=[];for(let i=0;i<22;i++){await page.waitForTimeout(90);beats.push(Number(await page.locator('.native-paper-source').getAttribute('data-beat')));}
  assert.ok(Math.max(...beats)>.1,'real analyser must react to synthetic bass bursts: '+JSON.stringify(beats));
  await page.evaluate(()=>window.tide.pause());
+ const modeMeans=[];
+ for(const patch of [{shell:'lens',lensMode:'light'},{lensMode:'dark'},{shell:'lattice',latticeMode:'light'},{shell:'lens',lensMode:'dark'}]){
+  await page.evaluate(p=>window.tide.setAppearance(p),patch);await page.waitForTimeout(200);
+  const clip1=await page.locator('.theme-reveal-frame').getAttribute('data-radius');
+  await page.waitForTimeout(550);
+  const clip2=await page.locator('.theme-reveal-frame').getAttribute('data-radius');
+  assert.ok(Number(clip1)>0&&Number(clip2)>Number(clip1)&&Number(clip2)<Math.hypot(1440,960),JSON.stringify({patch,clip1,clip2}));
+  await page.waitForTimeout(850);
+  if(patch.shell!=='lattice'){const stats=await page.evaluate(()=>{const source=document.querySelector('body>.lg-canvas'),c=document.createElement('canvas');c.width=32;c.height=24;const g=c.getContext('2d');g.drawImage(source,0,0,32,24);const data=g.getImageData(0,0,32,24).data;let sum=0,black=0;for(let i=0;i<data.length;i+=4){sum+=data[i]+data[i+1]+data[i+2];if(data[i]+data[i+1]+data[i+2]<15)black++;}return {mean:sum/2304,black:black/768};});assert.ok(stats.mean>15&&stats.black<.4,JSON.stringify({patch,stats}));modeMeans.push(stats.mean);}
+ }
+ assert.ok(modeMeans[0]>modeMeans[1]+15,JSON.stringify(modeMeans));
+ assert.equal(await page.evaluate(()=>document.getAnimations().filter(a=>a.effect?.pseudoElement==='::view-transition-new(root)').length),0);
+ await page.evaluate(()=>window.tide.setAppearance({shell:'lattice',latticeMode:'dark'}));await page.waitForTimeout(1900);
  const home=await page.locator('.home-card').evaluateAll(els=>els.map(el=>{const r=el.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height};}));assert.ok(home[0].x<home[1].x&&home[0].h>home[1].h);
  await page.screenshot({path:path.join(output,'home-redesign.png')});
  await page.locator('.home-card').filter({has:page.locator('h2',{hasText:'歌单'})}).click();await page.waitForFunction(()=>document.querySelectorAll('.playlist-card').length===3);
@@ -102,5 +116,35 @@ setAppearance:async patch=>{Object.assign(appearance,patch);for(const f of liste
  const positions=await page.locator('.proof-label').evaluateAll(els=>els.map(el=>el.style.transform));await page.waitForTimeout(1000);assert.notDeepEqual(await page.locator('.proof-label').evaluateAll(els=>els.map(el=>el.style.transform)),positions);
  await page.getByRole('button',{name:'返回上一级',exact:true}).click();await page.waitForTimeout(600);assert.equal(await page.locator('.proof-pager').innerText(),pageText);await page.screenshot({path:path.join(output,'music-lineage-3d.png')});
  await page.getByRole('button',{name:'← 返回主页',exact:true}).click();await page.locator('.home-card').filter({has:page.locator('h2',{hasText:'歌单'})}).click();await page.getByRole('button',{name:'创建歌单',exact:true}).click();await page.getByRole('textbox',{name:'歌单名称',exact:true}).fill('Tide内置歌单');await page.getByRole('textbox',{name:'歌单描述',exact:true}).fill('保留这段描述');await page.getByRole('button',{name:'保存歌单',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.playlist-hero h2')?.textContent==='Tide内置歌单');assert.equal(await page.locator('.playlist-description').innerText(),'保留这段描述');await page.getByRole('button',{name:'编辑歌单',exact:true}).click();await page.getByRole('textbox',{name:'歌单名称',exact:true}).fill('已编辑歌单');await page.getByRole('button',{name:'保存歌单',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.playlist-hero h2')?.textContent==='已编辑歌单');
+
+ const layouts=[];
+ const bounds=async(sel)=>page.locator(sel).evaluate(el=>{const r=el.getBoundingClientRect();return{x:r.x,y:r.y,w:r.width,h:r.height,right:r.right,bottom:r.bottom};});
+ const fits=async(sel)=>{const r=await bounds(sel),v=page.viewportSize();assert.ok(r.x>=-1&&r.y>=0&&r.right<=v.width+1&&r.bottom<=v.height+1&&r.w>0&&r.h>0,JSON.stringify({sel,r,v}));return r;};
+ for(const shell of ['lens','lattice'])for(const viewport of [{width:800,height:560},{width:1100,height:720},{width:1700,height:1050},{width:900,height:600}]){
+  await page.setViewportSize(viewport);await page.evaluate(shell=>window.tide.setAppearance({shell,performance:'balanced'}),shell);await page.waitForTimeout(1700);
+  await page.getByRole('button',{name:'主页',exact:true}).click();await page.waitForTimeout(450);await fits('.topbar');
+  for(const name of ['歌单','本地音乐','音乐脉络']){
+   await page.getByRole('button',{name:'主页',exact:true}).click();
+   await page.locator('.home-card').filter({has:page.locator('h2',{hasText:name})}).click();await page.waitForTimeout(450);
+   const sel=name==='音乐脉络'?'.proof-host':'.browse-sheet:not([hidden])';await fits(sel);
+   if(name==='歌单'){await page.getByRole('button',{name:'打开歌单 远端歌单',exact:true}).evaluate(el=>el.click());await page.waitForTimeout(450);await fits('.browse-sheet:not([hidden])');await fits('.playlist-detail-art');assert.ok(await page.locator('.browse-sheet:not([hidden])').evaluate(el=>el.scrollWidth<=el.clientWidth+1));}
+   if(name==='本地音乐')await page.getByRole('button',{name:'添加本地音乐',exact:true}).click();
+   if(name==='音乐脉络'){await fits('.proof-aside');await fits('.proof-visual');} if(viewport.width===800)await page.screenshot({path:path.join(output,`responsive-${shell}-${name}.png`)});
+  }
+  await page.getByRole('button',{name:'主页',exact:true}).click();
+  await page.getByRole('searchbox',{name:'搜索',exact:true}).fill('分页测试');await page.locator('form.search > .icon-button').click();await page.waitForTimeout(450);await fits('.search-page');
+  await page.evaluate(()=>window.fixtureClose());await page.waitForTimeout(450);const r=await fits('.window-close-menu');assert.ok(r.x>viewport.width/2);await page.getByRole('button',{name:'取消',exact:true}).click();
+  await page.getByRole('button',{name:'主页',exact:true}).click();await page.waitForTimeout(450);
+  for(const sel of ['.corner-settings','.corner-login']){await page.locator(sel).evaluate(el=>el.click());await page.waitForTimeout(450);await fits(sel==='.corner-settings'?'.settings-pop':'.login-panel');if(sel==='.corner-settings'){await page.getByRole('button',{name:'主题配色',exact:true}).evaluate(el=>el.click());await page.waitForTimeout(250);await fits('.palette-menu');await page.getByRole('button',{name:'关闭调色菜单',exact:true}).click();}await page.locator(sel).evaluate(el=>el.click());}
+  await page.evaluate(()=>window.fixtureSetPlayback({status:'playing'}));await page.locator('.home-card').first().evaluate(el=>el.click());await page.waitForTimeout(450);
+  for(const sel of ['.lyrics-art','.lyrics-cover','.lyrics-title','.lyrics-artists','.lyrics-reading'])await fits(sel);if(shell==='lattice'){const h=await fits('.native-point-hero'),c=await bounds('.lyrics-cover');assert.ok(h.bottom<=c.y+1);}
+  await page.screenshot({path:path.join(output,`responsive-${shell}-${viewport.width}x${viewport.height}.png`)});
+  layouts.push({shell,...viewport});await page.locator('.lyrics-cover').click();await page.waitForTimeout(400);
+ }
+ await page.waitForTimeout(500);
+ await page.evaluate(()=>{window.homeMutations=0;window.homeObserver=new MutationObserver(rows=>window.homeMutations+=rows.length);window.homeObserver.observe(document.querySelector('.home-grid'),{attributes:true,attributeFilter:['hidden']});});
+ await page.getByRole('button',{name:'主页',exact:true}).click();await page.waitForTimeout(400);assert.equal(await page.evaluate(()=>window.homeMutations),0);await page.evaluate(()=>window.homeObserver.disconnect());assert.equal(await page.locator('.module-exit').count(),0);
+ await page.locator('.home-card').filter({has:page.locator('h2',{hasText:'歌单'})}).click();await page.getByRole('button',{name:'创建歌单',exact:true}).click();await fits('.playlist-editor');await page.getByRole('button',{name:'取消',exact:true}).click();
+ fs.writeFileSync(path.join(output,'responsive-results.json'),JSON.stringify(layouts,null,2));
  assert.deepEqual(errors,[]);console.log('REDESIGNED_HOME_SQUARE_COVERS_ROUTES_PAGINATION_LIVE_FILTER_DOCK_LYRICS passed');await browser.close();server.close();
 })().catch(async e=>{console.error(e);process.exitCode=1;await browser?.close();server.close();});

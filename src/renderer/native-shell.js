@@ -208,7 +208,7 @@ export function mountNativeShell(root) {
     if(records.some(r=>[...r.addedNodes].some(n=>n instanceof Element && (n.matches('.transport,input[type="range"]')||n.querySelector('.transport,input[type="range"]')))))enhanceRanges();
   });
   rangeObserver.observe(root,{childList:true,subtree:true});enhanceRanges();
-  return { sync, destroy() { destroyed = true; cursor?.destroy?.(); document.removeEventListener("visibilitychange", clockActivity); cancelAnimationFrame(latticeClock._raf); cancelAnimationFrame(widgetFrame); clearTimeout(widgetTimer); stopLens(); points?.destroy();dockWatch.disconnect();dockGlass?.destroy();dockGlass=null; paper.destroy(); for(const view of progressViews)view.destroy();rangeObserver.disconnect(); popupLayer.remove(); } };
+  return { sync, ready:()=>{glass?.ready();}, destroy() { destroyed = true; cursor?.destroy?.(); document.removeEventListener("visibilitychange", clockActivity); cancelAnimationFrame(latticeClock._raf); cancelAnimationFrame(widgetFrame); clearTimeout(widgetTimer); stopLens(); points?.destroy();dockWatch.disconnect();dockGlass?.destroy();dockGlass=null; paper.destroy(); for(const view of progressViews)view.destroy();rangeObserver.disconnect(); popupLayer.remove(); } };
 }
 
 // Embed the original Field and set generators into a desktop viewport. This host supplies
@@ -267,7 +267,7 @@ function mountPointField(root, tier = "balanced") {
   hero.className = "native-point-hero";
   hero.setAttribute("role", "img"); hero.setAttribute("aria-label", "TIDE 点阵展示区");
   root.append(hero);
-  const alignHero=()=>{const cover=document.querySelector(document.documentElement.dataset.view==="playing"?".lyrics-cover":".home-cover"),box=cover?.getBoundingClientRect();if(box&&box.width>0){const width=Math.min(300,box.width),origin=root.getBoundingClientRect();hero.style.width=width+"px";hero.style.left=(box.left-origin.left+(box.width-width)/2)+"px";}};
+  const alignHero=()=>{const cover=document.querySelector(document.documentElement.dataset.view==="playing"?".lyrics-cover":".home-cover"),box=cover?.getBoundingClientRect();if(box&&box.width>0){const width=Math.min(300,box.width),origin=root.getBoundingClientRect();hero.style.width=width+"px";hero.style.left=(box.left-origin.left+(box.width-width)/2)+"px";if(document.documentElement.dataset.view==="playing"){const h=Math.min(96,Math.max(40,box.top-52));hero.style.height=h+"px";hero.style.top=Math.max(36,Math.min(140,box.top-h-12))+"px";}else{hero.style.removeProperty("height");hero.style.removeProperty("top");}}};
   let layoutFrame=0;
   const layoutChange=new MutationObserver(()=>{cancelAnimationFrame(layoutFrame);layoutFrame=requestAnimationFrame(()=>{layoutFrame=0;if(dead)return;alignHero();if(setIndex===0)showSet(0);});});layoutChange.observe(document.documentElement,{attributes:true,attributeFilter:["data-view"]});
   const coverResize=new ResizeObserver(()=>{if(dead)return;alignHero();if(setIndex===0)showSet(0);});for(const el of document.querySelectorAll('.lyrics-cover,.home-cover'))coverResize.observe(el);

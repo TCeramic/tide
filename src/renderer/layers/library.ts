@@ -380,6 +380,7 @@ export function mountLibrary(root: HTMLElement): {
     home.element.hidden = true;
   };
   const showHomeCards = () => {
+    if(!home.element.hidden&&document.documentElement.dataset.view==='home'&&sheet.hidden&&searchPage.hidden&&proofHost.hidden)return;
     detailFromSearch=false;
     showQueue(false);
     sheet.hidden = true;searchPage.hidden=true;
