@@ -196,6 +196,7 @@ function stopApi(): void {
 function appearanceOf(value: Appearance): Appearance {
   return {
     ...(value.customPalette ? {customPalette: value.customPalette} : {}),
+    ...(value.emblem ? {emblem:value.emblem} : {}),
     lensMode: value.lensMode, latticeMode: value.latticeMode,
     chromeVisible: value.chromeVisible,
     stageLevel: value.stageLevel,

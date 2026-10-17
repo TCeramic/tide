@@ -144,6 +144,7 @@ export interface CustomPalette {
 
 export interface Appearance {
   customPalette?: CustomPalette;
+  emblem?: "auto" | "liquid-metal";
   lensMode?: "light" | "dark";
   latticeMode?: "light" | "dark";
   chromeVisible: boolean;

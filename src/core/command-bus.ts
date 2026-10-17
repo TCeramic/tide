@@ -175,6 +175,7 @@ function readMode(record: Record<string, unknown>, host: CommandHost): Promise<u
 export function appearancePatchFromArgs(args: unknown): Partial<Appearance> | null {
   const record = args && typeof args === "object" && !Array.isArray(args) ? args as Record<string, unknown> : {};
   const patch: Partial<Appearance> = {};
+  if ("emblem" in record) {if(record.emblem!=="auto"&&record.emblem!=="liquid-metal")return null;patch.emblem=record.emblem;}
   if ("customPalette" in record) {
     const palette = customPaletteFromUnknown(record.customPalette);
     if (!palette) return null;
@@ -231,7 +232,7 @@ export function appearancePatchFromArgs(args: unknown): Partial<Appearance> | nu
     patch.fontFamily = record.fontFamily;
   }
   if (
-    patch.customPalette === undefined && patch.lensMode === undefined && patch.latticeMode === undefined && patch.chromeVisible === undefined
+    patch.emblem === undefined && patch.customPalette === undefined && patch.lensMode === undefined && patch.latticeMode === undefined && patch.chromeVisible === undefined
     && patch.stageLevel === undefined
     && patch.theme === undefined
     && patch.motion === undefined

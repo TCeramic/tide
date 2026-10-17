@@ -66,6 +66,7 @@ export function settingsFromUnknown(value: unknown): TideSettings {
   const customPalette = customPaletteFromUnknown(record.customPalette);
   return {
     ...(customPalette ? { customPalette } : {}),
+    ...(record.emblem === "liquid-metal" ? {emblem:"liquid-metal" as const} : {}),
     lensMode: record.lensMode === "dark" ? "dark" : record.lensMode === "light" ? "light" : theme === "dusk" ? "dark" : "light",
     latticeMode: record.latticeMode === "light" ? "light" : "dark",
     volume,

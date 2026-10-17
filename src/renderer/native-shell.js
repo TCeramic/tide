@@ -1,3 +1,4 @@
+import { bindChoiceGroup } from "./vendor/design-systems/lens/lab/design-system/components.js";
 import { tideShape } from "./point-formations.ts";
 import { mountLiquidMetal } from "./liquid-metal.ts";
 import { isRenderingActive } from "./render-activity.ts";
@@ -211,7 +212,7 @@ export function mountNativeShell(root) {
     if(records.some(r=>[...r.addedNodes].some(n=>n instanceof Element && (n.matches('.transport,input[type="range"]')||n.querySelector('.transport,input[type="range"]')))))enhanceRanges();
   });
   rangeObserver.observe(root,{childList:true,subtree:true});enhanceRanges();
-  return { sync, visualState:()=>({phase:paper.getPhase(),points:points?.state()}),restoreVisualState:state=>{if(state){paper.setPhase(state.phase);points?.restore(state.points);}}, ready:()=>{glass?.ready();}, destroy() { destroyed = true; cursor?.destroy?.(); document.removeEventListener("visibilitychange", clockActivity); cancelAnimationFrame(latticeClock._raf); cancelAnimationFrame(widgetFrame); clearTimeout(widgetTimer); stopLens(); points?.destroy();dockWatch.disconnect();dockGlass?.destroy();dockGlass=null; paper.destroy();metal.destroy(); for(const view of progressViews)view.destroy();rangeObserver.disconnect(); popupLayer.remove(); } };
+  return { sync, visualState:()=>({phase:paper.getPhase(),paper:paper.state(),points:points?.state()}),restoreVisualState:async state=>{if(state){await paper.restore(state.paper);paper.setPhase(state.phase);points?.restore(state.points);}}, ready:()=>{glass?.ready();}, destroy() { destroyed = true; cursor?.destroy?.(); document.removeEventListener("visibilitychange", clockActivity); cancelAnimationFrame(latticeClock._raf); cancelAnimationFrame(widgetFrame); clearTimeout(widgetTimer); stopLens(); points?.destroy();dockWatch.disconnect();dockGlass?.destroy();dockGlass=null; paper.destroy();metal.destroy(); for(const view of progressViews)view.destroy();rangeObserver.disconnect(); popupLayer.remove(); } };
 }
 
 // Embed the original Field and set generators into a desktop viewport. This host supplies
@@ -409,3 +410,5 @@ function mountPointField(root, tier = "balanced") {
     },
   };
 }
+
+export function syncPreviewChoices(values){for(const row of document.querySelectorAll(".native-choice-row")){const value=values[row.querySelector(".native-choice-label")?.textContent??""];if(!value)continue;const lens=row.querySelector(".native-lens-choices");if(lens)bindChoiceGroup(lens,{value});const point=row.querySelector(".native-point-choices");if(point){const buttons=Array.from(point.querySelectorAll("button[data-value]"));const index=buttons.findIndex(b=>b.dataset.value===value);if(index>=0){const tabs=mountTabs(point);tabs.select(index,false);}}}}

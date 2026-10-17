@@ -1,3 +1,4 @@
+import { tagThemeScene, themeSceneState } from "./theme-scene";
 import { isRenderingActive, setRenderingActive } from "./render-activity";
 import { installModuleMotion } from "./module-motion";
 import { mountCloseMenu } from "./close-menu";
@@ -117,7 +118,7 @@ function commitAppearance(appearance: Appearance): void {
   setCustomPalette(appearance.customPalette);
   root.dataset.preset = appearance.preset;
   root.dataset.performance = appearance.performance;
-  root.dataset.background = appearance.background;
+  root.dataset.background = appearance.background;root.dataset.emblem=appearance.emblem??"auto";
   root.dataset.font = appearance.fontPreset;
   root.style.setProperty("--tide-font-custom", appearance.fontFamily ? `"${appearance.fontFamily.replaceAll("\"", "")}"` : "sans-serif");
   if (appearance.fontPreset === "custom") {
@@ -136,9 +137,10 @@ function commitAppearance(appearance: Appearance): void {
 }
 
 let desiredAppearance: Appearance | null = null;
+let sceneLast=0;
 let appearanceGeneration=0, revealFrame=0, revealPreview:HTMLIFrameElement|null=null;
 let stopReveal=()=>{};
-function clearThemeReveal(){cancelAnimationFrame(revealFrame);revealFrame=0;stopReveal();stopReveal=()=>{};revealPreview?.remove();revealPreview=null;}
+function clearThemeReveal(){cancelAnimationFrame(revealFrame);revealFrame=0;stopReveal();stopReveal=()=>{};revealPreview?.remove();revealPreview=null;delete document.documentElement.dataset.themeTransition;}
 async function applyAppearance(appearance:Appearance):Promise<void>{
  const prior=desiredAppearance;desiredAppearance=appearance;const generation=++appearanceGeneration;
  const mode=(a:Appearance)=>a.shell==="lattice"?a.latticeMode??"dark":a.lensMode??"light";
@@ -146,16 +148,17 @@ async function applyAppearance(appearance:Appearance):Promise<void>{
  clearThemeReveal();
  if(!changed||appearance.performance==="smooth"||!appearance.motion||!isRenderingActive()||matchMedia('(prefers-reduced-motion: reduce)').matches){commitAppearance(appearance);nativeShell.ready();return;}
  const preview=document.createElement('iframe');preview.className='theme-reveal-frame';preview.title='主题切换';preview.setAttribute('aria-hidden','true');preview.tabIndex=-1;preview.style.clipPath='circle(0px at 0px 0px)';
+ document.querySelectorAll('.module-exit').forEach(el=>el.remove());for(const animation of document.getAnimations()){const target=(animation.effect as KeyframeEffect|null)?.target;if(target instanceof Element&&target.matches('.home-card,.home-grid,.corner-panel,.browse-sheet,.lyrics-block'))animation.cancel();}tagThemeScene();document.documentElement.dataset.themeTransition='true';
  const token=crypto.randomUUID();let timer=0;
  const loaded=new Promise<void>((resolve,reject)=>{const message=(event:MessageEvent)=>{if(event.source===preview.contentWindow&&event.data?.token===token&&event.data.type==='tide:preview-ready'){clearTimeout(timer);resolve();}};window.addEventListener('message',message);stopReveal=()=>{clearTimeout(timer);window.removeEventListener('message',message);reject(new Error('cancelled'));};timer=window.setTimeout(()=>reject(new Error('preview timeout')),3500);});
- preview.onload=()=>preview.contentWindow?.postMessage({type:'tide:preview-init',token,appearance,html:document.body.innerHTML,attributes:Object.fromEntries(Array.from(document.documentElement.attributes).map(a=>[a.name,a.value])),style:document.documentElement.style.cssText,state:nativeShell.visualState()},'*');
+ preview.onload=()=>preview.contentWindow?.postMessage({type:'tide:preview-init',token,appearance,html:document.body.innerHTML,attributes:Object.fromEntries(Array.from(document.documentElement.attributes).map(a=>[a.name,a.value])),style:document.documentElement.style.cssText,state:nativeShell.visualState(),scene:themeSceneState(),font:document.querySelector("#tide-font-face")?.outerHTML??""},'*');
  preview.src='./theme-preview.html';revealPreview=preview;document.body.append(preview);
  try{await loaded;}catch{if(generation===appearanceGeneration){clearThemeReveal();commitAppearance(appearance);nativeShell.ready();}return;}
  if(generation!==appearanceGeneration)return;
  const start=performance.now(),duration=appearance.performance==='vivid'?1800:1500;
- const draw=(now:number)=>{if(preview!==revealPreview)return;const t=Math.min(1,(now-start)/duration),target=Math.hypot(innerWidth,innerHeight)+4,radius=target*(1-Math.pow(1-t,1.35));preview.dataset.radius=String(radius);preview.dataset.target=String(target);preview.style.clipPath=`circle(${radius}px at 0px 0px)`;
+ const draw=(now:number)=>{if(preview!==revealPreview)return;if(now-sceneLast>80){sceneLast=now;preview.contentWindow?.postMessage({type:"tide:preview-live",token,scene:themeSceneState(),font:document.querySelector("#tide-font-face")?.outerHTML??""},"*");}const t=Math.min(1,(now-start)/duration),target=Math.hypot(innerWidth,innerHeight)+4,radius=target*(1-Math.pow(1-t,1.35));preview.dataset.radius=String(radius);preview.dataset.target=String(target);preview.style.clipPath=`circle(${radius}px at 0px 0px)`;
   if(t<1){revealFrame=requestAnimationFrame(draw);return;}
-  const finish=(state?:unknown)=>{if(generation!==appearanceGeneration)return;commitAppearance(appearance);nativeShell.restoreVisualState(state);nativeShell.ready();requestAnimationFrame(()=>requestAnimationFrame(()=>{if(preview===revealPreview)clearThemeReveal();}));};
+  const finish=async(state?:unknown)=>{if(generation!==appearanceGeneration)return;commitAppearance(appearance);await nativeShell.restoreVisualState(state);nativeShell.ready();await new Promise<void>(r=>requestAnimationFrame(()=>requestAnimationFrame(()=>r())));if(preview===revealPreview){preview.style.transition="opacity 120ms linear";preview.style.opacity="0";window.setTimeout(()=>{if(preview===revealPreview)clearThemeReveal();},140);}};
   let finished=false;const receive=(e:MessageEvent)=>{if(e.source===preview.contentWindow&&e.data?.token===token&&e.data.type==='tide:preview-state'){window.removeEventListener('message',receive);finished=true;finish(e.data.state);}};window.addEventListener('message',receive);preview.contentWindow?.postMessage({type:'tide:preview-state',token},'*');window.setTimeout(()=>{window.removeEventListener('message',receive);if(!finished)finish();},120);
  };draw(start);
 }

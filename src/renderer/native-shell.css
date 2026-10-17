@@ -549,3 +549,7 @@ html[data-fullscreen="true"] .tide-titlebar{-webkit-app-region:no-drag;}
 .liquid-metal-emblem{position:absolute;z-index:2;width:280px;height:88px;pointer-events:none;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 280 88'%3E%3Ctext x='140' y='68' text-anchor='middle' font-family='Arial' font-weight='900' font-size='74'%3ETIDE%3C/text%3E%3C/svg%3E");mask-repeat:no-repeat;mask-size:100% 100%;}
 .liquid-metal-emblem canvas{width:100%;height:100%;display:block;}
 html[data-shell] #app .home-grid{top:calc(50% + 88px);left:50%;right:auto;}@media(max-height:680px){html[data-shell] #app .home-grid{top:calc(50% + 96px);}}
+
+html[data-theme-preview] *,html[data-theme-transition] :not(.theme-reveal-frame){transition-duration:0s!important;}html[data-theme-preview] .module-motion{animation:none!important;}
+
+html[data-emblem="liquid-metal"] .native-point-field[data-point-set="0"]{opacity:0!important;}

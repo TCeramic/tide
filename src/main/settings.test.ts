@@ -8,6 +8,7 @@ import { DEFAULT_MEDIA_SHORTCUTS } from "../core/media-keys";
 import { SettingsStore, settingsFromUnknown } from "./settings";
 
 describe("settings", () => {
+  it("persists only a supported Liquid Metal emblem override",()=>{assert.equal(settingsFromUnknown({emblem:"liquid-metal"}).emblem,"liquid-metal");assert.equal(settingsFromUnknown({emblem:"auto"}).emblem,undefined);assert.equal(settingsFromUnknown({emblem:"unsupported"}).emblem,undefined);});
   it("persists independent modes and migrates old scenes", () => {
     assert.equal(settingsFromUnknown({theme:"dusk"}).lensMode,"dark");
     const value = settingsFromUnknown({lensMode:"dark",latticeMode:"light"});
