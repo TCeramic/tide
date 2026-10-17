@@ -371,7 +371,7 @@ function mountPointField(root, tier = "balanced") {
     time += paused ? 0 : dt;
     if(!paused&&!pointer.down&&time>=nextFormationAt)showSet(setIndex+1);
     if(targetInk){field.du.uInk.value.lerp(targetInk,1-Math.exp(-dt*7));field.du.uHot.value.lerp(targetHot,1-Math.exp(-dt*7));}
-    updateRay(); field.onPointerMove(stage); field.update(paused ? 0 : dt, time, stage); renderer.render(scene, camera);
+    updateRay(); field.onPointerMove(stage); field.update(paused ? 0 : dt, time, stage);canvas.dataset.yaw=String(field.spin.yaw.value);canvas.dataset.simulationTime=String(time);renderer.render(scene, camera);
     if (!paused) wake();
   }
   function wake() {
@@ -385,8 +385,19 @@ function mountPointField(root, tier = "balanced") {
   const resizeObserver = new ResizeObserver(resize); resizeObserver.observe(root);
   resize(); showSet(0);
   return {
-    state:()=>({index:setIndex,time}),
-    restore(value){if(value){time=Number(value.time)||0;showSet(Number(value.index)||0);snapStill();}},
+    state:()=>{
+      const read=variable=>{try{const target=field.gpu.getCurrentRenderTarget(variable),data=target.texture.type===THREE.HalfFloatType?new Uint16Array(field.N*4):new Float32Array(field.N*4);renderer.readRenderTargetPixels(target,0,0,field.S,field.S,data);return data;}catch{return null;}};
+      const spring=s=>({value:s.value,target:s.target,velocity:s.velocity});
+      return {index:setIndex,time,nextFormationAt,size:field.S,yaw:spring(field.spin.yaw),pitch:spring(field.spin.pitch),matrix:field.setMat.toArray(),previousMatrix:field.prevMat.toArray(),previous:field.tPrev.image.data.slice(),morphStart:field.u.uMorphStart.value,morphDuration:field.u.uMorphDur.value,lit:field.du.uLit.value,alpha:field.du.uLitAlpha.value,positions:read(field.pos),velocities:read(field.vel)};
+    },
+    restore(state){if(state){time=Number(state.time)||0;showSet(Number(state.index)||0);nextFormationAt=state.nextFormationAt??time+22;
+      if(state.yaw)Object.assign(field.spin.yaw,state.yaw);if(state.pitch)Object.assign(field.spin.pitch,state.pitch);
+      if(state.matrix)field.setMat.fromArray(state.matrix);if(state.previousMatrix)field.prevMat.fromArray(state.previousMatrix);
+      if(state.previous?.length===field.tPrev.image.data.length){field.tPrev.image.data.set(state.previous);field.tPrev.needsUpdate=true;}
+      field.u.uTime.value=time;field.u.uMorphStart.value=state.morphStart??time-10;field.u.uMorphDur.value=state.morphDuration??1.4;
+      if(state.positions&&state.velocities&&state.size===field.S){for(const [variable,data]of [[field.pos,state.positions],[field.vel,state.velocities]]){const texture=field._dataTex(data);if(data instanceof Uint16Array)texture.type=THREE.HalfFloatType;for(const target of variable.renderTargets)field.gpu.renderTexture(texture,target);texture.dispose();}field.du.tPos.value=field.gpu.getCurrentRenderTarget(field.pos).texture;field.du.tVel.value=field.gpu.getCurrentRenderTarget(field.vel).texture;}else snapStill();
+      field.du.uLit.value=state.lit??field.litTarget;field.du.uLitAlpha.value=state.alpha??field.alphaTarget;canvas.dataset.yaw=String(field.spin.yaw.value);renderer.render(scene,camera);
+    }},
     setActive(on) {
       active = on; canvas.hidden = !on; badge.hidden = !on; hero.hidden = !on; stage.visible = on;
       if (!on) { field.holding = false; pointer.down = false; cancelAnimationFrame(frame); clearTimeout(renderTimer); renderTimer = 0; frame = 0; last = 0; }
