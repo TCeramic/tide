@@ -1,3 +1,4 @@
+import { test } from "node:test";
 import assert from 'node:assert/strict';
 import { it } from 'node:test';
 import { customPaletteFromUnknown } from './custom-palette';
@@ -13,3 +14,5 @@ it('validates, persists and disables custom colors without losing the draft',()=
  assert.equal(customPaletteFromUnknown({...palette,panelOpacity:NaN}),undefined);
  assert.equal(customPaletteFromUnknown({...palette,panelOpacity:2})?.panelOpacity,.92);
 });
+
+test("emblem appearance IPC accepts the two supported values",()=>{assert.deepEqual(appearancePatchFromArgs({emblem:"liquid-metal"}),{emblem:"liquid-metal"});assert.deepEqual(appearancePatchFromArgs({emblem:"auto"}),{emblem:"auto"});assert.equal(appearancePatchFromArgs({emblem:"unknown"}),null);});

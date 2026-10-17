@@ -107,6 +107,8 @@ export function mountPaperBackground(root: HTMLElement, invalidate: () => void) 
   window.addEventListener('tide:artwork',artwork);
   const api = {
     getPhase:()=>shaderTime,
+    state:()=>({phase:shaderTime,colors:displayed,cover:cover.src,previousCover:previousCover.src,coverFade}),
+    async restore(state:{phase:number;colors:number[][];cover:string;previousCover:string;coverFade:number}|undefined){if(!state)return;shaderTime=state.phase;displayed=state.colors;blend=null;const load=(url:string)=>new Promise<HTMLImageElement>(resolve=>{if(url===cover.src)return resolve(cover);const image=new Image();image.crossOrigin="anonymous";image.onload=()=>resolve(image);image.onerror=()=>resolve(fallback);image.src=url;});[cover,previousCover]=await Promise.all([load(state.cover),load(state.previousCover)]);coverFade=state.coverFade;coverStart=performance.now()-(coverFade*900);shader?.setUniforms(uniforms());shader?.setFrame(shaderTime);invalidate();},
     setPhase:(phase:number)=>{if(Number.isFinite(phase)){shaderTime=phase;shader?.setFrame(phase);invalidate();}},
     get canvas() { return host.querySelector("canvas"); },
     sync(next: Appearance) {

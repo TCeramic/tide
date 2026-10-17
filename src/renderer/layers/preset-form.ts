@@ -47,6 +47,7 @@ export function mountPresetForm(): {
   detailHeading.textContent = "细节";
   const tierRow = createNativeChoiceRow("性能", TIERS, (id) => void window.tide.setAppearance({ performance: id as PerformanceTier }));
   const backgroundRow = createNativeChoiceRow("背景", BACKGROUNDS, (id) => void window.tide.setAppearance({ background: id as StageBackground }));
+  const emblemRow=createNativeChoiceRow("TIDE 标识材质",[{id:"auto",label:"随设计系统"},{id:"liquid-metal",label:"Liquid Metal"}],id=>void window.tide.setAppearance({emblem:id as "auto"|"liquid-metal"}));
   const shellRow = createNativeChoiceRow("设计系统", SHELLS, (id) => void window.tide.setAppearance({ shell: id as ShellId }));
   let currentShell: ShellId = "lens";
   const modeRow = createNativeChoiceRow("明暗模式", [{ id: "light", label: "明亮" }, { id: "dark", label: "深色" }], id => void window.tide.setAppearance(currentShell === "lens" ? { lensMode: id as "light" | "dark" } : { latticeMode: id as "light" | "dark" }));
@@ -91,7 +92,7 @@ export function mountPresetForm(): {
   const later = document.createElement("p");
   later.className = "library-note";
   later.textContent = "Lens / Lattice · DayDreamInAReverie · MIT";
-  root.append(kicker, hint, shellRow.element, modeRow.element, catalogs, detailHeading, tierRow.element, backgroundRow.element, fontRow.element, family, importFont, imageButton, later);
+  root.append(kicker, hint, shellRow.element, modeRow.element, catalogs, detailHeading, tierRow.element, backgroundRow.element, emblemRow.element, fontRow.element, family, importFont, imageButton, later);
 
   return {
     element: root,
@@ -100,7 +101,7 @@ export function mountPresetForm(): {
       modeRow.sync(appearance.shell === "lens" ? appearance.lensMode ?? (appearance.theme === "dusk" ? "dark" : "light") : appearance.latticeMode ?? "dark");
       shellRow.sync(appearance.shell);
       tierRow.sync(appearance.performance);
-      backgroundRow.sync(appearance.background);
+      backgroundRow.sync(appearance.background);emblemRow.sync(appearance.emblem??"auto");
       fontRow.sync(appearance.fontPreset);
       if (document.activeElement !== family) family.value = appearance.fontFamily;
     },
