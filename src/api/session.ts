@@ -29,6 +29,7 @@ export class SessionService {
   constructor(
     private readonly store: CookieStore,
     private readonly netease: NeteaseClient,
+    private readonly communityLyrics?: (id: string) => Promise<LyricBundle | null>,
   ) {}
 
   snapshot(): Promise<SessionSnapshot> {
@@ -105,7 +106,8 @@ export class SessionService {
     return page.hits;
   }
 
-  async searchCatalog(keywords: string, type: number): Promise<{
+  async searchCatalog(keywords: string, type: number, offset=0): Promise<{
+    offset:number; nextOffset:number; hasMore:boolean;
     kind: SearchKind;
     hits: SearchHit[];
     artists: CatalogPage["artists"];
@@ -118,8 +120,9 @@ export class SessionService {
     const kind = searchKindOf(type);
     const apiType = type === 1006 ? 1006 : searchTypeOf(kind);
     try {
-      const page = await this.netease.searchKind(query, apiType, this.optionalCookie());
-      return { kind, hits: await this.withLiked(page.hits), artists: page.artists, albums: page.albums };
+      const page = await this.netease.searchKind(query, apiType, this.optionalCookie(), Math.max(0,Math.trunc(offset)));
+      const count=kind==="artists"?page.artists.length:kind==="albums"?page.albums.length:page.hits.length;
+      return {offset,nextOffset:offset+20,hasMore:count===20,kind, hits: await this.withLiked(page.hits), artists: page.artists, albums: page.albums };
     } catch (error) {
       if (error instanceof Error && error.message === "signed_out") {
         throw new SessionError(401, "signed_out", "请先登录");
@@ -148,13 +151,15 @@ export class SessionService {
         return await load();
       } catch (error) {
         if (error instanceof Error && (error.message === "signed_out" || error.message === "lyric_failed")) return empty;
-        throw new SessionError(502, "upstream", "歌词暂时没有拉到");
+        return empty;
       }
     };
     const cookie = this.optionalCookie();
     const fresh = await pull(() => this.netease.lyricNew(id, cookie));
     const needsLegacy = fresh.yrc.length === 0 || fresh.lyric.length === 0 || fresh.translation.length === 0;
     const legacy = needsLegacy ? await pull(() => this.netease.lyric(id, cookie)) : empty;
+    const community = !fresh.yrc && !legacy.yrc ? await this.communityLyrics?.(id).catch(() => null) : null;
+    if (community) return { ...community, translation: community.translation || fresh.translation || legacy.translation, romaji: community.romaji || fresh.romaji || legacy.romaji };
     return {
       lyric: fresh.lyric || legacy.lyric,
       translation: fresh.translation || legacy.translation,
@@ -162,6 +167,11 @@ export class SessionService {
       yrc: fresh.yrc || legacy.yrc,
       ytlrc: fresh.ytlrc || legacy.ytlrc,
     };
+  }
+
+  async songArtwork(ids: string[]): Promise<Record<string, string>> {
+    const valid = [...new Set(ids)].filter(id => /^\d{1,20}$/.test(id)).slice(0, 50);
+    return this.netease.songArtwork?.(valid, this.optionalCookie()) ?? {};
   }
 
   async personalFm(): Promise<SearchHit[]> {
@@ -202,6 +212,19 @@ export class SessionService {
     return { known: true, ids };
   }
 
+  async linkTidePlaylist(value:unknown):Promise<string>{
+    const p=value&&typeof value==="object"?value as Record<string,unknown>:{};const cookie=this.requireCookie();if(typeof p.cloudId==="string"&&/^\d{1,20}$/.test(p.cloudId))return p.cloudId;
+    if(typeof p.name!=="string"||!p.name.trim()||!this.netease.createCloudPlaylist)throw new SessionError(400,"bad_args","歌单名称无效");
+    try{return await this.netease.createCloudPlaylist(p.name.slice(0,100),cookie);}catch(e){throw catalogFailure(e,"网易云歌单创建失败");}
+  }
+  async syncTidePlaylist(value:unknown):Promise<string>{
+    const p=value&&typeof value==="object"?value as Record<string,unknown>:{};const cookie=this.requireCookie();
+    if(typeof p.cloudId!=="string"||!/^\d{1,20}$/.test(p.cloudId)||typeof p.name!=="string"||!this.netease.syncCloudPlaylist)throw new SessionError(400,"bad_args","同步歌单信息无效");
+    const songs=Array.isArray(p.songs)?p.songs:[],ids=[...new Set(songs.flatMap(v=>{const id=v&&typeof v==="object"?(v as {id?:unknown}).id:null;return typeof id==="string"&&/^\d{1,20}$/.test(id)?[id]:[];}))].slice(0,10000);
+    const cover=typeof p.cover==="string"&&p.cover.length<1500000&&p.cover.startsWith("data:image/jpeg;base64,")?p.cover:undefined;
+    try{await this.netease.syncCloudPlaylist({id:p.cloudId,name:p.name.slice(0,100),description:typeof p.description==="string"?p.description.slice(0,2000):"",cover,songIds:ids},cookie);return `已同步 ${ids.length} 首网易云歌曲${songs.length>ids.length?"；本地文件保留在 Tide 中":""}`;}catch(e){throw catalogFailure(e,"同步未完成，Tide歌单已保留，可重试");}
+  }
+
   async collectSong(playlistId: string, trackId: string): Promise<string> {
     if (!/^\d{1,20}$/.test(playlistId) || !/^\d{1,20}$/.test(trackId)) {
       throw new SessionError(400, "bad_id", "歌单或曲目编号无效");
@@ -228,13 +251,13 @@ export class SessionService {
     }
   }
 
-  async playlistTracks(id: string): Promise<SearchHit[]> {
+  async playlistTracks(id: string, offset = 0): Promise<SearchHit[]> {
     if (!/^\d{1,20}$/.test(id)) {
       throw new SessionError(400, "bad_id", "歌单编号无效");
     }
     const cookie = this.requireCookie();
     try {
-      return await this.withLiked(await this.netease.playlistTracks(id, cookie));
+      return await this.withLiked(await this.netease.playlistTracks(id, cookie, offset));
     } catch (error) {
       throw catalogFailure(error, "歌单暂时没有拉到");
     }

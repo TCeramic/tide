@@ -1,9 +1,9 @@
 import { Heart, MoreHorizontal, Play } from "lucide";
-import type { PlaylistSummary, SearchHit } from "../shared/contract";
+import type { PlaylistCursor, PlaylistSummary, SearchHit } from "../shared/contract";
 import { paintCover } from "./cover";
-import { openNowPlaying } from "./view";
 import { ICON_SIZE, iconButton, setIcon } from "./icons";
 import { applyLike, isLiked } from "./liked";
+import { openTrackMenu } from "./track-menu";
 
 export function songPageUrl(id: string): string {
   return `https://music.163.com/song?id=${encodeURIComponent(id)}`;
@@ -15,6 +15,8 @@ export function fillTrackList(
   hits: readonly SearchHit[],
   playlists: readonly PlaylistSummary[],
   note: (message: string, warn: boolean) => void,
+  source?: PlaylistCursor,
+  onRemove?: (id:string)=>void,
 ): void {
   list.replaceChildren();
   const start = document.createElement("li");
@@ -23,15 +25,14 @@ export function fillTrackList(
   startButton.type = "button";
   startButton.className = "text-button";
   startButton.textContent = "开始播放";
-  startButton.addEventListener("click", () => {
-    const selected = Number(list.dataset.selected ?? "");
-    const index = Number.isInteger(selected) && hits[selected]?.playable ? selected : hits.findIndex((row) => row.playable);
+  startButton.addEventListener("click", async () => {
+    const state=await window.tide.getPlayback();const playable=hits.map((h,i)=>h.playable?i:-1).filter(i=>i>=0);
+    const index=state.shuffle?playable[Math.floor(Math.random()*playable.length)]??-1:playable[0]??-1;
     if (index < 0) {
       note("没有可播放的地址", true);
       return;
     }
-    openNowPlaying();
-    void window.tide.playHits([...hits], index);
+    void window.tide.playHits([...hits], index, source);
   });
   start.append(startButton);
   list.append(start);
@@ -43,13 +44,12 @@ export function fillTrackList(
     play.disabled = !hit.playable;
     play.addEventListener("click", () => {
       if (!hit.playable) return;
-      openNowPlaying();
-      void window.tide.playHits([...hits], index);
+      void window.tide.playHits([...hits], index, source);
     });
 
     const art = document.createElement("span");
     art.className = "hit-cover";
-    paintCover(art, hit.cover);
+    paintCover(art, hit.cover, { lazy: true });
     const main = document.createElement("button");
     main.type = "button";
     main.className = hit.playable ? "hit" : "hit unavailable";
@@ -68,8 +68,7 @@ export function fillTrackList(
         main.classList.add("is-selected");
       });
       main.addEventListener("dblclick", () => {
-        openNowPlaying();
-        void window.tide.playHits([...hits], index);
+        void window.tide.playHits([...hits], index, source);
       });
     }
 
@@ -94,16 +93,17 @@ export function fillTrackList(
     menu.className = "track-menu";
     menu.hidden = true;
     more.addEventListener("click", () => {
-      menu.hidden = !menu.hidden;
+      openTrackMenu(menu, more);
     });
+    more.setAttribute("aria-haspopup", "dialog"); more.setAttribute("aria-expanded", "false");
+    item.addEventListener("contextmenu", event => { event.preventDefault(); openTrackMenu(menu, more, { x:event.clientX,y:event.clientY }); });
 
     const playItem = menuButton("播放", () => {
       if (!hit.playable) {
         note("没有可播放的地址", true);
         return;
       }
-      openNowPlaying();
-      void window.tide.playHits([...hits], index);
+      void window.tide.playHits([...hits], index, source);
     });
     playItem.disabled = !hit.playable;
     const nextItem = menuButton("下一首播放", () => {
@@ -138,14 +138,15 @@ export function fillTrackList(
         note(playlists.length === 0 ? "请先登录后再收藏" : "先选一个歌单", true);
         return;
       }
-      void window.tide.collectSong(picker.value, hit.id).then((result) => {
-        note(result.ok ? result.message : result.message, !result.ok);
+      void (picker.value.startsWith("tide-list-")?window.tide.addToTidePlaylist(picker.value,hit):window.tide.collectSong(picker.value, hit.id)).then((result) => {
+        note(result.message??(result.ok?"已收藏":"收藏失败"), !result.ok);
       });
     });
     collect.append(picker, save);
     menu.append(playItem, nextItem, likeItem, collect, shareItem);
+    if(onRemove)menu.append(menuButton("从此歌单移除",()=>onRemove(hit.id)));
 
-    item.append(art, play, main, like, more, menu);
+    item.append(art, play, main, like, more);
     list.append(item);
   });
 }

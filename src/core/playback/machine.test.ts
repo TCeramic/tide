@@ -8,6 +8,13 @@ function track(id: string, durationMs = 1000): Track {
 }
 
 describe("PlaybackMachine", () => {
+  it("accepts current local metadata, ignores late metadata and bounds the duration", () => {
+    const machine = new PlaybackMachine(); machine.setQueue([{ ...track("local-one"), durationMs: 0 }]);
+    machine.reportDuration("local-old", 4000); assert.equal(machine.getState().queue[0]?.durationMs, 0);
+    machine.reportDuration("local-one", Infinity); assert.equal(machine.getState().queue[0]?.durationMs, 0);
+    machine.reportDuration("local-one", 4000); assert.equal(machine.getState().queue[0]?.durationMs, 4000);
+    machine.play(); assert.equal(machine.seek(2500).positionMs, 2500);
+  });
   it("starts idle", () => {
     const machine = new PlaybackMachine();
     assert.equal(machine.getState().status, "idle");
@@ -190,4 +197,13 @@ describe("PlaybackMachine", () => {
     state.queue[0]!.title = "also";
     assert.equal(machine.getState().queue[0]?.title, "a");
   });
+});
+
+it("refreshes upcoming songs while preserving the current track, playback status and position", () => {
+  const machine = new PlaybackMachine();
+  machine.setQueue([{ id: "1", title: "Current", artist: "A", durationMs: 10000 }, { id: "2", title: "Old", artist: "B", durationMs: 10000 }]);
+  machine.beginLoad(); machine.completeLoad(); machine.seek(2500);
+  const state = machine.replaceUpcoming([{ id: "3", title: "Fresh", artist: "C", durationMs: 10000 }]);
+  assert.deepEqual(state.queue.map(track => track.id), ["1", "3"]);
+  assert.equal(state.positionMs, 2500); assert.equal(state.status, "playing"); assert.equal(state.index, 0);
 });

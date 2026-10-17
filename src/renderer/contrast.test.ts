@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { describe, it } from "node:test";
-import { LATTICE_DOT, LENS_PEAK, composite, contrastRatio, type Rgb } from "./contrast";
+import { composite, contrastRatio, type Rgb } from "./contrast";
 
 describe("lyric contrast under the brightest wash", () => {
   it("keeps secondary and primary text at least 4.5 against the plate", () => {
@@ -14,22 +14,23 @@ describe("lyric contrast under the brightest wash", () => {
     const tideFg = hex(readVar(css, "--tide-fg", ":root {"));
     const duskMuted = hex(readVar(css, "--tide-muted", "[data-theme=\"dusk\"]"));
     const duskFg = hex(readVar(css, "--tide-fg", "[data-theme=\"dusk\"]"));
-    const stage = fs.readFileSync("src/renderer/layers/stage.ts", "utf8");
-    assert.match(stage, /rgba\(214, 248, 244, 0\.9\)/);
-    assert.match(stage, /rgba\(255, 220, 186, 0\.88\)/);
-    const shader = fs.readFileSync("src/renderer/layers/lens-field.ts", "utf8");
-    assert.match(shader, /vec3\(0\.11, 0\.52, 0\.51\)/);
-    assert.match(shader, /sheen \* 0\.09/);
+    const native = fs.readFileSync("src/renderer/native-shell.css", "utf8");
+    const lensLyrics = 'html[data-shell="lens"][data-color-mode="light"] .lyrics-block';
+    assert.deepEqual(hex(readVar(native, "--tide-fg", lensLyrics)), tideFg);
+    assert.deepEqual(hex(readVar(native, "--tide-muted", lensLyrics)), tideMuted);
+    const pointTokens = fs.readFileSync("src/renderer/vendor/design-systems/lattice/src/tokens.css", "utf8");
+    const pointPlate = readRgb(native, "--lyric-plate", 'html[data-shell="lattice"] .lyrics-block');
+    // Original refraction and additive points can reach white. This is a
+    // stricter bound than the previous custom shader's hand-picked bright pixel.
+    const white = { r: 255, g: 255, b: 255 };
 
     const cases = [
-      { name: "tide lattice", fg: [tideMuted, tideFg], peak: LENS_PEAK.tide, dot: LATTICE_DOT.tide, plate: tidePlate },
-      { name: "tide clear", fg: [tideMuted, tideFg], peak: LENS_PEAK.tide, dot: null, plate: tidePlate },
-      { name: "dusk lattice", fg: [duskMuted, duskFg], peak: LENS_PEAK.dusk, dot: LATTICE_DOT.dusk, plate: duskPlate },
-      { name: "dusk clear", fg: [duskMuted, duskFg], peak: LENS_PEAK.dusk, dot: null, plate: duskPlate },
+      { name: "lens aurora", fg: [tideMuted, tideFg], plate: tidePlate },
+      { name: "lens ocean", fg: [duskMuted, duskFg], plate: duskPlate },
+      { name: "lattice night", fg: [hex(readVar(pointTokens, "--text")), hex(readVar(pointTokens, "--text-dim"))], plate: pointPlate },
     ] as const;
     for (const row of cases) {
-      const bright = row.dot ? composite(row.dot, row.peak) : row.peak;
-      const behind = composite({ ...row.plate, a: alpha }, bright);
+      const behind = composite({ ...row.plate, a: alpha }, white);
       for (const fg of row.fg) {
         const ratio = contrastRatio(fg, behind);
         assert.ok(ratio >= 4.5, `${row.name} ${ratio.toFixed(2)}`);

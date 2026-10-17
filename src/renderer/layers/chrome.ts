@@ -2,7 +2,6 @@ import type { HealthStatus, PlaybackSnapshot } from "../../shared/contract";
 import {
   Compass,
   Heart,
-  Music2,
   Pause,
   Play,
   Repeat,
@@ -17,7 +16,8 @@ import {
 import { ICON_SIZE, iconButton, setIcon } from "../icons";
 import { applyLike, isLiked, onLiked } from "../liked";
 import { paintCover } from "../cover";
-import { openNowPlaying } from "../view";
+import { toggleNowPlaying, onShellView } from "../view";
+import { mountMarquee } from "../marquee";
 
 const STATUS_LABEL: Record<PlaybackSnapshot["status"], string> = {
   idle: "空闲",
@@ -54,7 +54,7 @@ export function mountChrome(root: HTMLElement): {
   const titlebar = document.createElement("header");
   titlebar.className = "tide-titlebar";
   titlebar.textContent = "潮汐";
-  root.append(titlebar);
+  document.body.append(titlebar);
 
   const transport = document.createElement("footer");
   transport.className = "transport";
@@ -68,7 +68,6 @@ export function mountChrome(root: HTMLElement): {
   play.addEventListener("click", () => {
     if (latest?.status === "playing") void window.tide.pause();
     else {
-      openNowPlaying();
       void window.tide.play();
     }
   });
@@ -82,17 +81,19 @@ export function mountChrome(root: HTMLElement): {
     const next = PLAY_MODES[(index + 1) % PLAY_MODES.length] ?? PLAY_MODES[0];
     void window.tide.setMode({ repeat: next.repeat, shuffle: next.shuffle, explore: next.explore });
   });
-  const lyricJump = iconButton("歌词", "Music2", Music2, ICON_SIZE.control);
-  lyricJump.addEventListener("click", () => {
-    openNowPlaying();
-  });
-
   const controls = document.createElement("div");
   controls.className = "transport-controls";
-  controls.append(prev, play, next, mode, lyricJump);
+  controls.append(prev, play, next, mode);
 
-  const cover = document.createElement("span");
+  const cover = document.createElement("button");
+  cover.type = "button";
   cover.className = "dock-cover";
+  const syncCoverAction = () => {
+    const label = document.documentElement.dataset.view === "playing" ? "返回上一页" : "打开歌词页";
+    cover.setAttribute("aria-label", label); cover.title = label;
+  };
+  cover.addEventListener("click", toggleNowPlaying);
+  const stopView = onShellView(syncCoverAction); syncCoverAction();
   paintCover(cover, undefined);
   const meta = document.createElement("div");
   meta.className = "meta";
@@ -111,6 +112,7 @@ export function mountChrome(root: HTMLElement): {
   like.classList.add("like");
   const title = document.createElement("span");
   title.className = "track-title";
+  const marquee = mountMarquee(title);
   titleRow.append(like, title);
   const detail = document.createElement("span");
   detail.className = "track-detail";
@@ -123,15 +125,32 @@ export function mountChrome(root: HTMLElement): {
   seek.value = "0";
   seek.step = "100";
   seek.setAttribute("aria-label", "进度");
+  const seekPreview = document.createElement("output");
+  seekPreview.className = "seek-preview";
+  seekPreview.hidden = true;
+  const previewSeek = () => {
+    const duration = Number(seek.max);
+    seekPreview.textContent = `${formatTime(Number(seek.value))} / ${formatTime(duration)}`;
+    seek.setAttribute("aria-valuetext", seekPreview.textContent);
+    seekPreview.style.setProperty("--seek-at", `${duration > 0 ? Number(seek.value) / duration * 100 : 0}%`);
+  };
   let seeking = false;
   seek.addEventListener("pointerdown", () => {
     seeking = true;
+    seekPreview.hidden = false;
+    previewSeek();
   });
   seek.addEventListener("pointerup", () => {
     seeking = false;
+    seekPreview.hidden = true;
   });
+  seek.addEventListener("input", () => { seeking = true; seekPreview.hidden = false; previewSeek(); });
+  seek.addEventListener("pointercancel", () => { seeking = false; seekPreview.hidden = true; });
+  seek.addEventListener("blur", () => { seeking = false; seekPreview.hidden = true; });
+  seek.addEventListener("keyup", () => { seeking = false; seekPreview.hidden = true; });
   seek.addEventListener("change", () => {
     seeking = false;
+    seekPreview.hidden = true;
     void window.tide.seek(Number(seek.value));
   });
 
@@ -164,16 +183,26 @@ export function mountChrome(root: HTMLElement): {
   const seekRow = document.createElement("div");
   seekRow.className = "dock-seek";
   seekRow.append(seek);
+  seekRow.append(seekPreview);
   const dockMain = document.createElement("div");
   dockMain.className = "dock-main";
   dockMain.append(cover, meta, controls, volumeWrap);
   transport.append(dockMain, seekRow);
-  root.append(transport);
+  const dock=document.createElement("div");dock.className="dock-shell";dock.append(transport);
+  const zone=document.createElement("div");zone.className="dock-trigger";zone.setAttribute("aria-label","显示播放栏");root.append(dock,zone);
+  const abort=new AbortController();let hideTimer=0;
+  const showDock=()=>{clearTimeout(hideTimer);document.documentElement.dataset.dockVisible="true";};
+  const hideDock=()=>{clearTimeout(hideTimer);hideTimer=window.setTimeout(()=>{if(!dock.matches(":hover")&&!zone.matches(":hover")&&!dock.querySelector(":focus-visible"))document.documentElement.dataset.dockVisible="false";},260);};
+  for(const el of [zone,dock]){el.addEventListener("pointerenter",showDock,{signal:abort.signal});el.addEventListener("pointerleave",hideDock,{signal:abort.signal});}dock.addEventListener("focusin",showDock,{signal:abort.signal});dock.addEventListener("focusout",hideDock,{signal:abort.signal});
+  window.addEventListener("blur",()=>document.documentElement.dataset.dockVisible="false",{signal:abort.signal});
+  document.addEventListener("pointerdown",e=>{if(e.target instanceof Node&&!dock.contains(e.target)&&!zone.contains(e.target))document.documentElement.dataset.dockVisible="false";},{signal:abort.signal});
+  document.documentElement.dataset.dockVisible="false";const dockResize=new ResizeObserver(()=>dock.style.setProperty("--dock-shell-h",`${transport.getBoundingClientRect().height}px`));dockResize.observe(transport);
+
 
   const setPlayback = (snapshot: PlaybackSnapshot) => {
     latest = snapshot;
     const track = snapshot.index >= 0 ? snapshot.queue[snapshot.index] : undefined;
-    title.textContent = track?.title ?? "没有曲目";
+    marquee.set(track?.title ?? "没有曲目");
     if (cover.dataset.cover !== (track?.cover ?? "")) {
       cover.dataset.cover = track?.cover ?? "";
       paintCover(cover, track?.cover);
@@ -182,9 +211,8 @@ export function mountChrome(root: HTMLElement): {
     const error = snapshot.error ? ERROR_LABEL[snapshot.error] : "";
     const position = formatTime(snapshot.positionMs);
     const duration = formatTime(track?.durationMs ?? 0);
-    detail.textContent = error
-      ? `${status} · ${error}`
-      : `${track?.artist ?? "潮汐"} · ${status} · ${position} / ${duration}`;
+    const detailText = error ? `${status} · ${error}` : `${track?.artist ?? "潮汐"} · ${status} · ${position} / ${duration}`;
+    if (detail.textContent !== detailText) detail.textContent = detailText;
 
     like.hidden = !track;
     const liked = track ? isLiked(track.id) : false;
@@ -213,9 +241,12 @@ export function mountChrome(root: HTMLElement): {
     setIcon(volumeIcon, volumeIconName, volumeNode, ICON_SIZE.control);
 
     const durationMs = track?.durationMs ?? 0;
+    cover.disabled = !track;
     seek.max = String(durationMs);
     seek.disabled = !track;
     if (!seeking) seek.value = String(Math.min(snapshot.positionMs, durationMs));
+    seek.dataset.playing = String(snapshot.status === "playing");
+    seek.dispatchEvent(new Event("tide:progress"));
     if (!adjustingVolume) volume.value = String(Math.round(snapshot.volume * 100));
   };
 
@@ -235,7 +266,10 @@ export function mountChrome(root: HTMLElement): {
       // The lattice switch lives in Settings. The stage still follows appearance.
     },
     destroy: () => {
+      abort.abort();clearTimeout(hideTimer);dockResize.disconnect();
       stopLiked();
+      stopView();
+      marquee.destroy();
       root.replaceChildren();
     },
   };
@@ -254,4 +288,3 @@ function formatTime(ms: number): string {
   const seconds = total % 60;
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
-

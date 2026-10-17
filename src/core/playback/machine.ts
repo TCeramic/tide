@@ -16,6 +16,8 @@ function cloneTrack(track: Track): Track {
     artist: track.artist,
     durationMs: track.durationMs,
   };
+  if (typeof track.albumTitle === "string") next.albumTitle = track.albumTitle.slice(0, 200);
+  if (typeof track.albumId === "string") next.albumId = track.albumId.slice(0, 40);
   if (typeof track.cover === "string" && /^https?:\/\//.test(track.cover)) next.cover = track.cover.slice(0, 500);
   return next;
 }
@@ -38,6 +40,9 @@ export class PlaybackMachine {
     shuffle: false,
     explore: false,
   };
+
+  /** Small visual windows never need to clone the full queue on every lyric tick. */
+  nowPlaying():Omit<PlaybackSnapshot,"queue">&{track:Track|null}{const {queue,...state}=this.snapshot;return {...state,track:queue[state.index]?cloneTrack(queue[state.index]):null};}
 
   getState(): PlaybackSnapshot {
     return {
@@ -72,6 +77,15 @@ export class PlaybackMachine {
     if (!track || this.snapshot.status !== "playing" || !Number.isFinite(positionMs)) return this.getState();
     this.snapshot = { ...this.snapshot, positionMs: clamp(positionMs, 0, track.durationMs) };
     return this.getState();
+  }
+
+  /** Audio metadata supplies the duration for local/unknown-length tracks. */
+  reportDuration(id: string, durationMs: number): PlaybackSnapshot {
+    const track = this.currentTrack();
+    if (!track || track.id !== id || !Number.isFinite(durationMs) || durationMs <= 0 || durationMs > 86400000 || (track.durationMs > 0 && !id.startsWith("local-"))) return this.getState();
+    const queue = this.snapshot.queue.map((item, index) => index === this.snapshot.index ? { ...item, durationMs: Math.round(durationMs) } : item);
+    this.snapshot = { ...this.snapshot, queue };
+    const snapshot = this.getState(); this.events.emit("queue", { snapshot }); return snapshot;
   }
 
   beginLoad(): PlaybackSnapshot {
@@ -251,6 +265,14 @@ export class PlaybackMachine {
     const snapshot = this.getState();
     this.events.emit("queue", { snapshot });
     return snapshot;
+  }
+
+  replaceUpcoming(tracks: readonly Track[]): PlaybackSnapshot {
+    const history = this.snapshot.queue.slice(0, this.snapshot.index + 1);
+    const currentId = history.at(-1)?.id;
+    const fresh = [...new Map(tracks.map(cloneTrack).filter(track => track.id !== currentId).map(track => [track.id, track])).values()];
+    this.snapshot = { ...this.snapshot, queue: [...history, ...fresh] };
+    const snapshot = this.getState(); this.events.emit("queue", { snapshot }); return snapshot;
   }
 
   /** Place a track so it plays after the current one. */

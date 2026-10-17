@@ -1,9 +1,15 @@
-import { currentLyricIndex, lineEase, lyricPosition, nextLyricOffset, pairLyrics, sweepProgress, type LyricLine } from "../../core/lyrics";
+import { isRenderingActive } from "../render-activity";
+import { currentLyricIndex, lineEase, lyricPosition, nextLyricOffset, pairLyrics, sweepProgress, wordFill, type LyricLine } from "../../core/lyrics";
 import type { YrcLine } from "../../shared/contract";
-import type { DeskLyricsSettings } from "../../core/desk-lyrics";
 import type { Track } from "../../core/playback/types";
-import { Music2 } from "lucide";
-import { ICON_SIZE, prependIcon } from "../icons";
+import { MoreHorizontal } from "lucide";
+import { ICON_SIZE, iconButton } from "../icons";
+import { paintCover } from "../cover";
+import { measureTextLayout } from "../text-metrics";
+import { setAiTrack,setAiLines } from "../ai-context";
+import { segmentLyricLines } from "../../core/ai-assist";
+import { readAudioClock, onAudioClockChange } from "../audio-clock";
+import { onShellView, toggleNowPlaying } from "../view";
 
 type LyricView = "both" | "original" | "translation" | "romaji";
 
@@ -20,11 +26,20 @@ export function mountLyrics(root: HTMLElement): {
 
   const kicker = document.createElement("p");
   kicker.className = "lyrics-kicker";
-  kicker.textContent = "潮汐 Tide";
-  prependIcon(kicker, "Music2", Music2, ICON_SIZE.row);
+  kicker.setAttribute("aria-label","潮汐波动");
+  const wave=document.createElementNS("http://www.w3.org/2000/svg","svg");wave.setAttribute("viewBox","0 0 160 34");wave.setAttribute("aria-hidden","true");
+  for(let i=0;i<3;i++){const path=document.createElementNS("http://www.w3.org/2000/svg","path");path.setAttribute("d",`M-20 ${12+i*6} Q0 ${-2+i*6} 20 ${12+i*6} T60 ${12+i*6} T100 ${12+i*6} T140 ${12+i*6} T180 ${12+i*6}`);path.setAttribute("fill","none");path.setAttribute("stroke","currentColor");path.setAttribute("stroke-width",String(1.6-i*.35));path.style.animationDelay=`${i*-.6}s`;wave.append(path);}kicker.append(wave);
 
   const title = document.createElement("p");
   title.className = "lyrics-title";
+  const art = document.createElement("div"); art.className = "lyrics-art";
+  const artCover = document.createElement("button"); artCover.type = "button"; artCover.className = "lyrics-cover";
+  artCover.setAttribute("aria-label", "返回上一页"); artCover.title = "返回上一页";
+  artCover.addEventListener("click", toggleNowPlaying); paintCover(artCover, undefined);
+  const artist=document.createElement("div");artist.className="lyrics-artists";
+  const setArtists=(value:string)=>{if(artist.dataset.artists===value)return;artist.dataset.artists=value;artist.replaceChildren();for(const name of [...new Set(value.split(/\s+\/\s+|、/).map(v=>v.trim()).filter(Boolean))]){const link=document.createElement("button");link.type="button";link.className="lyrics-artist";link.textContent=name;link.setAttribute("aria-label",`搜索歌手 ${name}`);link.onclick=()=>window.dispatchEvent(new CustomEvent("tide:artist-search",{detail:name}));artist.append(link);}};
+  const sourceNote = document.createElement("p"); sourceNote.className = "lyrics-source";
+  const reading = document.createElement("div"); reading.className = "lyrics-reading";
 
   const tools = document.createElement("div");
   tools.className = "lyric-tools";
@@ -32,18 +47,11 @@ export function mountLyrics(root: HTMLElement): {
   const original = viewButton("原文");
   const translation = viewButton("翻译");
   const romaji = viewButton("罗马音");
-  const deskToggle = viewButton("桌面歌词");
-  const deskMenu = document.createElement("details");
-  deskMenu.className = "desk-menu";
-  deskMenu.hidden = true;
-  const deskSummary = document.createElement("summary");
-  deskSummary.textContent = "桌面歌词";
-  deskMenu.append(deskSummary, deskMenuBody());
-  tools.append(both, original, translation, romaji, deskToggle, deskMenu);
+  tools.append(both, original, translation, romaji);
 
-  const offsetMenu = document.createElement("details");
+  const offsetMenu = document.createElement("div");
   offsetMenu.className = "lyric-offset-menu";
-  const offsetSummary = document.createElement("summary");
+  const offsetSummary = document.createElement("span");
   offsetSummary.textContent = "偏移量";
   const earlier = viewButton("−0.5s");
   const later = viewButton("+0.5s");
@@ -56,8 +64,19 @@ export function mountLyrics(root: HTMLElement): {
 
   const list = document.createElement("ol");
   list.className = "lyric-list";
+  const resume = viewButton("恢复歌词跟随"); resume.classList.add("lyric-resume"); resume.hidden = true;
+  let manualUntil = 0;
+  const suspendFollow = () => { manualUntil = performance.now() + 6000; resume.hidden = false; };
+  list.addEventListener("wheel", suspendFollow, { passive: true });
+  list.addEventListener("touchstart", suspendFollow, { passive: true });
+  list.addEventListener("keydown", event => { if (["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End"].includes(event.key)) suspendFollow(); });
 
-  block.append(kicker, title, tools, offsetMenu, line, list);
+  art.append(artCover, kicker, title, artist);
+  const options=iconButton("歌词选项","MoreHorizontal",MoreHorizontal,ICON_SIZE.control);options.classList.add("lyric-options-trigger");options.setAttribute("aria-expanded","false");
+  const optionsPanel=document.createElement("div");optionsPanel.className="lyric-options-panel";optionsPanel.hidden=true;optionsPanel.append(tools,offsetMenu);
+  const showOptions=(open:boolean)=>{optionsPanel.hidden=!open;options.setAttribute("aria-expanded",String(open));};options.addEventListener("click",()=>{showOptions(optionsPanel.hidden);options.blur();});optionsPanel.addEventListener("pointerleave",()=>showOptions(false));
+  reading.append(options,optionsPanel,line,list,resume);
+  block.append(art, reading);
   root.append(block);
 
   let generation = 0;
@@ -67,13 +86,33 @@ export function mountLyrics(root: HTMLElement): {
   let positionMs = 0;
   let bundles = { original: [] as LyricLine[], translation: [] as LyricLine[], romaji: [] as LyricLine[], yrc: [] as YrcLine[] };
   let pendingPosition = 0;
-  let paintFrame = 0;
+  let paintFrame = 0, paintTimer = 0, lastPaint = 0;
+  let disposed = false, linesDirty = true;
+  const tick = (now: number) => {
+    paintFrame = 0;
+    if (disposed || !isRenderingActive() || document.documentElement.dataset.view !== "playing") return;
+    if (linesDirty) renderLines();
+    const clock = readAudioClock(shownId);
+    lastPaint = now; paint(clock?.positionMs ?? pendingPosition);
+    if (clock?.playing) {
+      const interval=1000/(document.documentElement.dataset.performance==="vivid"?120:60);
+      paintTimer=window.setTimeout(()=>{paintTimer=0;if(!disposed&&isRenderingActive()&&document.documentElement.dataset.view==="playing")paintFrame=requestAnimationFrame(tick);},Math.max(0,interval-(performance.now()-lastPaint)-1));
+    }
+  };
+  const wake = () => {
+    if (!isRenderingActive() || document.documentElement.dataset.view!=="playing") {cancelAnimationFrame(paintFrame);clearTimeout(paintTimer);paintFrame=paintTimer=0;return;}
+    if (!disposed && !paintFrame && !paintTimer) paintFrame = requestAnimationFrame(tick);
+  };
+  const stopView = onShellView(wake);
+  const stopAudioClock = onAudioClockChange(wake);
+  document.addEventListener("visibilitychange", wake);
   let active = -1;
-  let deskOpen = false;
-
+  const segment=(event:Event)=>{const result=(event as CustomEvent<import("../../core/ai-assist").AiResult>).detail;if(result.task!=="segment")return;const rows=bundles.yrc.length?bundles.yrc.map(row=>({timeMs:row.timeMs,text:row.text})):bundles.original;bundles.yrc=segmentLyricLines(rows,result.segments,bundles.yrc);renderLines();publishDesk();};
+  window.addEventListener("tide:segments",segment);
   const usingYrc = (): boolean => (view === "both" || view === "original") && bundles.yrc.length > 0;
 
-  const timedRows = (): LyricLine[] => {
+  let cachedRows: LyricLine[] | null = null;
+  const computeRows = (): LyricLine[] => {
     if (usingYrc()) return bundles.yrc.map((row) => ({ timeMs: row.timeMs, text: row.text }));
     if (view === "both") {
       return pairLyrics(bundles.original, bundles.translation).map((row) => ({
@@ -83,6 +122,9 @@ export function mountLyrics(root: HTMLElement): {
     }
     return bundles[view];
   };
+
+  const timedRows = () => cachedRows ??= computeRows();
+  const wordPaint = new WeakMap<HTMLElement, string>();
 
   const publishDesk = () => {
     window.tide.pushDeskLines({
@@ -104,6 +146,20 @@ export function mountLyrics(root: HTMLElement): {
     const rows = timedRows();
     const row = rows[index];
     if (!row) return;
+    const wordNodes = origin.querySelectorAll<HTMLElement>(".lyric-word");
+    const wordLine = usingYrc() ? bundles.yrc[index] : undefined;
+    if (wordNodes.length && wordLine) {
+      wordNodes.forEach((node, cursor) => {
+        const word = wordLine.words[cursor]; const fill = word ? wordFill(word, at) : 0;
+        const value = `${(fill * 100).toFixed(2)}%`;
+        if (wordPaint.get(node) === value) return;
+        wordPaint.set(node, value); node.style.setProperty("--word-fill", value);
+        const mask = node.querySelector<HTMLElement>(".word-mask"), hot = node.querySelector<HTMLElement>(".word-hot");
+        if (mask && hot) writeLyricSweep(mask, hot, fill);
+        node.classList.toggle("is-singing", fill > 0 && fill < 1);
+      });
+      return;
+    }
     const mask = origin.querySelector<HTMLElement>(".lyric-mask");
     const hot = origin.querySelector<HTMLElement>(".lyric-hot");
     if (!mask || !hot) return;
@@ -131,11 +187,25 @@ export function mountLyrics(root: HTMLElement): {
       const items = list.querySelectorAll("li");
       items.forEach((item, index) => {
         item.classList.toggle("lyric-current", index === next);
+        item.classList.toggle("lyric-passed", index < next);
+        item.style.setProperty("--lyric-distance", String(Math.min(4, Math.abs(index - next))));
+        if (index !== next) item.querySelectorAll<HTMLElement>(".lyric-word").forEach(word => {
+          const value = index < next ? "100%" : "0%";
+          if (wordPaint.get(word) !== value) {
+            wordPaint.set(word, value); word.style.setProperty("--word-fill", value);
+            const mask = word.querySelector<HTMLElement>(".word-mask"), hot = word.querySelector<HTMLElement>(".word-hot");
+            if (mask && hot) writeLyricSweep(mask, hot, index < next ? 1 : 0);
+          }
+          word.classList.remove("is-singing");
+        });
       });
-      const current = next >= 0 ? items.item(next) : null;
+    }
+    if ((changed || !resume.hidden) && performance.now() >= manualUntil) {
+      resume.hidden = true;
+      const current = next >= 0 ? list.children.item(next) : null;
       if (current instanceof HTMLElement) {
-        const top = current.offsetTop - list.clientHeight / 2 + current.clientHeight / 2;
-        list.scrollTo({ top: Math.max(0, top), behavior: "auto" });
+        const top = current.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop - list.clientHeight * 0.42 + current.clientHeight / 2;
+        list.scrollTo({ top: Math.max(0, top), behavior: changed && !matchMedia("(prefers-reduced-motion: reduce)").matches ? "smooth" : "auto" });
       }
     }
     if (next >= 0) paintSweep(next);
@@ -147,6 +217,10 @@ export function mountLyrics(root: HTMLElement): {
   };
 
   const renderLines = () => {
+    cachedRows = null;
+    linesDirty = true;
+    if (!isRenderingActive() || document.documentElement.dataset.view !== "playing") return;
+    linesDirty = false;
     active = -1;
     list.replaceChildren();
     both.setAttribute("aria-pressed", view === "both" ? "true" : "false");
@@ -172,6 +246,7 @@ export function mountLyrics(root: HTMLElement): {
         const item = document.createElement("li");
         const origin = document.createElement("span");
         origin.className = "lyric-origin karaoke";
+        origin.dataset.text = row.original;
         const words = usingYrc() ? bundles.yrc[index]?.words ?? [] : [];
         const run = document.createElement("span");
         run.className = "lyric-run";
@@ -182,7 +257,15 @@ export function mountLyrics(root: HTMLElement): {
         hot.className = "lyric-hot";
         hot.textContent = row.original;
         mask.append(hot);
-        origin.append(run, mask);
+        if (words.length > 0) {
+          for (const word of words) {
+            const span = document.createElement("span"); span.className = "lyric-word";
+            const base = document.createElement("span"); base.className = "word-base"; base.textContent = word.text;
+            const mask = document.createElement("span"); mask.className = "word-mask"; mask.setAttribute("aria-hidden", "true");
+            const hot = document.createElement("span"); hot.className = "word-hot"; hot.textContent = word.text;
+            mask.append(hot); span.append(base, mask); origin.append(span);
+          }
+        } else origin.append(run, mask);
         if (words.length > 0) origin.dataset.widths = words.map((word) => String(measureWord(word.text))).join(",");
         item.append(origin);
         if (row.translation.length > 0) {
@@ -200,30 +283,43 @@ export function mountLyrics(root: HTMLElement): {
         list.append(item);
       }
     }
+    for (const [index, item] of Array.from(list.children).entries()) {
+      if (!(item instanceof HTMLElement)) continue;
+      const time = lines[index]?.timeMs ?? 0;
+      item.tabIndex = 0; item.setAttribute("role", "button"); item.setAttribute("aria-label", `跳转到 ${item.textContent ?? "歌词"}`);
+      const jump = () => { manualUntil = 0; resume.hidden = true; void window.tide.seek(Math.max(0, time - offsetMs)); };
+      item.addEventListener("click", jump);
+      item.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); jump(); } });
+    }
     paint();
   };
+  const measurements = new WeakMap<HTMLElement, string>();
+  const measureLines = () => {
+    if (!isRenderingActive() || document.documentElement.dataset.view !== "playing") return;
+    let changed = false;
+    for (const origin of Array.from(list.querySelectorAll<HTMLElement>(".lyric-origin"))) {
+      const style = getComputedStyle(origin), height = Number.parseFloat(style.lineHeight) || 52;
+      const key = `${origin.clientWidth}:${style.font}:${origin.dataset.text}`;
+      if (measurements.get(origin) === key) continue;
+      measurements.set(origin, key); changed = true;
+      const measured = measureTextLayout(origin.dataset.text ?? "", style.font || "40px sans-serif", origin.clientWidth, height);
+      origin.style.minHeight = `${measured.height}px`;
+      origin.dataset.measuredLines = String(measured.lineCount);
+    }
+    if (changed && performance.now() >= manualUntil) { active = -1; paint(); }
+  };
+  const layoutObserver = new ResizeObserver(measureLines); layoutObserver.observe(list);
+  resume.addEventListener("click", () => { manualUntil = 0; active = -1; paint(); });
 
   const choose = (next: LyricView) => {
     view = next;
-    renderLines();
-  };
-
-  const syncDeskButton = (settings: DeskLyricsSettings) => {
-    deskOpen = settings.open;
-    deskToggle.setAttribute("aria-pressed", settings.open ? "true" : "false");
-    const wasHidden = deskMenu.hidden;
-    deskMenu.hidden = !settings.open;
-    if (settings.open && wasHidden) deskMenu.open = true;
-    paintDeskMenu(deskMenu, settings);
+    renderLines();showOptions(false);
   };
 
   both.addEventListener("click", () => choose("both"));
   original.addEventListener("click", () => choose("original"));
   translation.addEventListener("click", () => choose("translation"));
   romaji.addEventListener("click", () => choose("romaji"));
-  deskToggle.addEventListener("click", () => {
-    void window.tide.setDeskLyrics({ open: !deskOpen }).then(syncDeskButton);
-  });
   earlier.addEventListener("click", () => {
     offsetMs = nextLyricOffset(offsetMs, -1);
     showOffset();
@@ -239,14 +335,14 @@ export function mountLyrics(root: HTMLElement): {
     publishDesk();
   });
   showOffset();
-  const stopDesk = window.tide.onDeskState(syncDeskButton);
-  void window.tide.getDeskLyrics().then(syncDeskButton);
 
   const setTrack = (track: Track | null) => {
     const id = track?.id ?? null;
     if (id === shownId) {
-      if (track) title.textContent = track.title;
-      publishDesk();
+      if (track) {
+        if (title.textContent !== track.title) title.textContent = track.title; setArtists(track.artist);
+        if (artCover.dataset.cover !== (track.cover ?? "")) { paintCover(artCover, track.cover); artCover.dataset.cover = track.cover ?? ""; }
+      }
       return;
     }
     shownId = id;
@@ -256,17 +352,24 @@ export function mountLyrics(root: HTMLElement): {
     active = -1;
     list.replaceChildren();
     if (!track) {
-      title.textContent = "歌词层";
+      setAiTrack(null);title.textContent = "歌词层";
+      setArtists("");sourceNote.textContent="";
+      paintCover(artCover, undefined); artCover.dataset.cover = "";
       publishDesk();
       renderLines();
       return;
     }
-    title.textContent = track.title;
+    setAiTrack(track);title.textContent = track.title;
+    setArtists(track.artist);
+    paintCover(artCover, track.cover);
+    artCover.dataset.cover = track.cover ?? "";
+    sourceNote.textContent = "正在获取歌词";
     line.textContent = "正在读取歌词…";
     publishDesk();
     void window.tide.lyric(track.id).then((result) => {
       if (token !== generation) return;
       if (!result.ok) {
+        sourceNote.textContent = "暂无可用歌词";
         renderLines();
         publishDesk();
         return;
@@ -277,10 +380,14 @@ export function mountLyrics(root: HTMLElement): {
         romaji: result.romaji ?? [],
         yrc: result.yrc ?? [],
       };
+      setAiLines((bundles.yrc.length?bundles.yrc:bundles.original).map(row=>row.text));
+      sourceNote.textContent = result.source === "amll" ? `AMLL TTML DB${result.credits?.length ? ` · ${result.credits.join(" / ")}` : ""}` : "网易云歌词";
       renderLines();
+      measureLines();
       publishDesk();
     }).catch(() => {
       if (token !== generation) return;
+      sourceNote.textContent = "歌词暂不可用";
       renderLines();
       publishDesk();
     });
@@ -292,15 +399,14 @@ export function mountLyrics(root: HTMLElement): {
     setTrack,
     setPosition(positionMs: number) {
       pendingPosition = positionMs;
-      if (paintFrame !== 0) return;
-      paintFrame = requestAnimationFrame(() => {
-        paintFrame = 0;
-        paint(pendingPosition);
-      });
+      wake();
     },
     destroy: () => {
+      disposed = true; stopView(); stopAudioClock(); document.removeEventListener("visibilitychange", wake);
       if (paintFrame !== 0) cancelAnimationFrame(paintFrame);
-      stopDesk();
+      clearTimeout(paintTimer);
+      layoutObserver.disconnect();
+      window.removeEventListener("tide:segments",segment);
       root.replaceChildren();
     },
   };
@@ -326,115 +432,6 @@ function measureWord(text: string): number {
   if (!wordCanvas) return Math.max(1, text.length);
   wordCanvas.font = "40px Segoe UI, PingFang SC, Noto Sans SC, Microsoft YaHei, sans-serif";
   return Math.max(1, wordCanvas.measureText(text).width);
-}
-
-function deskMenuBody(): HTMLElement {
-  const body = document.createElement("div");
-  body.className = "desk-menu-body";
-  const row = (label: string, key: "highlightFollow" | "motion" | "pair" | "wave" | "locked", pressed: boolean) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "text-button";
-    button.dataset.desk = key;
-    button.textContent = label;
-    button.setAttribute("aria-pressed", pressed ? "true" : "false");
-    button.addEventListener("click", () => {
-      const on = button.getAttribute("aria-pressed") !== "true";
-      void window.tide.setDeskLyrics({ [key]: on });
-    });
-    return button;
-  };
-  const orient = (label: string, value: "horizontal" | "vertical") => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "text-button";
-    button.dataset.desk = "orientation";
-    button.dataset.value = value;
-    button.textContent = label;
-    button.setAttribute("aria-pressed", value === "horizontal" ? "true" : "false");
-    button.addEventListener("click", () => {
-      void window.tide.setDeskLyrics({ orientation: value });
-    });
-    return button;
-  };
-  body.append(
-    orient("横列", "horizontal"),
-    orient("竖列", "vertical"),
-    row("字内扫过", "highlightFollow", true),
-    row("动效", "motion", true),
-    row("双行译文", "pair", false),
-    row("字后波形", "wave", false),
-    row("锁定", "locked", false),
-  );
-  const opacity = document.createElement("input");
-  opacity.type = "range";
-  opacity.min = "20";
-  opacity.max = "100";
-  opacity.value = "100";
-  opacity.dataset.desk = "opacity";
-  opacity.setAttribute("aria-label", "桌面歌词透明度");
-  opacity.addEventListener("change", () => {
-    void window.tide.setDeskLyrics({ opacity: Number(opacity.value) / 100 });
-  });
-  const glow = document.createElement("input");
-  glow.type = "range";
-  glow.min = "0";
-  glow.max = "100";
-  glow.value = "72";
-  glow.dataset.desk = "glow";
-  glow.setAttribute("aria-label", "桌面歌词光晕");
-  glow.addEventListener("change", () => {
-    void window.tide.setDeskLyrics({ glow: Number(glow.value) / 100 });
-  });
-  const motionLevel = document.createElement("input");
-  motionLevel.type = "range";
-  motionLevel.min = "35";
-  motionLevel.max = "100";
-  motionLevel.value = "100";
-  motionLevel.dataset.desk = "motionLevel";
-  motionLevel.setAttribute("aria-label", "桌面歌词动效强度");
-  motionLevel.addEventListener("change", () => {
-    void window.tide.setDeskLyrics({ motionLevel: Number(motionLevel.value) / 100 });
-  });
-  const backdrop = document.createElement("input");
-  backdrop.type = "range";
-  backdrop.min = "0";
-  backdrop.max = "55";
-  backdrop.value = "0";
-  backdrop.dataset.desk = "backdrop";
-  backdrop.setAttribute("aria-label", "桌面歌词背景");
-  backdrop.addEventListener("change", () => {
-    void window.tide.setDeskLyrics({ backdrop: Number(backdrop.value) / 100 });
-  });
-  const hide = document.createElement("button");
-  hide.type = "button";
-  hide.className = "text-button";
-  hide.textContent = "隐藏";
-  hide.addEventListener("click", () => {
-    void window.tide.setDeskLyrics({ open: false });
-  });
-  body.append(opacity, glow, motionLevel, backdrop, hide);
-  return body;
-}
-
-function paintDeskMenu(menu: HTMLElement, settings: DeskLyricsSettings): void {
-  menu.querySelectorAll<HTMLButtonElement>("button[data-desk]").forEach((button) => {
-    const key = button.dataset.desk;
-    if (key === "highlightFollow" || key === "motion" || key === "pair" || key === "wave" || key === "locked") {
-      button.setAttribute("aria-pressed", settings[key] ? "true" : "false");
-    }
-    if (key === "orientation") {
-      button.setAttribute("aria-pressed", button.dataset.value === settings.orientation ? "true" : "false");
-    }
-  });
-  const opacity = menu.querySelector<HTMLInputElement>("input[data-desk=opacity]");
-  const glow = menu.querySelector<HTMLInputElement>("input[data-desk=glow]");
-  const motionLevel = menu.querySelector<HTMLInputElement>("input[data-desk=motionLevel]");
-  const backdrop = menu.querySelector<HTMLInputElement>("input[data-desk=backdrop]");
-  if (opacity && document.activeElement !== opacity) opacity.value = String(Math.round(settings.opacity * 100));
-  if (glow && document.activeElement !== glow) glow.value = String(Math.round(settings.glow * 100));
-  if (motionLevel && document.activeElement !== motionLevel) motionLevel.value = String(Math.round(settings.motionLevel * 100));
-  if (backdrop && document.activeElement !== backdrop) backdrop.value = String(Math.round(settings.backdrop * 100));
 }
 
 function viewButton(label: string): HTMLButtonElement {

@@ -1,6 +1,9 @@
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { CookieStore } from "./cookie";
 import { createNeteaseClient, type NeteaseClient } from "./netease";
 import { parseLrc, parseYrc } from "../core/lyrics";
@@ -8,6 +11,7 @@ import { isLocalId } from "../core/local-library";
 import { LocalLibrary } from "./local-library";
 import { asFailure, SessionError, SessionService } from "./session";
 import { API_READY_PREFIX, DEFAULT_API_PORT, TIDE_VERSION } from "../shared/contract";
+import { createCommunityLyrics } from "./community-lyrics";
 
 export interface TideApiOptions {
   /** `undefined` reads TIDE_COOKIE_FILE. `null` keeps the cookie in memory. */
@@ -31,11 +35,11 @@ export function createTideApiServer(options: TideApiOptions = {}): http.Server {
     playlists: (cookie, uid) => client().playlists(cookie, uid),
     search: (keywords, cookie) => client().search(keywords, cookie),
     songUrl: (id, cookie, level) => client().songUrl(id, cookie, level),
-    playlistTracks: (id, cookie) => client().playlistTracks(id, cookie),
+    playlistTracks: (id, cookie, offset) => client().playlistTracks(id, cookie, offset),
     dailySongs: (cookie) => client().dailySongs(cookie),
     radarId: (cookie) => client().radarId(cookie),
     similarSongs: (id, cookie) => client().similarSongs(id, cookie),
-    searchKind: (keywords, type, cookie) => client().searchKind(keywords, type, cookie),
+    searchKind: (keywords, type, cookie, offset) => client().searchKind(keywords, type, cookie, offset),
     artistSongs: (id, cookie) => client().artistSongs(id, cookie),
     albumTracks: (id, cookie) => client().albumTracks(id, cookie),
     lyric: (id, cookie) => client().lyric(id, cookie),
@@ -46,16 +50,29 @@ export function createTideApiServer(options: TideApiOptions = {}): http.Server {
     likeSong: (id, like, cookie) => client().likeSong(id, like, cookie),
     likedIds: (uid, cookie) => client().likedIds(uid, cookie),
     collectSong: (playlistId, trackId, cookie) => client().collectSong(playlistId, trackId, cookie),
-  });
+    songArtwork: (ids, cookie) => client().songArtwork?.(ids, cookie) ?? Promise.resolve({}),
+    createCloudPlaylist: (name, cookie) => {
+      const create = client().createCloudPlaylist;
+      if (!create) throw new Error("云端歌单创建暂不可用");
+      return create(name, cookie);
+    },
+    syncCloudPlaylist: (input, cookie) => {
+      const sync = client().syncCloudPlaylist;
+      if (!sync) throw new Error("云端歌单同步暂不可用");
+      return sync(input, cookie);
+    },
+  }, options.netease ? undefined : createCommunityLyrics());
 
   function client(): NeteaseClient {
     if (!netease) netease = createNeteaseClient();
     return netease;
   }
   const library = new LocalLibrary(process.env.TIDE_LIBRARY_FILE ?? "");
+  // Only URLs resolved by the music service can enter this bounded relay.
+  const streams = new Map<string,string>();
 
   return http.createServer((req, res) => {
-    void route(req, res, session, library).catch((error: unknown) => {
+    void route(req, res, session, library, streams).catch((error: unknown) => {
       if (res.headersSent) return;
       if (error instanceof SessionError) {
         writeJson(res, error.status, asFailure(error));
@@ -75,9 +92,26 @@ async function route(
   res: http.ServerResponse,
   session: SessionService,
   library: LocalLibrary,
+  streams: Map<string,string>,
 ): Promise<void> {
   const url = new URL(req.url ?? "/", "http://127.0.0.1");
   const pathname = url.pathname;
+  if(pathname==='/local/audio'||pathname.startsWith('/media/'))res.setHeader('Access-Control-Allow-Origin','*');
+  if(req.method==='GET'&&pathname.startsWith('/media/')){
+    const source=streams.get(pathname.slice(7));
+    if(!source){writeJson(res,404,{ok:false,error:'missing'});return;}
+    const abort=new AbortController(),timeout=setTimeout(()=>abort.abort(),30000);
+    const cancel=()=>abort.abort();res.on('close',cancel);
+    try{const upstream=await fetch(source,{headers:req.headers.range?{Range:req.headers.range}:{},signal:abort.signal});
+      clearTimeout(timeout);
+      if(!upstream.ok||!upstream.body){writeJson(res,502,{ok:false,error:'upstream'});return;}
+      res.statusCode=upstream.status;
+      for(const key of ['content-type','content-length','content-range','accept-ranges']){const value=upstream.headers.get(key);if(value)res.setHeader(key,value);}
+      res.setHeader('Cache-Control','no-store');
+      await pipeline(Readable.fromWeb(upstream.body as import('node:stream/web').ReadableStream),res);
+    }finally{clearTimeout(timeout);res.off('close',cancel);}
+    return;
+  }
 
   if (req.method === "GET" && pathname === "/health") {
     writeJson(res, 200, { ok: true, service: "tide", version: TIDE_VERSION });
@@ -122,12 +156,16 @@ async function route(
     streamFile(req, res, track.file);
     return;
   }
+  if(req.method==="POST"&&pathname==="/tide-playlist/link"){const id=await session.linkTidePlaylist(await readJson(req));writeJson(res,200,{ok:true,id});return;}
+  if(req.method==="POST"&&pathname==="/tide-playlist/sync"){const message=await session.syncTidePlaylist(await readJson(req,2_000_000));writeJson(res,200,{ok:true,message});return;}
   if (req.method === "GET" && pathname === "/search") {
     const type = Number(url.searchParams.get("type") ?? "1");
     const keywords = url.searchParams.get("keywords") ?? "";
-    const local = type === 1 ? library.search(keywords) : [];
+    const rawOffset=Number(url.searchParams.get("offset")??0);
+    const offset=Number.isFinite(rawOffset)?Math.max(0,Math.trunc(rawOffset)):0;
+    const local = type === 1 && offset===0 ? library.search(keywords) : [];
     try {
-      const page = await session.searchCatalog(keywords, type);
+      const page = await session.searchCatalog(keywords, type,offset);
       const hits = type === 1 ? [...local, ...page.hits] : page.hits;
       writeJson(res, 200, { ok: true, ...page, hits, cloud: true });
     } catch (error) {
@@ -138,7 +176,7 @@ async function route(
           hits: local,
           artists: [],
           albums: [],
-          cloud: false,
+          cloud: false,offset,nextOffset:offset,hasMore:false,
         });
         return;
       }
@@ -168,6 +206,8 @@ async function route(
     writeJson(res, 200, {
       ok: true,
       trackId,
+      source: bundle.source ?? "netease",
+      credits: bundle.credits ?? [],
       lines: parseLrc(bundle.lyric),
       translation: ytlrc.length > 0
         ? ytlrc.map((row) => ({ timeMs: row.timeMs, text: row.text }))
@@ -175,6 +215,11 @@ async function route(
       romaji: parseLrc(bundle.romaji),
       yrc: parseYrc(bundle.yrc),
     });
+    return;
+  }
+  if (req.method === "GET" && pathname === "/artwork") {
+    const covers = await session.songArtwork((url.searchParams.get("ids") ?? "").split(","));
+    writeJson(res, 200, { ok: true, covers });
     return;
   }
   if (req.method === "GET" && pathname === "/personal/fm") {
@@ -229,9 +274,11 @@ async function route(
       return;
     }
     const media = await session.mediaUrl(songId, url.searchParams.get("level"));
+    let mediaUrl=media.url;
+    if(mediaUrl){const token=randomUUID();streams.set(token,mediaUrl);while(streams.size>128)streams.delete(streams.keys().next().value!);mediaUrl=`http://127.0.0.1:${req.socket.localPort}/media/${token}`;}
     writeJson(res, 200, {
       ok: true,
-      url: media.url,
+      url: mediaUrl,
       signedOut: media.signedOut,
       level: media.level,
       requested: media.requested,
@@ -239,8 +286,11 @@ async function route(
     return;
   }
   if (req.method === "GET" && pathname === "/playlist/tracks") {
-    const hits = await session.playlistTracks(url.searchParams.get("id") ?? "");
-    writeJson(res, 200, { ok: true, kind: "songs", hits, artists: [], albums: [], loaded: hits.length });
+    const id = url.searchParams.get("id") ?? "";
+    const rawOffset = Number(url.searchParams.get("offset") ?? 0);
+    const offset = Number.isSafeInteger(rawOffset) && rawOffset >= 0 ? rawOffset : 0;
+    const hits = (await session.playlistTracks(id, offset)).slice(0, 100);
+    writeJson(res, 200, { ok: true, kind: "songs", hits, artists: [], albums: [], loaded: hits.length, source: { playlistId: id, offset: offset + hits.length, hasMore: hits.length === 100 } });
     return;
   }
   if (req.method === "GET" && pathname === "/recommend/daily") {
@@ -260,13 +310,13 @@ async function route(
   writeJson(res, 404, { ok: false, error: "not_found", message: "没有这个接口" });
 }
 
-function readJson(req: http.IncomingMessage): Promise<unknown> {
+function readJson(req: http.IncomingMessage,max=32_768): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let size = 0;
     req.on("data", (chunk: Buffer) => {
       size += chunk.length;
-      if (size > 32_768) {
+      if (size > max) {
         reject(new Error("body_too_large"));
         req.destroy();
         return;

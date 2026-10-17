@@ -1,0 +1,288 @@
+{
+  "repository": "https://github.com/ruiqichenbiec/design-systems",
+  "commit": "7a424c93b9be13cf835b91ea67495fec2ec0584e",
+  "license": "MIT",
+  "copyright": "Copyright (c) 2026 DayDreamInAReverie",
+  "files": [
+    {
+      "path": "LICENSE",
+      "sha": "dc228c49a14f336bf25e7c7ba8a21afa4768ad6b"
+    },
+    {
+      "path": "exposure/lattice-hero.html",
+      "sha": "53bdc6b43109b944212f1d5646d00a3c9b9ee7df"
+    },
+    {
+      "path": "exposure/lattice.html",
+      "sha": "a3394d3b673e4b95cd91bcd32e4846a3bfb3c8f0"
+    },
+    {
+      "path": "exposure/lens.html",
+      "sha": "b94ba7771cdec2f32e8763911a285b9bdb6cc00a"
+    },
+    {
+      "path": "lattice/README.md",
+      "sha": "f523dd63f20edd2739380501cbe41ff5ae71e0bc"
+    },
+    {
+      "path": "lattice/THREE-LICENSE.txt",
+      "sha": "8ada2a5f982916b0ba4b7a0aa7de347587e745d7"
+    },
+    {
+      "path": "lattice/src/components.css",
+      "sha": "290f4195826ab4c2f54596251592231a60d22711"
+    },
+    {
+      "path": "lattice/src/core/motion.js",
+      "sha": "42a39e836a3f2edc9bd09b8a005cc69d7d118a88"
+    },
+    {
+      "path": "lattice/src/core/sound.js",
+      "sha": "6fc2a6aa7a684a561c447edb5778eff2ab1f8e53"
+    },
+    {
+      "path": "lattice/src/core/theme.js",
+      "sha": "a888ec16c6ae07695297127f772845c99a5edba5"
+    },
+    {
+      "path": "lattice/src/data/analysis.js",
+      "sha": "7fa2fcecb1b525cc1f32df79a9457eb8ce3ffcb0"
+    },
+    {
+      "path": "lattice/src/dom/command.js",
+      "sha": "d56974c003c88a9f00a5948f56d66d54f066194e"
+    },
+    {
+      "path": "lattice/src/dom/controls.js",
+      "sha": "b7c4f99af04cfae1d32d451d2b12a3c8218b6923"
+    },
+    {
+      "path": "lattice/src/dom/cursor.js",
+      "sha": "453725fd0c58fdda2f63057fe70cb1242e199f91"
+    },
+    {
+      "path": "lattice/src/dom/dotkit.js",
+      "sha": "9b36e52ad0aa1b501fec2c1e2d7ca56715537ccd"
+    },
+    {
+      "path": "lattice/src/dom/dottext.js",
+      "sha": "a108fff2f3ec811dd40d0ffecbb77b43fa4eddc8"
+    },
+    {
+      "path": "lattice/src/dom/labels.js",
+      "sha": "53a1b97a54a278a6b3eeef6868a9d4e60ba04e85"
+    },
+    {
+      "path": "lattice/src/gl/cascade.js",
+      "sha": "e4a8dc7b17264113681069c95517d1aea18e5a06"
+    },
+    {
+      "path": "lattice/src/gl/dotgrid.js",
+      "sha": "a81f604e94fc7273516b4064870a9bf01ee622d8"
+    },
+    {
+      "path": "lattice/src/gl/field.js",
+      "sha": "121d929696e5a429c1a9d83b6e5584d8981e151d"
+    },
+    {
+      "path": "lattice/src/gl/prooftree.js",
+      "sha": "a2038f1b88271edeb0fd290dd56786fee201eb09"
+    },
+    {
+      "path": "lattice/src/gl/sets.js",
+      "sha": "716a319c3abc98c069aae86ea89e4346dbf87bac"
+    },
+    {
+      "path": "lattice/src/gl/stage.js",
+      "sha": "0f55532ba6bac548a365726c17239cad43edb0df"
+    },
+    {
+      "path": "lattice/src/index.js",
+      "sha": "8f348e0169437a9ddf050eefb75659b5f5953fb0"
+    },
+    {
+      "path": "lattice/src/tokens.css",
+      "sha": "4fee3c50d36563650d703f96687208e10a0adbb0"
+    },
+    {
+      "path": "lens/lab/design-system/COMPONENTS.md",
+      "sha": "9eb5ba75428cbe6e114d54e45866b11c4e33803e"
+    },
+    {
+      "path": "lens/lab/design-system/CONTEXT.md",
+      "sha": "c7ef6c26418bd717d408f464d39501f3a9a6cf5f"
+    },
+    {
+      "path": "lens/lab/design-system/DESIGN.md",
+      "sha": "611bc17c68adb9cbf0a3467bf4096ecfb5f10d66"
+    },
+    {
+      "path": "lens/lab/design-system/INTERACTIONS.md",
+      "sha": "2dfd6c02c8a9bb06c44433eedb9ac207a4825699"
+    },
+    {
+      "path": "lens/lab/design-system/README.md",
+      "sha": "0b415f135748c516094788e9ea53d817f9c60ef6"
+    },
+    {
+      "path": "lens/lab/design-system/SCOPE.md",
+      "sha": "78f011d72a596a2cee4b41f2df19b6c013c197f1"
+    },
+    {
+      "path": "lens/lab/design-system/SHOWCASE.md",
+      "sha": "6c9a98696976d52979ab6cd239c8aab42fc83d71"
+    },
+    {
+      "path": "lens/lab/design-system/VERIFICATION.md",
+      "sha": "3fbee0292d84535e2ab70b64ace52facbbc5e515"
+    },
+    {
+      "path": "lens/lab/design-system/build-tokens.mjs",
+      "sha": "71888bced5930a5feb4f83affc29358b10a38205"
+    },
+    {
+      "path": "lens/lab/design-system/card-list.js",
+      "sha": "fb89b72a5098714b8db79190da98120e89ce1d35"
+    },
+    {
+      "path": "lens/lab/design-system/catalog.css",
+      "sha": "25ac66d5224b17318866c5dbd2e9ab3333c9b584"
+    },
+    {
+      "path": "lens/lab/design-system/catalog.js",
+      "sha": "72fe1de25499173766723a92db2940dc476d42ec"
+    },
+    {
+      "path": "lens/lab/design-system/component-catalog.js",
+      "sha": "9fc78506d73a5b65741fe2a0c6acb68a24f2583c"
+    },
+    {
+      "path": "lens/lab/design-system/component-patterns.js",
+      "sha": "e19df605f2b990131b39da275fed4a30c4fdee54"
+    },
+    {
+      "path": "lens/lab/design-system/components.css",
+      "sha": "cbb9f43ba16e711a2b2b8d342c51e0f0363f3190"
+    },
+    {
+      "path": "lens/lab/design-system/components.js",
+      "sha": "f54077a834217825374baeba3510947f89416653"
+    },
+    {
+      "path": "lens/lab/design-system/focus.js",
+      "sha": "95cb6d36463de100b08731bc9f2763e41db6c690"
+    },
+    {
+      "path": "lens/lab/design-system/index.d.ts",
+      "sha": "574842402ea4d947a90f98441811769b0146dd2c"
+    },
+    {
+      "path": "lens/lab/design-system/index.html",
+      "sha": "44112d659ced5c397539c115a67c0144d459295f"
+    },
+    {
+      "path": "lens/lab/design-system/index.js",
+      "sha": "1eff206ca13b25ca405aa26d2e124d9a7b1bd53e"
+    },
+    {
+      "path": "lens/lab/design-system/internal/chart-glass.js",
+      "sha": "e4ff935d81334b090e27316630993333ff5b0225"
+    },
+    {
+      "path": "lens/lab/design-system/internal/context-budget.js",
+      "sha": "46de04aa6e2ca2881541362ed2b4b49541739bde"
+    },
+    {
+      "path": "lens/lab/design-system/internal/jelly-physics.js",
+      "sha": "8c598685d2aa563fbf653122f7aaa7f9b5496443"
+    },
+    {
+      "path": "lens/lab/design-system/internal/jelly.js",
+      "sha": "0fe9d73e808ef7ad108c6c5e0a45415b8b3e5ceb"
+    },
+    {
+      "path": "lens/lab/design-system/internal/lens-surface.js",
+      "sha": "bfd3465aa55ab4d34d0c8b61e50b9c57db43e2b1"
+    },
+    {
+      "path": "lens/lab/design-system/internal/optical-motion.js",
+      "sha": "3d37dd5bddaf0778e58f66cc6fd49f97edf6cb92"
+    },
+    {
+      "path": "lens/lab/design-system/internal/optics.js",
+      "sha": "8809cd25b88415682fb1cf5d8314638e4e88d045"
+    },
+    {
+      "path": "lens/lab/design-system/internal/records-glass.js",
+      "sha": "e67993ee246dcaa8ce53c5faa7bec9013d77c6c0"
+    },
+    {
+      "path": "lens/lab/design-system/internal/renderer.js",
+      "sha": "d18e22dfbb1eecfd04fb47bb4ad09d52d30ceb4f"
+    },
+    {
+      "path": "lens/lab/design-system/internal/showcase-data.js",
+      "sha": "07e720e3d4d8b0513240e934ddd217651a8e7204"
+    },
+    {
+      "path": "lens/lab/design-system/optical-components.js",
+      "sha": "209213b9a8f25aa99d99d46637d9f6cefb179b17"
+    },
+    {
+      "path": "lens/lab/design-system/optical-demo.css",
+      "sha": "c86d6a95de1e9bd7ee17667dc64f9904bd66739c"
+    },
+    {
+      "path": "lens/lab/design-system/optical-demo.js",
+      "sha": "00190c3928b0d365e7f6080136d410d9d6fc1600"
+    },
+    {
+      "path": "lens/lab/design-system/package.json",
+      "sha": "fa032a44526bd4685da86d51324c3fbecc7b741b"
+    },
+    {
+      "path": "lens/lab/design-system/runtime.js",
+      "sha": "8fedb7b7bca9aa7892ff4607897aafed1914ac30"
+    },
+    {
+      "path": "lens/lab/design-system/showcase-charts.js",
+      "sha": "65d93bbca1ff1d506e8e13fd778dac6f3f758797"
+    },
+    {
+      "path": "lens/lab/design-system/showcase-records.css",
+      "sha": "5aae41105b772bb965842b5f6280c07ff576e686"
+    },
+    {
+      "path": "lens/lab/design-system/showcase.css",
+      "sha": "9079b6e0a19ce2a1fe5bb04880ec87f54853c023"
+    },
+    {
+      "path": "lens/lab/design-system/showcase.js",
+      "sha": "56ade8c50262c880d2fc2cd6bbe159dd9310294d"
+    },
+    {
+      "path": "lens/lab/design-system/sound.js",
+      "sha": "4356bdd2a52fbffd14fc2344b8269ce1aa2d722d"
+    },
+    {
+      "path": "lens/lab/design-system/tokens.css",
+      "sha": "cbce5c041c08b1dca3e43b76ba5d3c84eca9ec03"
+    },
+    {
+      "path": "lens/lab/design-system/tokens.js",
+      "sha": "c965438d5aa6d2f923b384c0cf2377109f292fd9"
+    },
+    {
+      "path": "lens/lab/design-system/tokens.json",
+      "sha": "23ca5a170fed38f85326cc1c780c01e0ae06b999"
+    },
+    {
+      "path": "lens/lens-showcase-standalone.html",
+      "sha": "79a77b2e4addbf05b547a682fa5e7cbb68f7b1e2"
+    },
+    {
+      "path": "lattice/dist/lattice-showcase.html",
+      "sha": "e5d09ffbc640e8e0eb00857f448190d64b780cac"
+    }
+  ]
+}

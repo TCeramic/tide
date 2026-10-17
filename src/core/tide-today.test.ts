@@ -82,12 +82,13 @@ describe("tide today", () => {
     assert.equal(SIMILAR_API, "simi_song");
     const list = buildTideToday(events, {
       signedIn: true,
-      similar: [hit("20"), hit("21"), hit("22"), hit("23"), hit("24"), hit("25"), hit("26"), hit("27")],
+      similar: Array.from({ length: 20 }, (_, i) => hit(String(100 + i))),
       daily: [hit("30"), hit("31")],
     });
     const ids = list.hits.map((item) => item.id);
     assert.ok(ids.includes("1"));
-    assert.ok(ids.includes("20"));
+    assert.ok(ids.includes("100"));
+    assert.equal(ids.length, 20);
     assert.equal(ids.includes("30"), false);
     assert.equal(list.hits.every((item) => item.playable), true);
   });

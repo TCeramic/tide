@@ -259,7 +259,7 @@ describe("session routes", { concurrency: 1 }, () => {
   it("returns a song url or a clear refusal", async () => {
     const ok = await call(port, "GET", "/song/url?id=1");
     assert.equal(ok.status, 200);
-    assert.equal(ok.json.url, "http://music.126.net/a.mp3");
+    assert.match(ok.json.url!, /^http:\/\/127\.0\.0\.1:\d+\/media\/[\da-f-]+$/);
     assert.equal(ok.json.signedOut, false);
     assert.equal(ok.json.level, "standard");
     assert.equal(ok.json.requested, "standard");
@@ -336,4 +336,26 @@ describe("duplicate collect", () => {
       },
     );
   });
+});
+
+it("search pagination forwards offsets and stops after the short last page",async()=>{
+ const netease=fakeNetease(),offsets:number[]=[];
+ netease.searchKind=async(_query,_type,_cookie,offset=0)=>{offsets.push(offset);return {hits:Array.from({length:offset===0?20:3},(_,i)=>({id:String(offset+i),title:"song",artist:"artist",durationMs:1000,playable:true})),artists:[],albums:[]};};
+ const service=new SessionService(new CookieStore(path.join(os.tmpdir(),`tide-search-${Date.now()}.txt`)),netease);
+ const first=await service.searchCatalog("test",1,0),second=await service.searchCatalog("test",1,20);
+ assert.equal(first.hasMore,true);assert.equal(first.nextOffset,20);assert.equal(second.hasMore,false);assert.equal(second.hits.length,3);assert.deepEqual(offsets,[0,20]);assert.notEqual(first.hits[0].id,second.hits[0].id);
+});
+
+it("HTTP facade preserves search offsets and exposes native playlist cloud methods", async () => {
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),"tide-facade-")),file=path.join(dir,"cookie");new CookieStore(file).write(validCookie);
+ const netease=fakeNetease(),offsets:number[]=[],synced:unknown[]=[];
+ netease.searchKind=async(_q,_t,_c,offset=0)=>{offsets.push(offset);return {hits:[{id:String(offset+1),title:"song",artist:"artist",durationMs:1000,playable:true}],artists:[],albums:[]};};
+ netease.createCloudPlaylist=async()=>"567";netease.syncCloudPlaylist=async(input)=>{synced.push(input);};
+ const server=createTideApiServer({cookieFile:file,netease}),port=await listen(server);
+ try {
+  const first=await call(port,"GET","/search?keywords=test&type=1&offset=0"),next=await call(port,"GET","/search?keywords=test&type=1&offset=20");
+  assert.deepEqual(offsets,[0,20]);assert.notEqual(first.json.hits?.[0].id,next.json.hits?.[0].id);
+  const linked=await call(port,"POST","/tide-playlist/link",{name:"test"});assert.equal(linked.status,200);
+  const result=await call(port,"POST","/tide-playlist/sync",{cloudId:"567",name:"test",description:"kept",songs:[{id:"1"},{id:"1"},{id:"bad"}]});assert.equal(result.status,200);assert.equal(synced.length,1);assert.deepEqual((synced[0] as {songIds:string[]}).songIds,["1"]);
+ } finally {server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));fs.rmSync(dir,{recursive:true,force:true});}
 });

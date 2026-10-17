@@ -1,10 +1,11 @@
 import { ipcMain, type BrowserWindow, type IpcMainEvent } from "electron";
 import { AUDIO_LEVEL_LABEL, isAudioLevel } from "../core/audio-level";
 import { queueFromHits } from "../core/playback/hits";
-import { exploreSeedIds, pickExploreAdditions, shouldInspireNow } from "../core/explore-queue";
+import { profileSeeds, randomProfileMatch } from "../core/explore-queue";
 import { PlaybackMachine } from "../core/playback/machine";
 import { countsAsSkip, type ListenKind } from "../core/tide-today";
 import { ListenLog } from "./listen-log";
+import { TodayStore } from "./today-store";
 import { loadTideToday } from "./tide-today";
 import { loopbackJson } from "./session-host";
 import {
@@ -14,8 +15,10 @@ import {
   type PlaybackBusEvent,
   type PlaybackSnapshot,
   type QueueRequest,
+  type PlaylistCursor,
   type SearchHit,
   type Track,
+  type TideToday,
 } from "../shared/contract";
 
 export interface PlaybackControl {
@@ -26,7 +29,7 @@ export interface PlaybackControl {
   setVolume(volume: number, persist: boolean): PlaybackSnapshot;
   queue(request: unknown): PlaybackSnapshot | null;
   track(index: number): Promise<PlaybackSnapshot>;
-  playHits(hits: unknown, index: number): Promise<PlaybackSnapshot | null>;
+  playHits(hits: unknown, index: number, source?: unknown): Promise<PlaybackSnapshot | null>;
   playNext(hit: unknown): PlaybackSnapshot | null;
   setMode(patch: { repeat?: "off" | "all" | "one"; shuffle?: boolean; explore?: boolean }): PlaybackSnapshot;
   next(): Promise<PlaybackSnapshot>;
@@ -37,8 +40,8 @@ export interface PlaybackControl {
   clearQueue(): PlaybackSnapshot;
 }
 
-const MAX_QUEUE = 2000;
-const MAX_HITS = 2000;
+const MAX_QUEUE = 20000;
+const MAX_HITS = 20000;
 const MAX_TEXT = 300;
 const PROGRESS_MS = 200;
 
@@ -49,10 +52,24 @@ export function attachPlayback(
   persistVolume?: (volume: number) => void,
   listenLog?: ListenLog,
   getQuality?: () => string,
+  todayStore = new TodayStore(),
 ): { detach: () => void; control: PlaybackControl } {
   let generation = 0;
   let currentMedia: { trackId: string; url: string } | null = null;
   let progressAt = 0;
+  let queueVersion = 0;
+  let source: PlaylistCursor | null = null;
+  let profile: SearchHit[] = [];
+  let round = Math.floor(Math.random() * 10000);
+  let recommendationVersion = 0;
+  let inspiredKey = "";
+  const recommendedIds = new Set<string>();
+  const recentRecommendations = new Set<string>();
+  let paging: Promise<void> | null = null;
+  let inspiring: Promise<void> | null = null;
+  const resetSource = (hits: SearchHit[], cursor?: unknown) => {
+    queueVersion++; recommendationVersion++; inspiredKey = ""; recommendedIds.clear(); profile = hits; source = parseCursor(cursor); round = Math.floor(Math.random() * 10000); paging = null; inspiring = null;
+  };
 
   const send = (channel: string, payload: unknown) => {
     const win = getWindow();
@@ -139,6 +156,7 @@ export function attachPlayback(
   }
 
   const goTo = (index: number): Promise<PlaybackSnapshot> => {
+    recommendationVersion++; inspiredKey = "";
     const before = machine.getState();
     const forward = Number.isInteger(index) && index > before.index && index < before.queue.length;
     if (forward) noteSkip(before);
@@ -148,6 +166,7 @@ export function attachPlayback(
     currentMedia = null;
     const track = next.index >= 0 ? next.queue[next.index] : undefined;
     if (!live) {
+      void extendExplore();
       if (track) sendMedia(track.id, null);
       return Promise.resolve(next);
     }
@@ -179,15 +198,17 @@ export function attachPlayback(
     queue: (request) => {
       const parsed = parseQueueRequest(request);
       if (!parsed) return null;
+      resetSource(parsed.queue.map(track => ({ ...track, playable: true })));
       currentMedia = null;
       return machine.setQueue(parsed.queue, parsed.index ?? 0);
     },
     track: (index) => goTo(index),
-    playHits: (hits, index) => {
+    playHits: (hits, index, cursor) => {
       const parsed = parseHits(hits);
       if (!parsed || typeof index !== "number") return Promise.resolve(null);
       const queued = queueFromHits(parsed, index);
       if (!queued) return Promise.resolve(null);
+      resetSource(parsed, cursor);
       noteSkip(machine.getState());
       currentMedia = null;
       machine.setQueue(queued.tracks, queued.index);
@@ -204,6 +225,7 @@ export function attachPlayback(
         title: parsed.title,
         artist: parsed.artist,
         durationMs: parsed.durationMs,
+        albumTitle: parsed.albumTitle, albumId: parsed.albumId,
       };
       if (parsed.cover) track.cover = parsed.cover;
       return machine.insertNext(track);
@@ -212,15 +234,18 @@ export function attachPlayback(
       if (patch.repeat) machine.setRepeat(patch.repeat);
       if (typeof patch.shuffle === "boolean") machine.setShuffle(patch.shuffle);
       if (typeof patch.explore === "boolean") machine.setExplore(patch.explore);
+      recommendationVersion++; inspiredKey = "";
+      if (!machine.getState().explore) dropFutureRecommendations();
       const snapshot = publish(machine.getState());
       if (snapshot.explore) void extendExplore();
       return snapshot;
     },
     next: async () => {
+      await extendPlaylist();
       const state = machine.getState();
-      if (shouldInspireNow(state.queue.length, state.index, state.repeat, state.shuffle, state.explore)) {
-        await extendExplore();
-      }
+      const token = recommendationVersion;
+      if (state.explore) await extendExplore();
+      if (token !== recommendationVersion) return machine.getState();
       const index = machine.nextIndex();
       if (index == null) return machine.getState();
       return goTo(index);
@@ -246,6 +271,7 @@ export function attachPlayback(
       return next;
     },
     clearQueue: () => {
+      resetSource([]);
       stopMedia();
       return machine.clearQueue();
     },
@@ -280,43 +306,73 @@ export function attachPlayback(
     return Promise.resolve(next);
   };
 
-  let extending = false;
-  async function extendExplore(): Promise<void> {
+  async function extendPlaylist(): Promise<void> {
     const state = machine.getState();
-    if (extending || !shouldInspireNow(state.queue.length, state.index, state.repeat, state.shuffle, state.explore)) return;
-    extending = true;
-    try {
-      const seeds = exploreSeedIds(state.queue.map((track) => track.id), state.index);
-      const similar: SearchHit[] = [];
-      let failed = 0;
-      for (const id of seeds) {
-        const body = await loopbackJson(getPort(), "GET", `/similar?id=${encodeURIComponent(id)}`);
+    if (!source?.hasMore || state.queue.length - state.index - 1 > 10) return;
+    if (paging) return paging;
+    const token = queueVersion;
+    const cursor = source;
+    const job = (async () => {
+      // Skip unavailable-only pages without treating the playlist as finished.
+      for (let attempt = 0; attempt < 3 && cursor.hasMore; attempt++) {
+        const body = await loopbackJson(getPort(), "GET", `/playlist/tracks?id=${cursor.playlistId}&offset=${cursor.offset}`);
+        if (token !== queueVersion) return;
+        const next = parseCursor((body as { source?: unknown } | null)?.source);
+        if (!body || (body as { ok?: boolean }).ok !== true || !next || next.offset <= cursor.offset) {
+          if (body && (body as { ok?: boolean }).ok === true) cursor.hasMore = false;
+          else send(Ipc.notice, "歌单续读暂时失败，将在下一首重试");
+          return;
+        }
         const hits = readSimilarHits(body);
-        if (hits.length === 0) failed += 1;
-        similar.push(...hits);
+        cursor.offset = next.offset; cursor.hasMore = next.hasMore;
+        const known = new Set(profile.map(hit => hit.id));
+        const fresh = hits.filter(hit => !known.has(hit.id));
+        if (!fresh.length && hits.length) { cursor.hasMore = false; return; }
+        profile.push(...fresh);
+        const queued = new Set(machine.getState().queue.map(track => track.id));
+        const playable = fresh.filter(hit => hit.playable && !queued.has(hit.id));
+        if (playable.length) { publish(machine.appendTracks(playable.map(asTrack))); return; }
       }
-      if (!machine.getState().explore) return;
-      const queued = new Set(machine.getState().queue.map((track) => track.id));
-      const added = pickExploreAdditions(similar, queued);
-      if (added.length === 0) {
-        send(Ipc.notice, failed > 0
-          ? "相似歌曲暂时没有拉到，探索先停在现有队列。"
-          : "没有更多相似歌曲，探索先停在现有队列。");
-        return;
-      }
-      publish(machine.appendTracks(added.map((hit) => {
-        const track: Track = {
-          id: hit.id,
-          title: hit.title,
-          artist: hit.artist,
-          durationMs: hit.durationMs,
-        };
-        if (hit.cover) track.cover = hit.cover;
-        return track;
-      })));
-    } finally {
-      extending = false;
+    })();
+    paging = job;
+    try { await job; } finally { if (paging === job) paging = null; }
+  }
+
+  function dropFutureRecommendations(): void {
+    const state = machine.getState();
+    for (let i = state.queue.length - 1; i > state.index; i--) {
+      if (recommendedIds.has(state.queue[i].id)) machine.removeAt(i);
     }
+  }
+
+  async function extendExplore(): Promise<void> {
+    await extendPlaylist();
+    const state = machine.getState();
+    if (!state.explore || state.repeat !== "off" || state.index < 0 || state.index !== state.queue.length - 1 || source?.hasMore) return;
+    const key = `${queueVersion}:${recommendationVersion}`;
+    if (inspiredKey === key) return inspiring ?? undefined;
+    inspiredKey = key;
+    dropFutureRecommendations();
+    const token = queueVersion;
+    const trackToken = recommendationVersion;
+    const job = (async () => {
+      const likedBody = await loopbackJson(getPort(), "GET", "/liked");
+      const liked = new Set<string>(Array.isArray((likedBody as { ids?: unknown } | null)?.ids) ? (likedBody as { ids: string[] }).ids : []);
+      const likesKnown = (likedBody as { known?: boolean } | null)?.known === true;
+      const taste = profile.length ? profile.map(hit => ({ ...hit, liked: likesKnown ? liked.has(hit.id) : hit.liked })) : state.queue;
+      const seeds = profileSeeds(taste, liked, round++);
+      const groups = await Promise.all(seeds.map(async seed => ({ weight: seed.weight,
+        hits: readSimilarHits(await loopbackJson(getPort(), "GET", `/similar?id=${encodeURIComponent(seed.id)}`)) })));
+      if (token !== queueVersion || trackToken !== recommendationVersion || !machine.getState().explore) return;
+      const queued = new Set(machine.getState().queue.map(track => track.id));
+      const hit = randomProfileMatch(groups, queued, recentRecommendations);
+      if (!hit) { send(Ipc.notice, "暂时没有更多相似歌曲，灵感模式保留现有队列。"); return; }
+      recommendedIds.add(hit.id); recentRecommendations.add(hit.id);
+      if (recentRecommendations.size > 100) recentRecommendations.delete(recentRecommendations.values().next().value!);
+      publish(machine.appendTracks([asTrack(hit)]));
+    })();
+    inspiring = job;
+    try { await job; } finally { if (inspiring === job) inspiring = null; }
   }
 
   ipcMain.handle(Ipc.playbackGet, () => control.get());
@@ -332,20 +388,23 @@ export function attachPlayback(
   ipcMain.handle(Ipc.track, (_event, index: unknown) => (
     typeof index === "number" ? control.track(index) : control.get()
   ));
-  ipcMain.handle(Ipc.playHits, async (_event, hits: unknown, index: unknown) => {
+  ipcMain.handle(Ipc.playHits, async (_event, hits: unknown, index: unknown, source: unknown) => {
     if (typeof index !== "number") return control.get();
-    return (await control.playHits(hits, index)) ?? control.get();
+    return (await control.playHits(hits, index, source)) ?? control.get();
   });
   ipcMain.handle(Ipc.ended, async () => {
+    await extendPlaylist();
     const before = machine.getState();
     if (before.status !== "playing") return before;
-    if (shouldInspireNow(before.queue.length, before.index, before.repeat, before.shuffle, before.explore)) {
-      await extendExplore();
-    }
+    const token = recommendationVersion;
+    if (before.explore) await extendExplore();
+    if (token !== recommendationVersion || machine.getState().status !== "playing") return machine.getState();
     const finished = machine.finish();
+    recommendationVersion++; inspiredKey = "";
     if (finished.status !== "playing") return publish(finished);
     currentMedia = null;
     generation += 1;
+    void extendExplore();
     return loadCurrent(generation);
   });
   ipcMain.handle(Ipc.playNext, (_event, hit: unknown) => control.playNext(hit) ?? control.get());
@@ -389,9 +448,35 @@ export function attachPlayback(
     publish(machine.getState());
   };
   ipcMain.on(Ipc.progress, onProgress);
-  ipcMain.handle(Ipc.tideToday, async () => {
+  const onDuration = (_event: IpcMainEvent, id: unknown, durationMs: unknown) => {
+    if (typeof id === "string" && typeof durationMs === "number" && currentMedia?.trackId === id) machine.reportDuration(id, durationMs);
+  };
+  ipcMain.on(Ipc.duration, onDuration);
+  let todayRequest = 0;
+  let todayPending: Promise<TideToday> | null = null;
+  ipcMain.handle(Ipc.replaceUpcoming, (_event, raw: unknown) => {
+    const hits = parseHits(raw);
+    if (!hits || !hits.length) return machine.getState();
+    resetSource(hits);
+    const snapshot = machine.replaceUpcoming(hits.filter(hit => hit.playable).map(asTrack));
+    void extendExplore(); return snapshot;
+  });
+  ipcMain.handle(Ipc.tideToday, async (_event, refresh: unknown) => {
     try {
-      return await loadTideToday(getPort(), listenLog?.read() ?? []);
+      const previous = todayStore.read();
+      if (refresh !== true) {
+        if (todayPending) return await todayPending;
+        if (previous) return previous;
+      }
+      const request = ++todayRequest;
+      const job: Promise<TideToday> = (async () => {
+        const result = await loadTideToday(getPort(), listenLog?.read() ?? [], refresh === true, previous?.hits.map(hit => hit.id) ?? []);
+        if (request !== todayRequest) return todayPending ? await todayPending : todayStore.read() ?? result;
+        if (result.hits.length) todayStore.replace(result);
+        return result;
+      })();
+      todayPending = job;
+      try { return await job; } finally { if (todayPending === job) todayPending = null; }
     } catch {
       return { ok: false, error: "tide_today", message: "今日潮汐暂时没有整理出来" } satisfies ApiFailure;
     }
@@ -403,6 +488,7 @@ export function attachPlayback(
       generation += 1;
       for (const unsubscribe of unsubscribers) unsubscribe();
       ipcMain.removeListener(Ipc.progress, onProgress);
+      ipcMain.removeListener(Ipc.duration, onDuration);
       ipcMain.removeHandler(Ipc.playbackGet);
       ipcMain.removeHandler(Ipc.play);
       ipcMain.removeHandler(Ipc.pause);
@@ -421,6 +507,7 @@ export function attachPlayback(
       ipcMain.removeHandler(Ipc.ended);
       ipcMain.removeHandler(Ipc.fail);
       ipcMain.removeHandler(Ipc.tideToday);
+      ipcMain.removeHandler(Ipc.replaceUpcoming);
     },
   };
 }
@@ -483,6 +570,9 @@ function parseHit(value: unknown): SearchHit | null {
     playable: candidate.playable,
   };
   if (typeof candidate.cover === "string" && /^https?:\/\//.test(candidate.cover)) hit.cover = candidate.cover.slice(0, 500);
+  if (isShortText(candidate.albumTitle)) hit.albumTitle = candidate.albumTitle;
+  if (typeof candidate.albumId === "string" && /^\d{1,20}$/.test(candidate.albumId)) hit.albumId = candidate.albumId;
+  if (typeof candidate.liked === "boolean") hit.liked = candidate.liked;
   return hit;
 }
 
@@ -514,9 +604,19 @@ function parseTrack(value: unknown): Track | null {
     title: candidate.title,
     artist: candidate.artist,
     durationMs: candidate.durationMs,
+    ...(isShortText(candidate.albumTitle) ? { albumTitle: candidate.albumTitle } : {}),
+    ...(typeof candidate.albumId === "string" && /^\d{1,20}$/.test(candidate.albumId) ? { albumId: candidate.albumId } : {}),
+    ...(typeof candidate.cover === "string" && /^https?:\/\//.test(candidate.cover) ? { cover: candidate.cover.slice(0, 500) } : {}),
   };
 }
 
 function isShortText(value: unknown): value is string {
   return typeof value === "string" && value.length > 0 && value.length <= MAX_TEXT;
+}
+
+function asTrack(hit: SearchHit): Track { return { id: hit.id, title: hit.title, artist: hit.artist, durationMs: hit.durationMs, cover: hit.cover, albumTitle: hit.albumTitle, albumId: hit.albumId }; }
+function parseCursor(value: unknown): PlaylistCursor | null {
+  if (!value || typeof value !== "object") return null;
+  const v = value as PlaylistCursor;
+  return typeof v.playlistId === "string" && /^\d{1,20}$/.test(v.playlistId) && Number.isSafeInteger(v.offset) && v.offset >= 0 && typeof v.hasMore === "boolean" ? { ...v } : null;
 }

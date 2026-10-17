@@ -1,8 +1,8 @@
 # 潮汐 Tide
 
-潮汐是一个 **Windows 优先** 的个人桌面音乐播放器（Electron）。当前是 **0.9.1**。窗口外壳是透镜风格的玻璃：侧栏和底栏透出液体舞台，播放状态用光表示，按钮松手回弹。点阵是可选的播放环境层，默认关闭，不是外壳。图标来自 Lucide。点歌单名称会载入曲目，不会自动开播；今日潮汐 · 探索用听过的歌去找相似歌曲；播放队列可以列表循环、单曲循环、顺序或随机，并在探索打开时用相似歌曲续上。搜索分成单曲、歌手、专辑、歌词。每首歌有封面、播放、下一首、喜欢、收藏和分享。点一行只选中，双击或「开始播放」才开播。歌词层默认把原文和翻译叠在一起，逐字扫过停在字内。桌面歌词是单行沉浸，译文和字后波形可选。设置里有热键、字体、性能档、桌面歌词和点阵开关。指令总线可以在窗口里找到。写设置仍要明确允许。
+潮汐是一个 **Windows 优先** 的个人桌面音乐播放器（Electron）。当前是 **0.9.1**。窗口外壳可切换透镜和点阵，直接使用 MIT 上游源码。透镜有真实折射、厚润材质和弹性控件；点阵有 GPU 点集、形态变换与点阵控件。可选的播放层点阵开关仍独立保留。图标来自 Lucide。点歌单名称会载入曲目，不会自动开播；今日潮汐 · 探索用听过的歌去找相似歌曲；播放队列可以列表循环、单曲循环、顺序或随机，并在探索打开时用相似歌曲续上。搜索分成单曲、歌手、专辑、歌词。每首歌有封面、播放、下一首、喜欢、收藏和分享。点一行只选中，双击或「开始播放」才开播。歌词层默认把原文和翻译叠在一起，逐字扫过停在字内。桌面歌词是单行沉浸，译文和字后波形可选。设置里有热键、字体、性能档、桌面歌词和点阵开关。指令总线可以在窗口里找到。写设置仍要明确允许。
 
-Tide is a **Windows-first** personal desktop music player. This revision is **0.9.1**. The shell is Lens glass over a liquid stage, light marks playback state, and controls spring back. Lattice is an optional playback layer, off by default, and is not the shell. Icons are Lucide. Opening a playlist loads tracks and does not start playback. 今日潮汐 · 探索 finds similar songs from what you have heard. The queue can repeat, play straight through, shuffle, and keep going from similar songs. Search has song, artist, album, and lyric tabs. Each song row shows cover art and can play, queue next, like, collect, and share. A single click selects; double-click or 开始播放 starts playback. Lyrics default to original plus translation, with an in-glyph sweep. Desktop lyrics are one immersive line; a translation and a rear wave are optional. Settings hold hotkeys, fonts, a performance tier, desktop lyrics, and the lattice switch. The command bus is reachable from the window. Settings writes still need an explicit allow.
+Tide is a **Windows-first** personal desktop music player. This revision is **0.9.1**. The shell switches between the original MIT Lens and Lattice systems: native refraction and elastic controls, or GPU point sets and dot controls. The optional playback point layer remains a separate switch. Icons are Lucide. Opening a playlist loads tracks and does not start playback. 今日潮汐 · 探索 finds similar songs from what you have heard. The queue can repeat, play straight through, shuffle, and keep going from similar songs. Search has song, artist, album, and lyric tabs. Each song row shows cover art and can play, queue next, like, collect, and share. A single click selects; double-click or 开始播放 starts playback. Lyrics default to original plus translation, with an in-glyph sweep. Desktop lyrics are one immersive line; a translation and a rear wave are optional. Settings hold hotkeys, fonts, a performance tier, desktop lyrics, and the lattice switch. The command bus is reachable from the window. Settings writes still need an explicit allow.
 
 ## 风险声明 / Risk
 
@@ -172,30 +172,53 @@ Playback commands cover get, play, pause, seek, volume, next, previous, queue, p
 
 `settings.write`, `appearance.write`, `session.logout`, and `session.clearCookie` return `denied` unless the request sets `"allow": true` or `userData/bus-allow.json` lists the command. That file stores no cookie. `playlist.organize` is denied the same way. If it is allowed, the result is `unsupported`, because this app cannot edit a NetEase playlist.
 
-`appearance.write` only changes the existing `#stage`, `#lyrics`, and `#chrome` layers. `theme` is `tide` or `dusk`. `shell` is `lens` (default) or `lattice`. `preset` is `tide`, `cover-glow`, `vinyl`, `stardust`, or `quiet`. `performance` is `smooth`, `balanced`, or `vivid`. `background` is `solid`, `cover`, or `image`. `lattice` toggles the optional dot field. An unknown name is rejected.
+`appearance.write` only changes the existing `#stage`, `#lyrics`, and `#chrome` layers. `theme` is `tide` or `dusk`. `shell` is `lens` (default) or `lattice`. `preset` is `tide`, `cover-glow`, `vinyl`, `stardust`, or `quiet`. `performance` is `smooth`, `balanced`, or `vivid`. `background` is `solid`, `cover`, `image`, or `paper`. `lattice` toggles the optional dot field. An unknown name is rejected.
 
 ## Windows 包 / Windows package
 
+`0.9.2-test.4` 包含 test.3 的所有修复，并直接复用原版 Lens 搜索组件重做搜索框；分类默认隐藏，聚焦展开，失焦或 Esc 收起。
+
+`0.9.2-test.3` 重建透镜适配层，保留原版 Lens 光学与组件；逐字歌词改为真实音频时钟逐帧驱动，删除歌词页半透明底板，选歌只播放而不跳转。界面文字不再被拖动选中，指针保持箭头，按钮/标签提供悬停和选中反馈。
+
+`0.9.2-test.2` 修复透镜设置滚动、队列自动隐藏、长歌名挤动按钮和今日潮汐封面；加长进度条并显示拖动时间。新增逐字歌词与跟随交互、AMLL TTML 回退、Pretext 测量和 Paper 流动背景。无密钥可用本地封面配色；AI 自动调用接口与手动 JSON 导入已完成，尚未调用真实模型。来源、使用方法及验证边界见 [适配说明](docs/UPSTREAM_ADAPTATIONS.md)。
+
+`0.9.2-test.1` 修正点阵卡片文字边界，统一面板与占位封面背景；「添加本地音乐」移动到主页「本地音乐」子菜单。歌曲缺失封面时批量查询详情补齐，专辑搜索和专辑曲目保留封面，网易云 HTTP 图片升级为 HTTPS；图片失败后短暂回退占位，避免永久屏蔽。
+
 `npm run dist` 用 electron-builder 打一个 Windows x64 zip，里面是 `Tide.exe` 和依赖。不签名。产物在 `release/`，已忽略，不要提交。
 
-`npm run dist:setup` 打 NSIS 安装包。这需要 Windows，或装了 Wine 的机器。这台 Linux 云主机只验证 zip。
+`npm run dist:setup` 打 NSIS 安装包。这需要 Windows，或装了 Wine 的机器。本次在 Windows 验证 portable ZIP。
 
 The zip is a portable folder, not an installer. Unzip it and run `Tide.exe`. The command bus token is created in `%APPDATA%\tide\bus-token` on first launch. `npm run dist:setup` builds the NSIS installer and needs Windows or Wine.
 
 ## 外壳 / Shell
 
+## 原版设计系统 / Original design systems
+
+透镜与点阵直接复用 [design-systems](https://github.com/ruiqichenbiec/design-systems) 的 MIT 源码，固定提交 `7a424c93b9be13cf835b91ea67495fec2ec0584e`。上游 70 份文件保持原样，`npm run verify:design-systems` 逐个核对 Git blob SHA。许可、来源与文件清单在 `src/renderer/vendor/design-systems/`。后续 UI 优先直接用上游组件，项目约定见 `AGENTS.md`。
+
+设置 → 设计系统 → 透镜 / 点阵即时切换。透镜使用原版 GlassRenderer、JellyController、厚润材质、背景画面、胶囊选择与音效。点阵使用原版 GPU Field、点集生成器、点阵标签、滑杆和数字，可切换文字、Lorenz 吸引子、三叶结、晶格与 Klein 瓶；按住背景熔化，松开重组。播放器业务布局和事件仍由 Tide 绑定，弹出面板使用独立的原版透镜 stage，避免对底层 DOM 进行假折射。WebGL 缺失时保留原版 DOM 控件和 CSS 材质。
+
+两颗「完整组件」按钮打开上游原版完整互动展示，含透镜 18 类和点阵 14 类组件；展示页在独立沙箱 iframe 中运行，没有 Electron bridge。序曲尚未加入预设。播放层点阵开关仍是独立选项。
+
+`npm run test:ui` 用 Playwright + IPC fixture 验证渲染器和两套组件展示。需要可用的 `playwright` 模块（或通过 `TIDE_PLAYWRIGHT_MODULE` 指向现有模块），Windows 默认使用已安装的 Edge。截图在 `artifacts/ui-smoke/`，不写入 Git。此检查不替代 Electron 原生窗口、真实登录与音频验收。
+
+`npm run test:native` 启动真实 Electron，使用独立临时 userData、随机端口和软件 WebGL，检查窗口、API、点阵、本地音乐导入和静音 WAV 播放。文件选择器用确定性返回值替代，文件索引、IPC、API 和音频播放链路均实际运行。可设置 `TIDE_TEST_EXE` 为打包后的 `Tide.exe`；截图在 `artifacts/native-smoke/`。该检查不覆盖真实账号登录、云端音频权限或硬件媒体键。
+
+The Lens and Lattice presets use the actual MIT upstream renderers and components, not approximate recreations. The original showcase sources are retained intact and accessible from Settings. The packaged Lattice page replaces blocking Google Fonts requests with embedded original Latin faces; both pages are isolated from Electron IPC.
+
+
 0.9.0 把 `#stage`、`#lyrics`、`#chrome` 画成透镜：玻璃承载侧栏、免责声明和底栏，液体是舞台上的连续洗色，光标出正在播放和当前歌词。WebGL2 折射可选；打不开或太慢就只留 CSS。点阵在底栏和「设置」里开关，默认关，只在播放时轻轻动，不代替窗口本身。序曲没有用在这里。
 
-玻璃与弹簧的想法来自 [Lens](https://github.com/ruiqichenbiec/design-systems)（Copyright (c) 2026 DayDreamInAReverie，MIT，仓库已不再维护）。潮汐只改编了这个想法，没有复制该仓库。图标是 [Lucide](https://lucide.dev)（ISC），和 lucide-react 同一套字形；壳层不是 React，所以用 vanilla `lucide`。
+玻璃与弹簧的想法来自 [Lens](https://github.com/ruiqichenbiec/design-systems)（Copyright (c) 2026 DayDreamInAReverie，MIT，仓库已不再维护）。早期版本只改编了这个想法；当前透镜与点阵直接复用上游原版源码。图标是 [Lucide](https://lucide.dev)（ISC），和 lucide-react 同一套字形；壳层不是 React，所以用 vanilla `lucide`。
 
 `appearance.write` 可以改主题、动效、控件显隐、舞台强度、点阵开关、外壳（`lens` / `lattice`）、视觉预设、性能档、字体和背景。点阵默认关。写盘仍要 `allow`。性能档会改 WebGL、点阵数量、模糊和桌面歌词的远光。0.9.1 的主页只留常用卡片，证明树用 Lattice 的 ProofTree，桌面歌词由主进程给出进度、覆盖层只画。
 
 `appearance.write` persists theme, motion, chrome, stage level, lattice, shell (`lens` or `lattice`), preset, performance, font, and background. A performance tier changes WebGL, lattice density, blur, and the desktop-lyric far glow. 0.9.1 keeps the home to the common cards, mounts the Lattice ProofTree, and lets the player compute lyric progress while the overlay only paints.
 
-0.9.0 redraws the three layers as Lens glass. Liquid is the stage wash. Light marks the playing state. WebGL2 refraction is optional and falls back to CSS. Lattice toggles from Settings, stays off until asked, and is not the shell. `appearance.write` persists `lattice`, `shell` (`lens` or `lattice`), `preset`, `performance`, and `background`. Overture is not used. The glass and spring ideas are adapted from Lens (Copyright (c) 2026 DayDreamInAReverie, MIT); this repo does not copy that project. Icons are Lucide.
+0.9.0 redraws the three layers as Lens glass. Liquid is the stage wash. Light marks the playing state. WebGL2 refraction is optional and falls back to CSS. Lattice toggles from Settings, stays off until asked, and is not the shell. `appearance.write` persists `lattice`, `shell` (`lens` or `lattice`), `preset`, `performance`, and `background`. Overture is not used. The glass and spring ideas are adapted from Lens (Copyright (c) 2026 DayDreamInAReverie, MIT); this revision directly vendors the original implementation with its MIT notices. Icons are Lucide.
 
 ## 下一步 / Next
 
-不要接 Spotify、QQ，不要把点阵做成外壳，也不要把 Grok 嵌进窗口。
+不要接 Spotify、QQ，也不要把 Grok 嵌进窗口。透镜与点阵外壳继续直接复用上游。
 
-Spotify, QQ, a lattice shell, and an embedded Grok client stay out.
+Spotify, QQ and an embedded Grok client stay out. Lens and Lattice remain original upstream systems.

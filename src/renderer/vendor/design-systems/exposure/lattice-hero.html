@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script>/* ?motion=full shows full motion even when the OS asks for reduced motion (same switch as the full showcase) */if(/[?&]motion=full\b/.test(location.search)){const mm=matchMedia.bind(window);window.matchMedia=q=>/prefers-reduced-motion:\s*reduce/.test(q)?mm("not all"):mm(q);}</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>点阵 Lattice · first screen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Doto:wght@500;700;900&family=Atkinson+Hyperlegible+Next:wght@300..700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../lattice/dist/catalog/assets/bundle.css">
+<style>
+/* The first screen of lattice/dist/lattice-showcase.html, on its own: the same markup, styles and set cycle
+   (lattice/showcase/index.html, page.css, main.js), with one camera station instead of the whole page. */
+html, body { overflow: hidden; }
+.top__tool { min-height: 36px; padding: 0 14px; font-size: 13px; gap: 8px; background: rgb(7 8 11 / 0.6); backdrop-filter: blur(8px); }
+.top__tool[aria-pressed="true"] { color: var(--hot); box-shadow: inset 0 0 0 1px var(--hot); }
+
+/* hero */
+.hero { position: relative; min-height: 100vh; min-height: 100svh; display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 24px; padding: 96px clamp(16px, 4vw, 56px) clamp(28px, 6vh, 64px); touch-action: pan-y; }
+.hero__copy { max-width: 560px; }
+.hero__thesis { margin: 0; font-size: var(--t-28); line-height: 1.3; font-weight: 500; letter-spacing: -0.01em; }
+.hero__thesis [lang="zh"] { font-weight: 700; }
+.hero__thesis em { font-style: normal; color: var(--text-dim); }
+.hero__sub { margin: 18px 0 0; color: var(--text-dim); max-width: 46ch; }
+.legend { list-style: none; margin: 22px 0 0; padding: 0; display: grid; gap: 6px; font-size: 14px; color: var(--text-dim); }
+.legend .matrix { display: inline-block; min-width: 78px; color: var(--hot); font-size: 15px; }
+.hero__set { display: grid; justify-items: end; gap: 14px; text-align: right; }
+.hero__set-row { display: flex; align-items: center; gap: 18px; }
+.caption { margin: 0; font-family: var(--f-dot); font-weight: 900; font-size: 16px; letter-spacing: 0.06em; color: var(--text); max-width: 34ch; text-wrap: balance; }
+@media (max-width: 760px) {
+  .hero { grid-template-columns: 1fr; align-content: end; padding: 84px 16px 28px; }
+  .hero__thesis { font-size: var(--t-21); }
+  .hero__sub { font-size: 15px; }
+  .hero__set { justify-items: start; text-align: left; }
+}
+</style>
+</head>
+<body>
+<canvas class="lx-stage" id="stage"></canvas>
+<section class="hero" data-stage aria-labelledby="hero-h">
+  <h1 id="hero-h" class="sr-only">点阵 Lattice</h1>
+  <div class="hero__copy">
+    <p class="hero__thesis"><span lang="zh">万物皆点集，交互即映射。</span><br><em>Everything here is a set of points. Every interaction is a map.</em></p>
+    <p class="hero__sub">A design system for personal sites and WebGL pieces: formal mathematics, data, agent systems and games, each built up from its premises.</p>
+    <ul class="legend" aria-label="Gestures">
+      <li><span class="matrix">MOVE</span> disturb the field</li>
+      <li><span class="matrix">HOLD</span> melt the points</li>
+      <li><span class="matrix">LET GO</span> recrystallise into the next set</li>
+    </ul>
+  </div>
+  <div class="hero__set">
+    <p class="caption" id="set-caption" aria-live="polite"></p>
+    <div class="hero__set-row">
+      <span class="set-index" id="set-index" data-dottext aria-hidden="true">01</span>
+      <button class="lx-btn lx-btn--primary" id="next-set"><svg class="lx-icon" viewBox="0 0 18 18" aria-hidden="true"><circle cx="1.8" cy="9" r="1.2"/><circle cx="5.4" cy="9" r="1.2"/><circle cx="9" cy="9" r="1.2"/><circle cx="12.6" cy="9" r="1.2"/><circle cx="16.2" cy="9" r="1.2"/><circle cx="12.6" cy="5.4" r="1.2"/><circle cx="12.6" cy="12.6" r="1.2"/><circle cx="9" cy="1.8" r="1.2"/><circle cx="9" cy="16.2" r="1.2"/></svg> Next set</button>
+    </div>
+  </div>
+</section>
+<script src="../lattice/dist/catalog/assets/bundle.js"></script>
+<script>
+(async () => {
+  const L = window.Lattice, SETS = L.sets, $ = (s) => document.querySelector(s);
+  // the full showcase waits up to 2 s for its faces; the first screen needs only the dot face, and the site shows a loader meanwhile
+  if (document.fonts) await Promise.race([document.fonts.load("900 16px Doto").catch(() => 0), new Promise((r) => setTimeout(r, 1200))]);
+
+  const mobile = innerWidth <= 760;
+  const stage = new L.Stage($("#stage"), [{ id: "hero", el: ".hero", anchor: 0.5, hold: 0.7, pos: [0, 0, 10], look: [0, 0, 0] }], L.WORLDS[L.currentWorldName()]);
+  const cursor = L.mountCursor();
+  const field = new L.Field(stage);
+  field.useSets(SETS);
+  stage.add(field);
+  field.setOffset = { isVector3: true, x: mobile ? 0 : 1.35, y: mobile ? 0.8 : 0.25, z: 0.7 };
+  field.onResize(stage);
+
+  const N = field.N, R = mobile ? 1.1 : 1.95, cache = new Map();
+  const pts = (key, make) => (cache.has(key) ? cache.get(key) : cache.set(key, make()).get(key));
+  function nameMaps(Lt) {
+    const one = SETS.matrixText("POINT SETS", 2);
+    if (Lt.cols >= one.w + 10) return [{ map: one, col: Math.floor((Lt.cols - one.w) / 2), row: Math.floor(Lt.rows * 0.2) }];
+    const s = Lt.cols >= 66 ? 2 : 1, a = SETS.matrixText("POINT", s), b = SETS.matrixText("SETS", s), row = Math.floor(Lt.rows * 0.16);
+    return [{ map: a, col: Math.floor((Lt.cols - a.w) / 2), row }, { map: b, col: Math.floor((Lt.cols - b.w) / 2), row: row + a.h + 2 * s }];
+  }
+  const in3d = { is3d: true, sweep: [0, -1, 0], span: 5, dur: 1.7, lit: 1.0, flow: 3.2, alpha: 0.22 };
+  const HERO_SETS = [
+    { cap: "POINT SETS · 5×7 DOT MATRIX ×2", build: (Lt) => Lt.lit(nameMaps(Lt)), opts: { sweep: [1, 0, 0], span: 9, dur: 1.5, lit: 1.6, flow: 2.4, alpha: 0.42 } },
+    { cap: "LORENZ ATTRACTOR · σ = 10, ρ = 28, β = 8/3", build: (Lt) => Lt.shape(pts("lorenz", () => SETS.lorenz(N, R))), opts: in3d },
+    { cap: "TREFOIL · THE (2, 3) TORUS KNOT", build: (Lt) => Lt.shape(pts("knot", () => SETS.torusKnot(N, 2, 3, R))), opts: in3d },
+    { cap: "FACE-CENTRED CUBIC CRYSTAL · 5³ CELLS", build: (Lt) => Lt.shape(pts("fcc", () => SETS.crystal(N, R))), opts: in3d },
+    { cap: "KLEIN BOTTLE · FIGURE-8 IMMERSION", build: (Lt) => Lt.shape(pts("klein", () => SETS.klein(N, R * 1.05))), opts: in3d },
+  ];
+  let si = -1, idle = 0;
+  const caption = $("#set-caption"), setIndex = L.mountDotText($("#set-index"), { pitch: 4 });
+  function showSet(i) {
+    si = (i + HERO_SETS.length) % HERO_SETS.length;
+    const s = HERO_SETS[si];
+    field.keep(s.build, s.opts);
+    caption.textContent = s.cap;
+    setIndex.set(String(si + 1).padStart(2, "0"));
+    idle = 0;
+    L.sound.whoosh(1.1, si % 2 === 0);
+    setTimeout(() => L.sound.pluck(si * 2, 0.16), 900);
+  }
+  field.keep((Lt) => Lt.rest(), { dur: 0.001 });
+  setTimeout(() => showSet(0), L.reducedMotion() ? 0 : 700);
+  $("#next-set").addEventListener("click", () => showSet(si + 1));
+  field.addEventListener("release", (e) => { if (e.detail.melted) showSet(si + 1); });
+  field.addEventListener("tap", () => L.sound.tick(0.7, 0.3));
+  L.clock.add((dt) => { if (stage.near("hero", 0.4) && !field.holding) { idle += dt; if (idle > 11 && !L.reducedMotion()) showSet(si + 1); } else idle = 0; });
+  addEventListener("pointermove", () => (idle = Math.min(idle, 5)), { passive: true });
+
+  let touchRing = null;
+  if (!cursor.el) { touchRing = document.createElement("div"); touchRing.className = "touch-heat"; touchRing.setAttribute("aria-hidden", "true"); document.body.appendChild(touchRing); }
+  field.addEventListener("heat", (e) => {
+    cursor.setHeat(e.detail);
+    if (touchRing) { touchRing.style.opacity = e.detail > 0.02 ? "1" : "0"; touchRing.style.setProperty("--h", e.detail.toFixed(3)); touchRing.style.transform = `translate(${stage.pointer.x}px, ${stage.pointer.y}px)`; }
+  });
+  window.latticeHero = { ready: true };
+})();
+</script>
+</body>
+</html>

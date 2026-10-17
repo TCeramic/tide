@@ -7,6 +7,15 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outdir = path.join(root, "dist-test");
 const entryPoints = [
+  "src/core/custom-palette.test.ts",
+  "src/renderer/view.test.ts",
+  "src/renderer/point-formations.test.ts",
+  "src/renderer/audio-clock.test.ts",
+  "src/core/ttml.test.ts",
+  "src/core/ai-assist.test.ts",
+  "src/main/tide-today.test.ts",
+  "src/main/today-store.test.ts",
+  "src/core/artwork.test.ts",
   "src/core/playback/machine.test.ts",
   "src/core/playback/order.test.ts",
   "src/core/playback/queue-edit.test.ts",
@@ -26,6 +35,7 @@ const entryPoints = [
   "src/api/server.test.ts",
   "src/api/session.test.ts",
   "src/main/settings.test.ts",
+  "src/main/tide-playlists.test.ts",
   "src/core/tide-today.test.ts",
   "src/main/listen-log.test.ts",
   "src/core/command-bus.test.ts",

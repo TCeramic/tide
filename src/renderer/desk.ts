@@ -1,5 +1,10 @@
+import { mountDeskContext } from "./desk-context";
 import type { DeskCue } from "../shared/contract";
 
+if(new URLSearchParams(location.search).get("context")==="true") mountDeskContext(); else mountOverlay();
+function mountOverlay(): void {
+const nextEl = document.querySelector<HTMLElement>("#next")!;
+window.addEventListener("contextmenu",event=>{event.preventDefault();void window.tide.openDeskMenu();});
 const stack = document.querySelector<HTMLElement>("#stack");
 const current = document.querySelector<HTMLElement>("#current");
 const trans = document.querySelector<HTMLElement>("#trans");
@@ -19,6 +24,23 @@ let easeFrame = 0;
 let shown = "";
 let shownProgress = 1;
 let targetProgress = 1;
+let entrance: Animation | null = null;
+const viewport = document.querySelector<HTMLElement>("#viewport")!;
+const scroller = document.querySelector<HTMLElement>("#scroller")!;
+let overflow = 0;
+function measureLine(): void {
+  overflow = root.dataset.orient === "vertical" ? Math.max(0, currentEl.offsetHeight - viewport.clientHeight) : Math.max(0, currentEl.offsetWidth - viewport.clientWidth);
+  scroller.style.setProperty("--desk-overflow", `${overflow}px`);
+}
+new ResizeObserver(measureLine).observe(viewport);
+window.tide.getDeskLyrics().then(settings => {root.dataset.locked = String(settings.locked);document.querySelector('#desk-lock')!.textContent=settings.locked?'解锁歌词':'锁定歌词';});
+window.tide.onDeskState(settings => root.dataset.locked = String(settings.locked));
+const lockButton=document.querySelector<HTMLButtonElement>("#desk-lock")!;
+lockButton.addEventListener("click",()=>{lockButton.blur();void window.tide.setDeskLyrics({locked:root.dataset.locked!=="true"});});
+let lockHot=false;const hoverLock=(x:number,y:number)=>{const r=lockButton.getBoundingClientRect(),hot=root.dataset.locked==="true"&&x>=r.left-10&&x<=r.right+10&&y>=r.top-10&&y<=r.bottom+10;root.dataset.lockHot=String(hot);if(hot!==lockHot){lockHot=hot;void window.tide.setDeskInteractive(hot);}};
+document.addEventListener("mousemove",e=>hoverLock(e.clientX,e.clientY));document.addEventListener("mouseleave",()=>hoverLock(-100,-100));
+window.tide.onDeskState(settings=>{lockButton.textContent=settings.locked?"解锁歌词":"锁定歌词";if(!settings.locked){lockHot=false;root.dataset.lockHot="false";}});
+document.querySelector("#desk-close")?.addEventListener("click", () => void window.tide.setDeskLyrics({ open: false }));
 
 const ink = document.createElement("span");
 ink.className = "ink";
@@ -33,6 +55,7 @@ currentEl.replaceChildren(ink, mask);
 function writeSweep(value: number): void {
   const amount = Math.min(1, Math.max(0, value));
   const vertical = root.dataset.orient === "vertical";
+  scroller.style.transform = `translate${vertical ? "Y" : "X"}(${-overflow * amount}px)`;
   const axis = vertical ? "Y" : "X";
   if (amount <= 0.001) {
     mask.style.opacity = "0";
@@ -58,6 +81,9 @@ function easeSweep(): void {
 }
 
 function paint(cue: DeskCue): void {
+  root.style.setProperty("--desk-color", cue.color);
+  root.style.setProperty("--desk-highlight", cue.highlightColor);
+  root.style.setProperty("--desk-font", ["serif", "sans-serif", "monospace"].includes(cue.fontFamily) ? cue.fontFamily : `${JSON.stringify(cue.fontFamily)},sans-serif`);
   root.style.setProperty("--desk-size", `${cue.fontSize}px`);
   root.style.setProperty("--desk-opacity", String(cue.opacity));
   root.style.setProperty("--glow", cue.farGlow ? String(cue.glow) : String(Math.min(cue.glow, 0.28)));
@@ -67,9 +93,10 @@ function paint(cue: DeskCue): void {
   const level = cue.motion ? (cue.motionLevel ?? 1) : 0;
   root.style.setProperty("--motion-shift", `${(8 * level).toFixed(1)}px`);
   root.style.setProperty("--motion-blur", `${(10 * level).toFixed(1)}px`);
+  root.dataset.metadata=String(cue.metadata);
   root.dataset.orient = cue.orientation === "vertical" ? "vertical" : "horizontal";
-  const nextProgress = cue.wordLevel ? Math.min(1, Math.max(0, cue.progress)) : 1;
-  const jumped = Math.abs(nextProgress - shownProgress) > 0.28 || !cue.wordLevel || !cue.playing;
+  const nextProgress = cue.highlightFollow ? Math.min(1, Math.max(0, cue.progress)) : 0;
+  const jumped = Math.abs(nextProgress - shownProgress) > 0.28 || !cue.highlightFollow || !cue.playing;
   targetProgress = nextProgress;
   if (jumped) {
     if (easeFrame) cancelAnimationFrame(easeFrame);
@@ -87,14 +114,22 @@ function paint(cue: DeskCue): void {
   if (ink.textContent !== line) {
     ink.textContent = line;
     sweep.textContent = line;
-    currentEl.classList.remove("enter");
-    if (cue.motion && line.length > 0 && shown !== line) currentEl.classList.add("enter");
+    entrance?.cancel(); entrance = null;
+    if (cue.motion && line.length > 0 && shown !== line && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      entrance = currentEl.animate([
+        { opacity: 0, transform: `translate3d(0,${8 * level}px,-120px) rotateX(24deg) rotateY(-18deg) scale(.78)`, filter: `blur(${10 * level}px)` },
+        { opacity: cue.opacity, transform: "none", filter: "blur(0)" },
+      ], { duration: 820, easing: "cubic-bezier(.16,.84,.32,1.02)" });
+    }
     shown = line;
+    requestAnimationFrame(() => { measureLine(); writeSweep(shownProgress); });
   }
-  currentEl.classList.toggle("is-long", line.length > 18);
-  const translation = cue.pair && !cue.empty ? cue.translation : "";
+  scroller.classList.toggle("is-scrolling", !cue.highlightFollow && cue.motion && cue.playing && overflow > 0);
+  const next = cue.lineMode === "double" && !cue.metadata ? cue.next : "";
+  nextEl.hidden=!next; if(nextEl.textContent!==next)nextEl.textContent=next;
+  const translation = (cue.metadata || cue.pair) && !cue.empty ? cue.translation : "";
   transEl.hidden = translation.length === 0;
-  transEl.textContent = translation;
+  if(transEl.textContent!==translation)transEl.textContent = translation;
   stackEl.hidden = line.length === 0 && translation.length === 0;
   paintWave(cue.wave && line.length > 0, cue.playing && cue.motion);
 }
@@ -130,3 +165,5 @@ function paintWave(on: boolean, moving: boolean): void {
 }
 
 window.tide.onDeskCue(paint);
+
+}

@@ -1,13 +1,20 @@
+import { isRenderingActive, setRenderingActive } from "./render-activity";
+import { installModuleMotion } from "./module-motion";
+import { mountCloseMenu } from "./close-menu";
 import { EventBus } from "../core/events";
 import type { PlaybackEvents } from "../core/playback/types";
 import { isThemeId, type Appearance, type PlaybackBusEvent, type PlaybackSnapshot, type TideBridge } from "../shared/contract";
-import { createRafClock } from "./clock";
 import { mountChrome } from "./layers/chrome";
 import { mountLibrary } from "./layers/library";
 import { mountLyrics } from "./layers/lyrics";
 import { installMediaSession, syncMediaSession } from "./media-session";
 import { mountPlayer } from "./player";
 import { mountStage } from "./layers/stage";
+import { mountNativeShell } from "./native-shell.js";
+import { updateCoverTheme, setCustomPalette } from "./generated-theme";
+import { applyLike } from "./liked";
+import { Maximize2, PictureInPicture2 } from "lucide";
+import { iconButton,ICON_SIZE } from "./icons";
 
 declare global {
   interface Window {
@@ -33,9 +40,18 @@ const PLAYBACK_LABEL = {
   error: "出错",
 } as const;
 
+let latestPlayback: PlaybackSnapshot | null = null;
+let hiddenTrackId: string | null = null;
 function showPlayback(snapshot: PlaybackSnapshot): void {
+  latestPlayback = snapshot;
+  if (!isRenderingActive()) {
+    const track = snapshot.queue[snapshot.index] ?? null;
+    if (track?.id !== hiddenTrackId) { hiddenTrackId = track?.id ?? null; lyricsLayer.setTrack(track); }
+    syncMediaSession(snapshot);
+    return;
+  }
   const track = snapshot.index >= 0 ? (snapshot.queue[snapshot.index] ?? null) : null;
-  if (track) document.documentElement.style.setProperty("--cover-tint", coverTint(track.title));
+  if (track) updateCoverTheme(track.id, track.cover, track.title);
   playingNow = snapshot.status === "playing";
   document.documentElement.dataset.status = snapshot.status;
   stageLayer.setScene({ level: Number.parseFloat(document.documentElement.style.getPropertyValue("--tide-stage")) || 0, motion: motionAmount, playing: playingNow });
@@ -53,7 +69,9 @@ const stageLayer = mountStage(stage);
 const lyricsLayer = mountLyrics(lyrics);
 const chromeLayer = mountChrome(chrome);
 const library = mountLibrary(chrome);
+const nativeShell = mountNativeShell(document.querySelector<HTMLElement>("#app")!);
 const stopPlayer = mountPlayer();
+const stopCloseMenu = mountCloseMenu();
 
 const bus = new EventBus<PlaybackEvents>();
 bus.on("track-change", (payload) => {
@@ -61,9 +79,8 @@ bus.on("track-change", (payload) => {
   lyricsLayer.setTrack(track);
 });
 
-const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
 let stopClock = (): void => undefined;
-let motionOn = false;
 let motionAmount = 1;
 let playingNow = false;
 
@@ -77,23 +94,8 @@ function setStageMotion(level: number, motion: number): void {
   motionAmount = clamp01(motion, 1);
   document.documentElement.style.setProperty("--tide-stage", String(stage));
   stageLayer.setScene({ level: stage, motion: motionAmount, playing: playingNow });
-  const wantMotion = stage > 0 && motionAmount > 0 && !reduceMotion;
-  if (wantMotion === motionOn) {
-    if (!wantMotion) document.documentElement.style.setProperty("--tide-phase", "0.5");
-    return;
-  }
-  motionOn = wantMotion;
   stopClock();
-  if (!wantMotion) {
-    document.documentElement.style.setProperty("--tide-phase", "0.5");
-    stopClock = () => undefined;
-    return;
-  }
-  stopClock = createRafClock((frame) => {
-    const raw = (frame.elapsedMs % 12000) / 12000;
-    const phase = 0.5 + (raw - 0.5) * motionAmount;
-    document.documentElement.style.setProperty("--tide-phase", phase.toFixed(4));
-  });
+  document.documentElement.style.setProperty("--tide-phase", "0.5");
 }
 
 function installFace(family: string, dataUrl: string): void {
@@ -107,16 +109,12 @@ function installFace(family: string, dataUrl: string): void {
   document.documentElement.style.setProperty("--tide-font-custom", `"${safe}"`);
 }
 
-function coverTint(title: string): string {
-  let hash = 0;
-  for (const char of title) hash = (hash * 33 + char.charCodeAt(0)) >>> 0;
-  return `hsl(${hash % 360} 42% 16%)`;
-}
-
-function applyAppearance(appearance: Appearance): void {
+function commitAppearance(appearance: Appearance): void {
   const root = document.documentElement;
   root.dataset.theme = isThemeId(appearance.theme) ? appearance.theme : "tide";
   root.dataset.shell = appearance.shell === "lattice" ? "lattice" : "lens";
+  root.dataset.colorMode = appearance.shell === "lattice" ? appearance.latticeMode ?? "dark" : appearance.lensMode ?? (appearance.theme === "dusk" ? "dark" : "light");
+  setCustomPalette(appearance.customPalette);
   root.dataset.preset = appearance.preset;
   root.dataset.performance = appearance.performance;
   root.dataset.background = appearance.background;
@@ -134,7 +132,38 @@ function applyAppearance(appearance: Appearance): void {
   chromeLayer.setLattice(appearance.lattice);
   library.setLattice(appearance.lattice);
   library.setAppearance(appearance);
+  nativeShell.sync(appearance);
 }
+
+let desiredAppearance: Appearance | null = null;
+let appearanceGeneration=0, revealFrame=0, revealPreview:HTMLIFrameElement|null=null;
+let stopReveal=()=>{};
+function clearThemeReveal(){cancelAnimationFrame(revealFrame);revealFrame=0;stopReveal();stopReveal=()=>{};revealPreview?.remove();revealPreview=null;}
+async function applyAppearance(appearance:Appearance):Promise<void>{
+ const prior=desiredAppearance;desiredAppearance=appearance;const generation=++appearanceGeneration;
+ const mode=(a:Appearance)=>a.shell==="lattice"?a.latticeMode??"dark":a.lensMode??"light";
+ const changed=prior&&(prior.shell!==appearance.shell||mode(prior)!==mode(appearance));
+ clearThemeReveal();
+ if(!changed||appearance.performance==="smooth"||!appearance.motion||!isRenderingActive()||matchMedia('(prefers-reduced-motion: reduce)').matches){commitAppearance(appearance);nativeShell.ready();return;}
+ const preview=document.createElement('iframe');preview.className='theme-reveal-frame';preview.title='主题切换';preview.setAttribute('aria-hidden','true');preview.tabIndex=-1;preview.style.clipPath='circle(0px at 0px 0px)';
+ const token=crypto.randomUUID();let timer=0;
+ const loaded=new Promise<void>((resolve,reject)=>{const message=(event:MessageEvent)=>{if(event.source===preview.contentWindow&&event.data?.token===token&&event.data.type==='tide:preview-ready'){clearTimeout(timer);resolve();}};window.addEventListener('message',message);stopReveal=()=>{clearTimeout(timer);window.removeEventListener('message',message);reject(new Error('cancelled'));};timer=window.setTimeout(()=>reject(new Error('preview timeout')),3500);});
+ preview.onload=()=>preview.contentWindow?.postMessage({type:'tide:preview-init',token,appearance,html:document.body.innerHTML,attributes:Object.fromEntries(Array.from(document.documentElement.attributes).map(a=>[a.name,a.value])),style:document.documentElement.style.cssText,state:nativeShell.visualState()},'*');
+ preview.src='./theme-preview.html';revealPreview=preview;document.body.append(preview);
+ try{await loaded;}catch{if(generation===appearanceGeneration){clearThemeReveal();commitAppearance(appearance);nativeShell.ready();}return;}
+ if(generation!==appearanceGeneration)return;
+ const start=performance.now(),duration=appearance.performance==='vivid'?1800:1500;
+ const draw=(now:number)=>{if(preview!==revealPreview)return;const t=Math.min(1,(now-start)/duration),target=Math.hypot(innerWidth,innerHeight)+4,radius=target*(1-Math.pow(1-t,1.35));preview.dataset.radius=String(radius);preview.dataset.target=String(target);preview.style.clipPath=`circle(${radius}px at 0px 0px)`;
+  if(t<1){revealFrame=requestAnimationFrame(draw);return;}
+  const finish=(state?:unknown)=>{if(generation!==appearanceGeneration)return;commitAppearance(appearance);nativeShell.restoreVisualState(state);nativeShell.ready();requestAnimationFrame(()=>requestAnimationFrame(()=>{if(preview===revealPreview)clearThemeReveal();}));};
+  let finished=false;const receive=(e:MessageEvent)=>{if(e.source===preview.contentWindow&&e.data?.token===token&&e.data.type==='tide:preview-state'){window.removeEventListener('message',receive);finished=true;finish(e.data.state);}};window.addEventListener('message',receive);preview.contentWindow?.postMessage({type:'tide:preview-state',token},'*');window.setTimeout(()=>{window.removeEventListener('message',receive);if(!finished)finish();},120);
+ };draw(start);
+}
+installModuleMotion();
+const fullscreenButton=iconButton("进入全屏","Maximize2",Maximize2,ICON_SIZE.row);fullscreenButton.classList.add("fullscreen-toggle");document.body.append(fullscreenButton);
+const miniButton=iconButton("呼出小窗播放器","PictureInPicture2",PictureInPicture2,ICON_SIZE.row);miniButton.classList.add("mini-toggle");document.body.append(miniButton);miniButton.onclick=()=>void window.tide.setMiniPlayer({open:true});
+fullscreenButton.onclick=()=>void window.tide.setFullscreen();
+window.tide.onFullscreen(value=>{document.documentElement.dataset.fullscreen=String(value);fullscreenButton.setAttribute("aria-label",value?"退出全屏":"进入全屏");fullscreenButton.title=value?"退出全屏（Esc）":"进入全屏（F11）";});
 
 applyAppearance({
   chromeVisible: true,
@@ -143,9 +172,9 @@ applyAppearance({
   motion: 1,
   lattice: false,
   shell: "lens",
-  preset: "tide",
+  preset: "flow",
   performance: "balanced",
-  background: "solid",
+  background: "paper",
   fontPreset: "system",
   fontFamily: "",
 });
@@ -179,6 +208,9 @@ window.tide.onEvent((event: PlaybackBusEvent) => {
   }
 });
 
+window.tide.onRenderActive?.(setRenderingActive);
+window.tide.onLikeState?.(value=>applyLike(value.id,value.liked));
+document.addEventListener("visibilitychange", () => { if (isRenderingActive() && latestPlayback) showPlayback(latestPlayback); });
 window.tide.onPlayback(showPlayback);
 window.tide.onNotice((message) => library.notify(message));
 
@@ -197,6 +229,8 @@ void window.tide.getHealth().then((status) => {
 });
 
 window.addEventListener("beforeunload", () => {
+  stopCloseMenu();
+  nativeShell.destroy();
   stopClock();
   stageLayer.destroy();
   lyricsLayer.destroy();

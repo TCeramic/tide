@@ -1,5 +1,5 @@
 import http from "node:http";
-import { ipcMain } from "electron";
+import { BrowserWindow, ipcMain } from "electron";
 import { hasMusicU, normalizeCookie } from "../api/cookie";
 import { Ipc, type ApiFailure } from "../shared/contract";
 
@@ -21,11 +21,11 @@ export function attachSession(getPort: () => number | null): () => void {
     }
     return proxy(getPort(), "GET", `/session/qr/check?key=${encodeURIComponent(key)}`);
   });
-  ipcMain.handle(Ipc.playlistTracks, (_event, id: unknown) => {
+  ipcMain.handle(Ipc.playlistTracks, (_event, id: unknown, offset: unknown) => {
     if (typeof id !== "string" || !/^\d{1,20}$/.test(id)) {
       return { ok: false, error: "bad_id", message: "歌单编号无效" } satisfies ApiFailure;
     }
-    return loopbackJson(getPort(), "GET", `/playlist/tracks?id=${encodeURIComponent(id)}`);
+    return loopbackJson(getPort(), "GET", `/playlist/tracks?id=${encodeURIComponent(id)}&offset=${typeof offset === "number" && Number.isSafeInteger(offset) && offset >= 0 ? offset : 0}`);
   });
   ipcMain.handle(Ipc.daily, () => loopbackJson(getPort(), "GET", "/recommend/daily"));
   ipcMain.handle(Ipc.radar, () => loopbackJson(getPort(), "GET", "/recommend/radar"));
@@ -36,22 +36,24 @@ export function attachSession(getPort: () => number | null): () => void {
     }
     return loopbackJson(getPort(), "POST", "/fm/trash", { id });
   });
-  ipcMain.handle(Ipc.search, (_event, keywords: unknown, type: unknown) => {
+  ipcMain.handle(Ipc.search, (_event, keywords: unknown, type: unknown, offset: unknown) => {
     if (typeof keywords !== "string") return emptyQuery();
     const query = keywords.trim().slice(0, 80);
     if (query.length === 0) return emptyQuery();
     const kind = type === 100 || type === 10 || type === 1006 || type === 1 ? type : 1;
-    return loopbackJson(getPort(), "GET", `/search?keywords=${encodeURIComponent(query)}&type=${kind}`);
+    return loopbackJson(getPort(), "GET", `/search?keywords=${encodeURIComponent(query)}&type=${kind}&offset=${typeof offset==="number"&&Number.isFinite(offset)?Math.max(0,Math.trunc(offset)):0}`);
   });
   ipcMain.handle(Ipc.artistSongs, (_event, id: unknown) => trackList(getPort(), "/artist/songs", id));
   ipcMain.handle(Ipc.albumTracks, (_event, id: unknown) => trackList(getPort(), "/album/tracks", id));
   ipcMain.handle(Ipc.lyric, (_event, id: unknown) => trackList(getPort(), "/lyric", id));
   ipcMain.handle(Ipc.likedIds, () => loopbackJson(getPort(), "GET", "/liked"));
-  ipcMain.handle(Ipc.likeSong, (_event, id: unknown, like: unknown) => {
+  ipcMain.handle(Ipc.likeSong, async (_event, id: unknown, like: unknown) => {
     if (typeof id !== "string" || !/^\d{1,20}$/.test(id)) {
       return { ok: false, error: "bad_id", message: "曲目编号无效" } satisfies ApiFailure;
     }
-    return loopbackJson(getPort(), "POST", "/song/like", { id, like: like !== false });
+    const result = await loopbackJson(getPort(), "POST", "/song/like", { id, like: like !== false }) as ApiFailure | {ok:true;liked:boolean};
+    if (result.ok) for (const window of BrowserWindow.getAllWindows()) window.webContents.send("tide:like-state", {id,liked:result.liked});
+    return result;
   });
   ipcMain.handle(Ipc.collectSong, (_event, playlistId: unknown, trackId: unknown) => {
     if (typeof playlistId !== "string" || typeof trackId !== "string") {
@@ -116,7 +118,7 @@ function requestJson(port: number, method: string, pathname: string, body?: unkn
         port,
         path: pathname,
         method,
-        timeout: UPSTREAM_TIMEOUT_MS,
+        timeout: pathname.startsWith("/tide-playlist/") ? 120_000 : UPSTREAM_TIMEOUT_MS,
         headers: payload
           ? { "Content-Type": "application/json", "Content-Length": payload.length }
           : {},

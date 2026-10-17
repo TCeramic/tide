@@ -1,6 +1,6 @@
 {
   "name": "tide",
-  "version": "0.9.1",
+  "version": "0.9.2-test.13",
   "private": true,
   "description": "潮汐 Tide — a personal, unofficial desktop music player",
   "main": "dist/main.js",
@@ -15,7 +15,16 @@
     "dist": "npm run build && electron-builder --win zip --x64",
     "dist:setup": "npm run build && electron-builder --win nsis --x64",
     "typecheck": "tsc --noEmit",
-    "test": "node scripts/test.mjs"
+    "test": "node scripts/test.mjs",
+    "verify:design-systems": "node scripts/verify-design-systems.mjs",
+    "test:ui": "node scripts/redesign-ui-smoke.cjs",
+    "test:mini": "node scripts/redesign-native-smoke.cjs",
+    "test:search:live": "node scripts/live-search-smoke.cjs",
+    "test:perf": "node scripts/perf-smoke.cjs",
+    "test:playback": "node scripts/playback-host-smoke.cjs",
+    "test:native": "node scripts/native-smoke.cjs",
+    "test:cursor": "node scripts/cursor-hold-smoke.cjs",
+    "test:refresh": "node scripts/high-refresh-smoke.cjs"
   },
   "devDependencies": {
     "@types/node": "22.19.21",
@@ -25,6 +34,9 @@
     "typescript": "5.9.3"
   },
   "dependencies": {
+    "@chenglou/pretext": "1.0.0",
+    "@paper-design/shaders": "0.0.81",
+    "fast-xml-parser": "5.11.2",
     "lucide": "1.57.0",
     "NeteaseCloudMusicApi": "4.32.0",
     "three": "0.186.1"

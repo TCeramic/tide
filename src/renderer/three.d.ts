@@ -1,7 +1,9 @@
 /** The subset of Three used by the proof-tree host. The library itself is three@0.186.1. */
 declare module "three" {
   export class Object3D {
+    updateMatrixWorld(force?:boolean):void;
     add(object: Object3D): this;
+    remove(object: Object3D): this;
   }
 
   export class Scene extends Object3D {}
@@ -12,6 +14,7 @@ declare module "three" {
     x: number;
     y: number;
     z: number;
+    set(x:number,y:number,z:number):this;
     clone(): Vector3;
     project(camera: Camera): Vector3;
   }
@@ -25,6 +28,8 @@ declare module "three" {
   }
 
   export class WebGLRenderer {
+    setPixelRatio(value: number): void;
+    getPixelRatio(): number;
     constructor(options?: {
       canvas?: HTMLCanvasElement;
       alpha?: boolean;

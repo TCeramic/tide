@@ -1,7 +1,8 @@
 import path from "node:path";
 import { createRequire } from "node:module";
 import type { AudioLevel } from "../core/audio-level";
-import { loadPlaylistPages } from "../core/playlist-pages";
+
+import { normalizeArtworkUrl } from "../core/artwork";
 import type { AlbumSummary, ArtistSummary, PlaylistSummary, SearchHit, SessionUser } from "../shared/contract";
 
 interface NcmBody {
@@ -20,6 +21,7 @@ interface NcmBody {
 }
 
 interface NcmPlaylist {
+  coverImgUrl?: string;
   id?: number | string;
   name?: string;
   trackCount?: number;
@@ -32,18 +34,22 @@ interface NcmResult {
 }
 
 interface NcmModule {
+  playlist_create(query:{name:string;privacy:string;cookie:string}):Promise<unknown>;
+  playlist_name_update(query:{id:string;name:string;cookie:string}):Promise<unknown>;
+  playlist_desc_update(query:{id:string;desc:string;cookie:string}):Promise<unknown>;
+  playlist_cover_update(query:{id:string;imgFile:{name:string;data:Buffer};cookie:string}):Promise<unknown>;
   login_qr_key(query: { cookie?: string }): Promise<NcmResult>;
   login_qr_create(query: { key: string; qrimg?: boolean; cookie?: string }): Promise<NcmResult>;
   login_qr_check(query: { key: string; cookie?: string }): Promise<NcmResult>;
   login_status(query: { cookie?: string }): Promise<NcmResult>;
   user_playlist(query: { uid: string; limit?: number; cookie?: string }): Promise<NcmResult>;
-  cloudsearch(query: { keywords: string; type?: number; limit?: number; cookie?: string }): Promise<unknown>;
+  cloudsearch(query: { keywords: string; type?: number; limit?: number; offset?: number; cookie?: string }): Promise<unknown>;
   song_url(query: { id: string; br?: number; cookie?: string }): Promise<unknown>;
   song_url_v1(query: { id: string; level: string; cookie?: string }): Promise<unknown>;
   personal_fm(query: { cookie?: string }): Promise<unknown>;
   fm_trash(query: { id: string; cookie?: string }): Promise<unknown>;
   login_refresh(query: { cookie?: string }): Promise<NcmResult>;
-  playlist_track_all(query: { id: string; limit?: number; cookie?: string }): Promise<unknown>;
+  playlist_track_all(query: { id: string; limit?: number; offset?: number; cookie?: string }): Promise<unknown>;
   recommend_songs(query: { cookie?: string }): Promise<unknown>;
   recommend_resource(query: { cookie?: string }): Promise<unknown>;
   simi_song(query: { id: string; limit?: number; cookie?: string }): Promise<unknown>;
@@ -54,6 +60,7 @@ interface NcmModule {
   playlist_tracks(query: { op: "add" | "del"; pid: string; tracks: string; cookie?: string }): Promise<unknown>;
   artist_songs(query: { id: string; limit?: number; cookie?: string }): Promise<unknown>;
   album(query: { id: string; cookie?: string }): Promise<unknown>;
+  song_detail?(query: { ids: string; cookie?: string }): Promise<unknown>;
 }
 
 export interface QrImage {
@@ -72,6 +79,8 @@ export interface SongMedia {
 }
 
 export interface LyricBundle {
+  source?: "netease" | "amll";
+  credits?: string[];
   lyric: string;
   translation: string;
   romaji: string;
@@ -86,6 +95,9 @@ export interface LoginRefresh {
 
 /** Calls into the pinned NeteaseCloudMusicApi package. No HTTP surface of its own. */
 export interface NeteaseClient {
+  createCloudPlaylist?(name:string,cookie:string):Promise<string>;
+  syncCloudPlaylist?(input:{id:string;name:string;description:string;cover?:string;songIds:string[]},cookie:string):Promise<void>;
+  songArtwork?(ids: string[], cookie: string | null): Promise<Record<string, string>>;
   qrKey(): Promise<string>;
   qrImage(key: string): Promise<QrImage>;
   qrCheck(key: string): Promise<QrPoll>;
@@ -93,12 +105,12 @@ export interface NeteaseClient {
   playlists(cookie: string, uid: string): Promise<PlaylistSummary[]>;
   search(keywords: string, cookie: string | null): Promise<SearchHit[]>;
   songUrl(id: string, cookie: string | null, level: AudioLevel): Promise<SongMedia>;
-  playlistTracks(id: string, cookie: string): Promise<SearchHit[]>;
+  playlistTracks(id: string, cookie: string, offset?: number): Promise<SearchHit[]>;
   dailySongs(cookie: string): Promise<SearchHit[]>;
   radarId(cookie: string): Promise<string>;
   /** Similar songs via `simi_song`. Not daily recommend and not 私人雷达. */
   similarSongs(id: string, cookie: string | null): Promise<SearchHit[]>;
-  searchKind(keywords: string, type: number, cookie: string | null): Promise<CatalogPage>;
+  searchKind(keywords: string, type: number, cookie: string | null, offset?: number): Promise<CatalogPage>;
   artistSongs(id: string, cookie: string | null): Promise<SearchHit[]>;
   albumTracks(id: string, cookie: string | null): Promise<SearchHit[]>;
   lyric(id: string, cookie: string | null): Promise<LyricBundle>;
@@ -119,7 +131,35 @@ export interface CatalogPage {
 }
 
 export function createNeteaseClient(module: NcmModule = loadNeteaseModule()): NeteaseClient {
+  const covers = new Map<string, string>();
+  const hydrateCovers = async (hits: SearchHit[], cookie: string | null): Promise<SearchHit[]> => {
+    for (const hit of hits) if (hit.cover) covers.set(hit.id, hit.cover);
+    const missing = [...new Set(hits.filter(hit => !hit.cover && !covers.has(hit.id)).map(hit => hit.id))];
+    if (module.song_detail && missing.length > 0) {
+      // Batch the documented song/detail endpoint; a missing image must never
+      // turn a usable search/playlist into an error or alter play privileges.
+      for (let offset = 0; offset < missing.length; offset += 500) {
+        let timeout: ReturnType<typeof setTimeout> | undefined;
+        try {
+          const result = await Promise.race([
+            module.song_detail(withCookie({ ids: missing.slice(offset, offset + 500).join(",") }, cookie)),
+            new Promise<never>((_, reject) => { timeout = setTimeout(() => reject(new Error("cover_timeout")), 5000); }),
+          ]);
+          const body = requireOk(result, "cover_failed");
+          for (const detail of collectHits(body.songs, null, 500, true)) if (detail.cover) covers.set(detail.id, detail.cover);
+        } catch { break; }
+        finally { if (timeout) clearTimeout(timeout); }
+      }
+    }
+    const enriched = hits.map(hit => !hit.cover && covers.has(hit.id) ? { ...hit, cover: covers.get(hit.id)! } : hit);
+    while (covers.size > 2000) covers.delete(covers.keys().next().value!);
+    return enriched;
+  };
   return {
+    async songArtwork(ids, cookie) {
+      const hits = await hydrateCovers(ids.map(id => ({ id, title: "", artist: "", durationMs: 0, playable: false })), cookie);
+      return Object.fromEntries(hits.filter(hit => hit.cover).map(hit => [hit.id, hit.cover!]));
+    },
     async qrKey() {
       return readQrKey(await module.login_qr_key({}));
     },
@@ -136,40 +176,51 @@ export function createNeteaseClient(module: NcmModule = loadNeteaseModule()): Ne
       return readPlaylists(await module.user_playlist({ uid, cookie, limit: 100 }));
     },
     async search(keywords, cookie) {
-      return readSearch(await module.cloudsearch(withCookie({ keywords, type: 1, limit: 20 }, cookie)));
+      return hydrateCovers(readSearch(await module.cloudsearch(withCookie({ keywords, type: 1, limit: 20 }, cookie))), cookie);
     },
     async songUrl(id, cookie, level) {
       return readSongUrl(await module.song_url_v1(withCookie({ id, level }, cookie)));
     },
-    async playlistTracks(id, cookie) {
+    async playlistTracks(id, cookie, offset = 0) {
       try {
-        return await loadPlaylistPages(async (offset, limit) => (
-          readPlaylistTracks(await module.playlist_track_all(withCookie({ id, limit, offset }, cookie)))
-        ));
+        const hits = readPlaylistTracks(await module.playlist_track_all(withCookie({ id, limit: 100, offset }, cookie))).slice(0, 100);
+        return hydrateCovers(hits, cookie);
       } catch (error) {
         rethrowSignedOut(error);
       }
     },
     async similarSongs(id, cookie) {
       try {
-        return readSimilar(await module.simi_song(withCookie({ id, limit: 20 }, cookie)));
+        return hydrateCovers(readSimilar(await module.simi_song(withCookie({ id, limit: 20 }, cookie))), cookie);
       } catch (error) {
         rethrowSignedOut(error);
       }
     },
-    async searchKind(keywords, type, cookie) {
-      return readCatalog(await module.cloudsearch(withCookie({ keywords, type, limit: 20 }, cookie)), type);
+    async createCloudPlaylist(name,cookie){
+      const result=await module.playlist_create({name,privacy:"10",cookie});readMutation(result,"create_playlist_failed");const body=bodyOf(result),playlist=asRecord(body?.playlist),id=String(playlist?.id??body?.id??"");if(!/^\d{1,20}$/.test(id))throw new Error("create_playlist_failed");return id;
+    },
+    async syncCloudPlaylist(input,cookie){
+      readMutation(await module.playlist_name_update({id:input.id,name:input.name,cookie}),"playlist_name_failed");readMutation(await module.playlist_desc_update({id:input.id,desc:input.description,cookie}),"playlist_desc_failed");
+      const existing:string[]=[];
+      for(let offset=0;offset<10000;offset+=100){const page=readPlaylistTracks(await module.playlist_track_all({id:input.id,limit:100,offset,cookie}));existing.push(...page.map(h=>h.id));if(page.length<100)break;}
+      const desired=new Set(input.songIds),known=new Set(existing);
+      for(const [op,ids]of [["del",existing.filter(id=>!desired.has(id))],["add",input.songIds.filter(id=>!known.has(id))]] as const){for(let i=0;i<ids.length;i+=500)readCollect(await module.playlist_tracks({op,pid:input.id,tracks:ids.slice(i,i+500).join(","),cookie}));}
+      if(input.cover?.startsWith("data:image/jpeg;base64,")){const result=await module.playlist_cover_update({id:input.id,cookie,imgFile:{name:"tide-cover.jpg",data:Buffer.from(input.cover.split(",")[1],"base64")}});readMutation(result,"playlist_cover_failed");const detail=asRecord(bodyOf(result)?.data);if(detail?.code&&detail.code!==200)throw new Error("playlist_cover_failed");}
+    },
+    async searchKind(keywords, type, cookie, offset=0) {
+      const page = readCatalog(await module.cloudsearch(withCookie({ keywords, type, limit: 20, offset }, cookie)), type);
+      return { ...page, hits: await hydrateCovers(page.hits, cookie) };
     },
     async artistSongs(id, cookie) {
       try {
-        return readSimilar(await module.artist_songs(withCookie({ id, limit: 50 }, cookie)));
+        return hydrateCovers(readSimilar(await module.artist_songs(withCookie({ id, limit: 50 }, cookie))), cookie);
       } catch (error) {
         rethrowSignedOut(error);
       }
     },
     async albumTracks(id, cookie) {
       try {
-        return readAlbum(await module.album(withCookie({ id }, cookie)));
+        return hydrateCovers(readAlbum(await module.album(withCookie({ id }, cookie))), cookie);
       } catch (error) {
         rethrowSignedOut(error);
       }
@@ -191,7 +242,7 @@ export function createNeteaseClient(module: NcmModule = loadNeteaseModule()): Ne
     },
     async personalFm(cookie) {
       try {
-        return readPersonalFm(await module.personal_fm(withCookie({}, cookie)));
+        return hydrateCovers(readPersonalFm(await module.personal_fm(withCookie({}, cookie))), cookie);
       } catch (error) {
         rethrowSignedOut(error);
       }
@@ -235,7 +286,7 @@ export function createNeteaseClient(module: NcmModule = loadNeteaseModule()): Ne
     },
     async dailySongs(cookie) {
       try {
-        return readDailySongs(await module.recommend_songs(withCookie({}, cookie)));
+        return hydrateCovers(readDailySongs(await module.recommend_songs(withCookie({}, cookie))), cookie);
       } catch (error) {
         rethrowSignedOut(error);
       }
@@ -280,6 +331,7 @@ export function readPlaylists(result: NcmResult): PlaylistSummary[] {
     if (typeof item.specialType === "number" && Number.isInteger(item.specialType)) {
       summary.specialType = item.specialType;
     }
+    const cover=readCoverUrl({coverImgUrl:item.coverImgUrl});if(cover)summary.cover=cover;
     playlists.push(summary);
     if (playlists.length >= 100) break;
   }
@@ -336,7 +388,8 @@ export function readAlbum(result: unknown): SearchHit[] {
   const body = requireOk(result, "album_failed");
   const album = asRecord(body.album);
   const songs = body.songs ?? album?.songs;
-  return collectHits(songs, body.privileges, CATALOG_LIMIT, true);
+  const cover = album ? readCoverUrl(album) : null;
+  return collectHits(songs, body.privileges, CATALOG_LIMIT, true).map(hit => !hit.cover && cover ? { ...hit, cover } : hit);
 }
 
 export function readLyricText(result: unknown): string {
@@ -519,6 +572,9 @@ function toHit(
     playable: playableOf(song, privilege, unknownPlayable),
   };
   if (song.liked === true) hit.liked = true;
+  const album = asRecord(song.al ?? song.album);
+  if (typeof album?.name === "string") hit.albumTitle = album.name.slice(0, 200);
+  if (album?.id != null && /^\d{1,20}$/.test(String(album.id))) hit.albumId = String(album.id);
   const cover = readCoverUrl(song);
   if (cover) hit.cover = cover;
   return hit;
@@ -526,11 +582,12 @@ function toHit(
 
 /** Album art from a song payload. Only http(s) URLs are kept. */
 export function readCoverUrl(song: Record<string, unknown>): string | null {
-  const album = asRecord(song.al) ?? asRecord(song.album);
-  const raw = album?.picUrl ?? song.picUrl;
-  if (typeof raw !== "string") return null;
-  const trimmed = raw.trim();
-  return isHttpUrl(trimmed) ? trimmed : null;
+  const al = asRecord(song.al), album = asRecord(song.album);
+  for (const raw of [al?.picUrl, album?.picUrl, song.picUrl, song.coverImgUrl, song.img1v1Url]) {
+    const url = normalizeArtworkUrl(raw);
+    if (url) return url;
+  }
+  return null;
 }
 
 function playableOf(
@@ -557,7 +614,8 @@ function readArtistRows(value: unknown): ArtistSummary[] {
     const id = row?.id == null ? "" : String(row.id);
     const name = typeof row?.name === "string" ? row.name.trim() : "";
     if (!/^\d{1,20}$/.test(id) || name.length === 0) continue;
-    rows.push({ id, name: name.slice(0, 200) });
+    const cover = row ? readCoverUrl(row) : null;
+    rows.push({ id, name: name.slice(0, 200), ...(cover ? { cover } : {}) });
     if (rows.length >= MAX_HITS) break;
   }
   return rows;
@@ -575,7 +633,8 @@ function readAlbumRows(value: unknown): AlbumSummary[] {
     const artist = typeof artistRecord?.name === "string" && artistRecord.name.trim().length > 0
       ? artistRecord.name.trim().slice(0, 200)
       : readArtists(row?.artists);
-    rows.push({ id, name: name.slice(0, 200), artist });
+    const cover = row ? readCoverUrl(row) : null;
+    rows.push({ id, name: name.slice(0, 200), artist, ...(cover ? { cover } : {}) });
     if (rows.length >= MAX_HITS) break;
   }
   return rows;

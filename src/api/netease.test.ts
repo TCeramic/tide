@@ -280,3 +280,8 @@ describe("netease adapters", () => {
     assert.equal(readCoverUrl({ name: "无封面" }), null);
   });
 });
+
+it("keeps remote playlist artwork for cover cards",()=>{
+ assert.equal(readPlaylists({body:{code:200,playlist:[{id:1,name:"one",coverImgUrl:"https://example.com/cover.jpg"}]}})[0].cover,"https://example.com/cover.jpg");
+ assert.equal(readPlaylists({body:{code:200,playlist:[{id:1,name:"one",coverImgUrl:"javascript:bad"}]}})[0].cover,undefined);
+});

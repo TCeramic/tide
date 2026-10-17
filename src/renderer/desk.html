@@ -12,7 +12,9 @@
   <body>
     <canvas id="wave" aria-hidden="true"></canvas>
     <div id="stack" class="stack">
-      <p id="current" class="current"></p>
+      <div id="viewport" class="lyric-viewport"><div id="scroller" class="lyric-scroll"><p id="current" class="current"></p></div></div>
+      <p id="next" class="upcoming" hidden></p>
+      <div class="desk-tools"><button id="desk-lock" type="button">锁定歌词</button><button id="desk-close" type="button">关闭歌词</button></div>
       <p id="trans" class="trans" hidden></p>
     </div>
     <script src="./desk.js"></script>

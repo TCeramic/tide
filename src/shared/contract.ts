@@ -1,17 +1,22 @@
 import type { AudioLevel } from "../core/audio-level";
 import type { DeskLyricsSettings } from "../core/desk-lyrics";
 import type { PlaybackEvents, PlaybackSnapshot, Track } from "../core/playback/types";
+import { version as packageVersion } from "../../package.json";
 
 export type { DeskLyricsSettings } from "../core/desk-lyrics";
 
 export type { PlaybackErrorCode, PlaybackEvents, PlaybackSnapshot, PlaybackStatus, Track } from "../core/playback/types";
 
-export const TIDE_VERSION = "0.9.1";
+export const TIDE_VERSION = packageVersion;
 export const DEFAULT_API_PORT = 39271;
 export const DEFAULT_BUS_PORT = 39272;
 export const API_READY_PREFIX = "TIDE_API_READY ";
 
 export const Ipc = {
+  replaceUpcoming: "tide:replace-upcoming",
+  closeRequest: "tide:close-request",
+  windowAction: "tide:window-action",
+  renderActive: "tide:render-active",
   healthGet: "tide:health:get",
   health: "tide:health",
   playbackGet: "tide:playback:get",
@@ -51,6 +56,9 @@ export const Ipc = {
   captureMediaKeysSet: "tide:keys:capture",
   hardwareKey: "tide:keys:hardware",
   likedIds: "tide:liked:ids",
+  deskContext: "tide:desk:context",
+  deskCenter:"tide:desk-center",
+  deskContextClose: "tide:desk:context-close",
   deskGet: "tide:desk:get",
   deskSet: "tide:desk:set",
   deskState: "tide:desk:state",
@@ -61,6 +69,7 @@ export const Ipc = {
   radar: "tide:recommend:radar",
   playHits: "tide:cmd:play-hits",
   progress: "tide:cmd:progress",
+  duration: "tide:cmd:duration",
   ended: "tide:cmd:ended",
   fail: "tide:cmd:fail",
   media: "tide:media",
@@ -93,7 +102,7 @@ export function isShellId(value: unknown): value is ShellId {
 }
 
 /** Play-scene recipes. Names are Tide's. They are not a visual clone of another player. */
-export const VISUAL_PRESETS = ["tide", "cover-glow", "vinyl", "stardust", "quiet"] as const;
+export const VISUAL_PRESETS = ["flow"] as const;
 export type VisualPresetId = (typeof VISUAL_PRESETS)[number];
 
 export function isVisualPresetId(value: unknown): value is VisualPresetId {
@@ -114,7 +123,7 @@ export function isFontPresetId(value: unknown): value is FontPresetId {
   return typeof value === "string" && (FONT_PRESETS as readonly string[]).includes(value);
 }
 
-export const STAGE_BACKGROUNDS = ["solid", "cover", "image"] as const;
+export const STAGE_BACKGROUNDS = ["solid", "cover", "image", "paper", "pixel-cover"] as const;
 export type StageBackground = (typeof STAGE_BACKGROUNDS)[number];
 
 export function isStageBackground(value: unknown): value is StageBackground {
@@ -122,7 +131,21 @@ export function isStageBackground(value: unknown): value is StageBackground {
 }
 
 /** Local UI knobs on #stage, #lyrics, and #chrome. No wallpaper engine and no particle clone. */
+export interface CustomPalette {
+  enabled: boolean;
+  colors: string[];
+  accent: string;
+  text: string;
+  muted: string;
+  points: string;
+  panel: string;
+  panelOpacity: number;
+}
+
 export interface Appearance {
+  customPalette?: CustomPalette;
+  lensMode?: "light" | "dark";
+  latticeMode?: "light" | "dark";
   chromeVisible: boolean;
   stageLevel: number;
   theme: ThemeId;
@@ -150,6 +173,7 @@ export interface LyricWord {
 }
 
 export interface YrcLine {
+  estimated?: boolean;
   timeMs: number;
   durationMs: number;
   text: string;
@@ -157,6 +181,8 @@ export interface YrcLine {
 }
 
 export interface SearchHit {
+  albumTitle?: string;
+  albumId?: string;
   id: string;
   title: string;
   artist: string;
@@ -171,17 +197,26 @@ export interface SearchHit {
 export interface ArtistSummary {
   id: string;
   name: string;
+  cover?: string;
 }
 
 export interface AlbumSummary {
   id: string;
   name: string;
   artist: string;
+  cover?: string;
 }
 
 export type SearchKind = "songs" | "artists" | "albums";
 
+export interface PlaylistCursor { playlistId: string; offset: number; hasMore: boolean }
+
 export interface SearchResult {
+  offset?: number;
+  nextOffset?: number;
+  hasMore?: boolean;
+  total?: number;
+  source?: PlaylistCursor;
   ok: true;
   kind: SearchKind;
   hits: SearchHit[];
@@ -195,6 +230,8 @@ export interface LyricLine {
 }
 
 export interface LyricPayload {
+  source?: "netease" | "amll";
+  credits?: string[];
   ok: true;
   trackId: string;
   lines: LyricLine[];
@@ -206,6 +243,10 @@ export interface LyricPayload {
 
 export interface DeskCue {
   title: string;
+  artist: string;
+  metadata: boolean;
+  next: string;
+  lineMode: "single" | "double";
   /** Current line. The overlay does not parse YRC. */
   text: string;
   translation: string;
@@ -216,6 +257,8 @@ export interface DeskCue {
   playing: boolean;
   fontSize: number;
   color: string;
+  highlightColor: string;
+  fontFamily: string;
   opacity: number;
   glow: number;
   motion: boolean;
@@ -252,6 +295,7 @@ export interface SessionUser {
 }
 
 export interface PlaylistSummary {
+  cover?: string;
   id: string;
   name: string;
   trackCount: number;
@@ -307,6 +351,30 @@ export interface QueueRequest {
 
 /** Surface exposed on `window.tide` by the preload script. */
 export interface TideBridge {
+  setFullscreen(value?:boolean):Promise<boolean>;
+  captureThemeFrame():Promise<string|null>;
+  onFullscreen(listener:(fullscreen:boolean)=>void):()=>void;
+  onLikeState?(listener: (value: {id:string;liked:boolean}) => void): () => void;
+  getMiniPlayer():Promise<MiniPlayerSettings>;
+  setMiniPlayer(patch:Partial<MiniPlayerSettings>):Promise<MiniPlayerSettings>;
+  miniShowMain():Promise<void>;
+  setMiniInteractive(interactive:boolean):Promise<void>;
+  onMiniCue(listener:(cue:MiniCue)=>void):()=>void;
+  centerDeskLyrics():Promise<void>;
+  setDeskInteractive(interactive:boolean):Promise<void>;
+  tidePlaylists():Promise<TidePlaylist[]>;
+  saveTidePlaylist(id:string|undefined,patch:{name?:string;description?:string;cover?:string}):Promise<TidePlaylistReply>;
+  addToTidePlaylist(id:string,hit:SearchHit):Promise<TidePlaylistReply>;
+  removeTidePlaylistSong(id:string,songId:string):Promise<TidePlaylistReply>;
+  deleteTidePlaylist(id:string):Promise<{ok:boolean;message?:string}>;
+  pickPlaylistCover():Promise<string|null>;
+  syncTidePlaylist(id:string):Promise<TidePlaylistReply>;
+  onCloseRequest?(listener: () => void): () => void;
+  replaceUpcoming(hits: SearchHit[]): Promise<PlaybackSnapshot>;
+  windowAction(action: "tray" | "quit" | "cancel"): Promise<void>;
+  onRenderActive?(listener: (active: boolean) => void): () => void;
+  aiStatus(): Promise<import("../core/ai-assist").AiStatus>;
+  aiGenerate(input: import("../core/ai-assist").AiInput): Promise<import("../core/ai-assist").AiReply>;
   /** `session` on Windows, `shortcut` elsewhere. Only one media-key path is armed. */
   mediaKeys: "session" | "shortcut";
   getHealth(): Promise<HealthStatus>;
@@ -325,7 +393,7 @@ export interface TideBridge {
   logout(): Promise<SessionSnapshot | ApiFailure>;
   startQr(): Promise<QrTicket | ApiFailure>;
   checkQr(key: string): Promise<QrCheck | ApiFailure>;
-  search(keywords: string, type?: number): Promise<SearchResult | ApiFailure>;
+  search(keywords: string, type?: number, offset?: number): Promise<SearchResult | ApiFailure>;
   artistSongs(id: string): Promise<SearchResult | ApiFailure>;
   albumTracks(id: string): Promise<SearchResult | ApiFailure>;
   lyric(id: string): Promise<LyricPayload | ApiFailure>;
@@ -342,6 +410,8 @@ export interface TideBridge {
   hardwareKey(action: "play" | "pause" | "next" | "previous" | "stop"): Promise<PlaybackSnapshot>;
   likeSong(id: string, like: boolean): Promise<ApiFailure | { ok: true; message: string; liked: boolean }>;
   likedIds(): Promise<ApiFailure | { ok: true; known: boolean; ids: string[] }>;
+  openDeskMenu(): Promise<void>;
+  closeDeskMenu(): Promise<void>;
   getDeskLyrics(): Promise<DeskLyricsSettings>;
   setDeskLyrics(patch: Partial<DeskLyricsSettings>): Promise<DeskLyricsSettings>;
   onDeskState(listener: (settings: DeskLyricsSettings) => void): () => void;
@@ -355,13 +425,14 @@ export interface TideBridge {
   previous(): Promise<PlaybackSnapshot>;
   setMode(patch: { repeat?: "off" | "all" | "one"; shuffle?: boolean; explore?: boolean }): Promise<PlaybackSnapshot>;
   onNotice(listener: (message: string) => void): () => void;
-  playlistTracks(id: string): Promise<SearchResult | ApiFailure>;
+  playlistTracks(id: string, offset?: number): Promise<SearchResult | ApiFailure>;
   dailyRecommend(): Promise<SearchResult | ApiFailure>;
   radar(): Promise<SearchResult | ApiFailure>;
-  tideToday(): Promise<TideToday | ApiFailure>;
-  playHits(hits: SearchHit[], index: number): Promise<PlaybackSnapshot>;
+  tideToday(refresh?: boolean): Promise<TideToday | ApiFailure>;
+  playHits(hits: SearchHit[], index: number, source?: PlaylistCursor): Promise<PlaybackSnapshot>;
   onMedia(listener: (cue: MediaCue) => void): () => void;
   reportProgress(positionMs: number): void;
+  reportDuration(id: string, durationMs: number): void;
   ended(): Promise<PlaybackSnapshot>;
   failPlayback(code: "no_url" | "signed_out"): Promise<PlaybackSnapshot>;
   onAppearance(listener: (appearance: Appearance) => void): () => void;
@@ -371,3 +442,9 @@ export interface TideBridge {
   pickBackdrop(): Promise<string | null>;
   backdropUrl(): Promise<string | null>;
 }
+
+export interface TidePlaylist {id:string;name:string;description:string;cover?:string;songs:SearchHit[];updatedAt:number;cloudId?:string}
+export type TidePlaylistReply={ok:true;playlist:TidePlaylist;message?:string}|{ok:false;message:string};
+
+export interface MiniPlayerSettings {open:boolean;style:"lens"|"lattice"|"transparent";topmost:boolean;locked:boolean;x:number|null;y:number|null}
+export interface MiniCue {playback:Omit<PlaybackSnapshot,"queue">&{track:Track|null};lyrics:DeskCue;settings:MiniPlayerSettings;performance:PerformanceTier;active:boolean}

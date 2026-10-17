@@ -1,21 +1,28 @@
-const failed = new Set<string>();
+import { normalizeArtworkUrl } from "../core/artwork";
+
+const failed = new Map<string, number>();
 
 /** Real art when the URL loads. Otherwise a tide mark, never the title's first glyph. */
-export function paintCover(host: HTMLElement, url: string | undefined): void {
+export function paintCover(host: HTMLElement, url: string | undefined, options: { lazy?: boolean } = {}): void {
   host.classList.add("cover-slot");
   host.replaceChildren();
-  if (!url || !/^https?:\/\//.test(url) || failed.has(url)) {
+  const normalized = normalizeArtworkUrl(url);
+  if (!normalized || (failed.get(normalized) ?? 0) > Date.now()) {
     host.append(mark());
     return;
   }
   const image = document.createElement("img");
   image.alt = "";
   image.decoding = "async";
-  image.src = url;
+  image.loading = options.lazy ? "lazy" : "eager";
+  image.referrerPolicy = "no-referrer";
+  image.addEventListener("load", () => failed.delete(normalized));
   image.addEventListener("error", () => {
-    failed.add(url);
+    failed.set(normalized, Date.now() + 30_000);
+    while (failed.size > 200) failed.delete(failed.keys().next().value!);
     if (host.contains(image)) host.replaceChildren(mark());
   });
+  image.src = normalized;
   host.append(image);
 }
 

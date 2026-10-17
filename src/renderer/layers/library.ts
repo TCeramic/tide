@@ -1,6 +1,9 @@
+import { mountAiAssist } from "../ai-assist";
+import { aiContext,aiCover } from "../ai-context";
+import { editTidePlaylist } from "./playlist-editor";
 import { AUDIO_LEVELS, AUDIO_LEVEL_LABEL, type AudioLevel } from "../../core/audio-level";
 import { MEDIA_ACTION_LABEL, MEDIA_CUSTOM_ACTIONS, type MediaShortcutMap } from "../../core/media-keys";
-import type { ApiFailure, Appearance, PlaybackSnapshot, PlaylistSummary, SearchHit, SearchResult, SessionSnapshot } from "../../shared/contract";
+import type { TidePlaylist, ApiFailure, Appearance, PlaybackSnapshot, PlaylistSummary, SearchHit, SearchResult, SessionSnapshot } from "../../shared/contract";
 import {
   ChevronDown,
   ChevronLeft,
@@ -20,13 +23,16 @@ import {
 } from "lucide";
 import type { IconNode } from "../icons";
 import { ICON_SIZE, iconButton, prependIcon, setIcon } from "../icons";
-import { openNowPlaying, showHome } from "../view";
+import { showHome } from "../view";
+import { createNativeSearch } from "../native-shell.js";
 import { mountDeskForm } from "./desk-form";
 import { mountHome } from "./home";
 import { mountPresetForm } from "./preset-form";
+import { mountPaletteMenu } from "./palette-menu";
 import { applyLike, isLiked, onLiked, setLikedIds } from "../liked";
 import { fillTrackList } from "../track-row";
 import { mountProof } from "./proof-view";
+import { paintCover } from "../cover";
 
 const RISK_ACK = "tide.risk.ack";
 
@@ -50,10 +56,10 @@ export function mountLibrary(root: HTMLElement): {
 
   const searchForm = document.createElement("form");
   searchForm.className = "search";
-  const searchInput = document.createElement("input");
-  searchInput.type = "search";
+  const searchControl = createNativeSearch();
+  const searchInput = searchControl.input as HTMLInputElement;
   searchInput.className = "search-input";
-  searchInput.placeholder = "关键词";
+  searchInput.placeholder = "搜索音乐、歌手或专辑";
   searchInput.maxLength = 80;
   searchInput.setAttribute("aria-label", "搜索");
   const searchButton = iconButton("搜索", "Search", Search, ICON_SIZE.control);
@@ -62,12 +68,30 @@ export function mountLibrary(root: HTMLElement): {
   searchInput.disabled = true;
   const tabs = document.createElement("div");
   tabs.className = "search-tabs";
+  tabs.id = "search-categories";
+  tabs.hidden = true;
+  tabs.setAttribute("role", "group");
+  tabs.setAttribute("aria-label", "搜索分类");
+  searchInput.setAttribute("aria-controls", tabs.id);
+  searchInput.setAttribute("aria-expanded", "false");
   const tabSong = button("单曲");
   const tabArtist = button("歌手");
   const tabAlbum = button("专辑");
   const tabLyric = button("歌词");
   tabs.append(tabSong, tabArtist, tabAlbum, tabLyric);
-  searchForm.append(searchInput, searchButton, tabs);
+  searchForm.append(searchControl.element, searchButton, tabs);
+  const expandSearch = (open: boolean) => {
+    tabs.hidden = !open;
+    searchForm.classList.toggle("search-active", open);
+    searchInput.setAttribute("aria-expanded", String(open));
+  };
+  searchForm.addEventListener("focusin", () => expandSearch(true));
+  searchForm.addEventListener("focusout", () => window.setTimeout(() => {
+    if (!searchForm.contains(document.activeElement)) expandSearch(false);
+  }));
+  searchForm.addEventListener("keydown", event => {
+    if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); searchInput.blur(); expandSearch(false); }
+  });
 
   const searchNote = document.createElement("p");
   searchNote.className = "library-note";
@@ -87,9 +111,12 @@ export function mountLibrary(root: HTMLElement): {
 
   const tideHeading = heading("今日潮汐 · 探索", "Compass", Compass);
   const tideButton = button("查看探索");
+  const tideRefresh = button("刷新今日潮汐");
+  let todayRows: SearchHit[] = [];
   const tideActions = document.createElement("div");
   tideActions.className = "library-actions";
   tideActions.append(tideButton);
+  tideRefresh.hidden = true; viewBar.append(tideRefresh);
 
   const recommendHeading = heading("推荐", "Radio", Radio);
   recommendHeading.hidden = true;
@@ -101,9 +128,9 @@ export function mountLibrary(root: HTMLElement): {
   recommend.hidden = true;
   recommend.append(dailyButton, radarButton, fmButton);
 
-  const queueDetails = document.createElement("details");
+  const queueDetails = document.createElement("section");
   queueDetails.className = "queue-panel";
-  const queueSummary = document.createElement("summary");
+  const queueSummary = document.createElement("h2");
   const queueLabel = document.createElement("span");
   queueLabel.textContent = "播放队列";
   prependIcon(queueSummary, "ListMusic", ListMusic, ICON_SIZE.row);
@@ -193,7 +220,7 @@ export function mountLibrary(root: HTMLElement): {
   note.textContent = "正在连接本地 API…";
 
   const list = document.createElement("ul");
-  list.className = "playlist";
+  list.className = "playlist playlists";
 
   const actions = document.createElement("div");
   actions.className = "library-actions";
@@ -241,9 +268,9 @@ export function mountLibrary(root: HTMLElement): {
   busStatus.textContent = "状态：空闲";
   bus.append(busSummary, busBody, busPlay, busPause, busStatus);
 
-  const settingsPanel = document.createElement("details");
+  const settingsPanel = document.createElement("section");
   settingsPanel.className = "settings-panel";
-  const settingsSummary = document.createElement("summary");
+  const settingsSummary = document.createElement("h2");
   settingsSummary.textContent = "设置";
   prependIcon(settingsSummary, "Settings", Settings, ICON_SIZE.row);
   const latticeRow = document.createElement("label");
@@ -263,7 +290,10 @@ export function mountLibrary(root: HTMLElement): {
   });
   const deskForm = mountDeskForm();
   const presets = mountPresetForm();
-  settingsPanel.append(settingsSummary, riskNotice(), presets.element, latticeRow, qualityLabel, keyPanel, deskForm.element, bus);
+  const paletteMenu = mountPaletteMenu();
+  const aiAssist=mountAiAssist(aiContext,aiCover,result=>window.dispatchEvent(new CustomEvent("tide:segments",{detail:result})));
+  const miniOpen=button("打开小窗播放器");miniOpen.onclick=()=>void window.tide.setMiniPlayer({open:true});
+  settingsPanel.append(settingsSummary,miniOpen, riskNotice(), presets.element,paletteMenu.button,aiAssist.element, latticeRow, qualityLabel, keyPanel, deskForm.element, bus);
 
   const topbar = document.createElement("div");
   topbar.className = "topbar";
@@ -272,15 +302,56 @@ export function mountLibrary(root: HTMLElement): {
   topbar.append(homeButton, searchForm);
 
   const queueCol = document.createElement("aside");
-  queueCol.className = "queue-col glass";
+  queueCol.className = "queue-col corner-panel glass";
+  queueCol.hidden = true;
   queueCol.setAttribute("aria-label", "播放队列");
-  queueDetails.open = true;
   queueCol.append(queueDetails);
+  const queuePeek = document.createElement("div");
+  queuePeek.className = "peek peek-queue";
+  queuePeek.tabIndex = 0;
+  queuePeek.setAttribute("aria-label", "显示播放队列");
+  const queueButton = iconButton("播放队列", "ListMusic", ListMusic, ICON_SIZE.control);
+  queueButton.classList.add("corner-btn", "corner-queue");
+  queueButton.setAttribute("aria-expanded", "false");
+  queuePeek.tabIndex=0;queuePeek.setAttribute("aria-label","显示播放队列");
+  let queueTimer: ReturnType<typeof setTimeout> | undefined;
+  const showQueue = (show: boolean) => {
+    clearTimeout(queueTimer);
+    queueCol.hidden = !show;
+    queueButton.dataset.open = String(show);
+    queueButton.setAttribute("aria-expanded", String(show));
+  };
+  const delayQueue = () => { queueTimer = setTimeout(() => {
+    if (!queueCol.matches(":hover") && !queuePeek.matches(":hover")) showQueue(false);
+  }, 240); };
+  queuePeek.addEventListener("pointerenter", () => showQueue(true));
+  queuePeek.addEventListener("focusin", () => showQueue(true));
+  queuePeek.addEventListener("pointerleave", delayQueue);
+  queuePeek.addEventListener("focusout", delayQueue);
+  queueCol.addEventListener("pointerenter", () => clearTimeout(queueTimer));
+  queueCol.addEventListener("pointerleave", delayQueue);
+  queueCol.addEventListener("focusout", delayQueue);
+  queueButton.addEventListener("click", () => {showQueue(queueCol.hidden);queueButton.blur();});
 
   const sheet = document.createElement("section");
   sheet.className = "browse-sheet glass";
   sheet.hidden = true;
-  sheet.append(viewBar, searchNote, hits, tideHeading, tideActions, recommendHeading, recommend, list);
+  const searchPage=document.createElement("section");searchPage.className="browse-sheet glass search-page";searchPage.hidden=true;searchPage.setAttribute("aria-label","搜索结果");
+  const searchHeader=document.createElement("header");searchHeader.className="search-page-header";
+  const searchBack=button("返回主页"),searchTitle=document.createElement("h2");searchBack.addEventListener("click",()=>showHomeCards());searchHeader.append(searchBack,searchTitle);
+  const searchMore=button("加载更多"),searchEnd=document.createElement("p");searchMore.className="text-button search-more";searchEnd.className="library-note";
+  searchPage.append(searchHeader,searchMore,searchEnd);
+  const playlistHero=document.createElement("div");playlistHero.className="playlist-hero";playlistHero.hidden=true;sheet.append(playlistHero);
+  let detailFromSearch=false;
+  const localActions = document.createElement("div");
+  localActions.className = "local-actions";
+  localActions.hidden = true;
+  const localHeading = document.createElement("h2");
+  localHeading.textContent = "本地音乐";
+  const addLocal = button("添加本地音乐");
+  localActions.append(localHeading, addLocal);
+  const playlistPageTitle=document.createElement("h2");playlistPageTitle.className="playlist-page-title";playlistPageTitle.textContent="我的歌单";const createPlaylist=button("创建歌单");createPlaylist.className="text-button playlist-create";createPlaylist.addEventListener("click",()=>editTidePlaylist(undefined,async id=>{await refreshTideLists();showTidePlaylist(id);}));sheet.append(playlistPageTitle,createPlaylist);
+  sheet.append(viewBar,playlistHero, localActions, searchNote, hits, tideHeading, tideActions, recommendHeading, recommend, list);
 
   const loginPeek = document.createElement("div");
   loginPeek.className = "peek peek-login";
@@ -300,14 +371,19 @@ export function mountLibrary(root: HTMLElement): {
   settingsPop.className = "corner-panel settings-pop glass";
   settingsPop.hidden = true;
   settingsPop.append(settingsPanel);
-  settingsPanel.open = true;
 
   const showSheet = () => {
+    currentTideId=null;localActions.hidden = true;
+    searchPage.hidden=true;sheet.insertBefore(searchNote,hits.parentElement===sheet?hits:localActions.nextSibling);sheet.insertBefore(hits,tideHeading);
+    playlistHero.hidden=true;sheet.dataset.section = "playlists";
     sheet.hidden = false;
     home.element.hidden = true;
   };
   const showHomeCards = () => {
-    sheet.hidden = true;
+    if(!home.element.hidden&&document.documentElement.dataset.view==='home'&&sheet.hidden&&searchPage.hidden&&proofHost.hidden)return;
+    detailFromSearch=false;
+    showQueue(false);
+    sheet.hidden = true;searchPage.hidden=true;
     proofHost.hidden = true;
     proof.stop();
     home.element.hidden = false;
@@ -316,32 +392,35 @@ export function mountLibrary(root: HTMLElement): {
   homeButton.addEventListener("click", showHomeCards);
   loginButton.addEventListener("click", () => {
     loginPop.hidden = !loginPop.hidden;
-    loginButton.dataset.open = loginPop.hidden ? "false" : "true";
+    loginButton.dataset.open = loginPop.hidden ? "false" : "true";loginButton.blur();
     settingsPop.hidden = true;
     settingsButton.dataset.open = "false";
   });
   settingsButton.addEventListener("click", () => {
     settingsPop.hidden = !settingsPop.hidden;
-    settingsButton.dataset.open = settingsPop.hidden ? "false" : "true";
+    settingsButton.dataset.open = settingsPop.hidden ? "false" : "true";settingsButton.blur();
     loginPop.hidden = true;
     loginButton.dataset.open = "false";
   });
 
+  const autoHide=(peek:HTMLElement,pop:HTMLElement,control:HTMLElement)=>{
+    let timer=0;const cancel=()=>{clearTimeout(timer);timer=0;};
+    const leave=()=>{cancel();timer=window.setTimeout(()=>{const editing=pop.contains(document.activeElement)&&document.activeElement?.matches("input,select,textarea");if(!peek.matches(":hover")&&!pop.matches(":hover")&&!editing){pop.hidden=true;control.dataset.open="false";if(control===document.activeElement)control.blur();}},260);};
+    for(const el of [peek,pop]){el.addEventListener("pointerenter",cancel);el.addEventListener("pointerleave",leave);el.addEventListener("focusout",leave);}
+  };autoHide(loginPeek,loginPop,loginButton);autoHide(settingsPeek,settingsPop,settingsButton);
+
   const proofHost = document.createElement("section");
-  proofHost.className = "proof-host glass";
+  proofHost.className = "proof-host";
   proofHost.hidden = true;
   const proof = mountProof(proofHost, (id, name) => {
     showSearchNote(name, false);
     const numeric = /^\d{1,20}$/.test(id);
     if (!numeric) return;
-    const index = shownHits.findIndex((hit) => hit.id === id);
-    if (index >= 0) {
-      openNowPlaying();
-      void window.tide.playHits(shownHits, index);
-    }
-  });
+    const index = lastQueue?.queue.findIndex((track) => track.id === id) ?? -1;
+    if (index >= 0) void window.tide.changeTrack(index);
+  }, showHomeCards);
   const home = mountHome(root, {
-    onPlaylists: () => showSheet(),
+    onPlaylists: () => {detailFromSearch=false;showSheet();void refreshTideLists();},
     onDaily: () => {
       showSheet();
       proofHost.hidden = true;
@@ -353,13 +432,16 @@ export function mountLibrary(root: HTMLElement): {
       tideButton.click();
     },
     onProof: () => {
-      sheet.hidden = true;
+      sheet.hidden = true;searchPage.hidden=true;
       home.element.hidden = true;
       proofHost.hidden = false;
-      proof.show(playlists, shownHits);
+      proof.show(playlists, (lastQueue?.queue ?? []).map(track => ({ ...track, playable: true })));
     },
     onLocal: () => {
       showSheet();
+      localActions.hidden = false;
+      sheet.dataset.section = "local";
+      viewBar.hidden = true;
       void window.tide.localTracks().then((hits) => {
         showSearchNote(hits.length === 0 ? "还没有本地曲目" : "本地音乐", hits.length === 0);
         renderHits(hits);
@@ -367,23 +449,31 @@ export function mountLibrary(root: HTMLElement): {
         // Listed for play. The row handler starts playback.
       });
     },
-    onAddLocal: () => {
-      void window.tide.addLocalTracks().then((hits) => {
-        home.setLocal(hits);
-        showSheet();
-        showSearchNote(hits.length === 0 ? "还没有本地曲目" : "本地音乐", hits.length === 0);
-        renderHits(hits);
-      });
-    },
+  });
+  addLocal.addEventListener("click", async () => {
+    addLocal.disabled = true;
+    try {
+      const rows = await window.tide.addLocalTracks();
+      if (disposed) return;
+      home.setLocal(rows);
+      localActions.hidden = false;
+      sheet.dataset.section = "local";
+      showSearchNote(rows.length === 0 ? "还没有本地曲目，点添加选择音乐文件" : `已载入 ${rows.length} 首本地音乐`, false);
+      renderHits(rows);
+    } catch {
+      showSearchNote("添加失败，请重新选择音乐文件", true);
+    } finally { addLocal.disabled = false; }
   });
 
-  root.append(topbar, queueCol, sheet, proofHost, loginPeek, settingsPeek, loginPop, settingsPop);
+  root.append(topbar, queuePeek, queueCol, sheet,searchPage, proofHost, loginPeek, settingsPeek, loginPop, settingsPop);
   void searchHeading;
   void panel;
 
   let pollTimer = 0;
   let apiReady = false;
   let playlists: PlaylistSummary[] = [];
+  let tideLists:TidePlaylist[]=[];let currentTideId:string|null=null;let currentSession:SessionSnapshot|null=null;
+  const refreshTideLists=async()=>{try{const rows=await window.tide.tidePlaylists();if(Array.isArray(rows))tideLists=rows;if(currentSession)render(currentSession);}catch{}};
   let searchType = 1;
   const tabButtons = [
     [tabSong, 1],
@@ -391,7 +481,7 @@ export function mountLibrary(root: HTMLElement): {
     [tabAlbum, 10],
     [tabLyric, 1006],
   ] as const;
-  let searching = false;
+
   let opening = false;
   let sawReady = false;
   let disposed = false;
@@ -414,26 +504,27 @@ export function mountLibrary(root: HTMLElement): {
   };
 
   const render = (session: SessionSnapshot) => {
-    refreshLiked();
+    currentSession=session;refreshLiked();
     loginLabel.textContent = session.user?.nickname
       ?? (session.state === "invalid" ? "需要重新登录" : "登录网易云");
     note.textContent = session.message ?? "";
     note.classList.toggle("warn", session.state === "invalid");
-    playlists = session.playlists;
+    playlists = [...session.playlists,...tideLists.map(p=>({id:p.id,name:p.name,trackCount:p.songs.length,cover:p.cover}))];
     list.replaceChildren();
-    for (const playlist of session.playlists) {
+    for (const playlist of [{id:"tide-today",name:"今日潮汐",trackCount:20,cover:"./assets/today-tide.png"},{id:"tide-daily",name:"每日推荐",trackCount:30,cover:"./assets/daily-recommend.png"},...playlists]) {
       const item = document.createElement("li");
       const row = document.createElement("button");
       row.type = "button";
-      row.className = "playlist-row";
+      row.className = "playlist-row playlist-card";row.setAttribute("aria-label",`打开歌单 ${playlist.name}`);
+      const art=document.createElement("span");art.className="playlist-art";paintPlaylistArt(art,playlist.cover);
       const name = document.createElement("span");
       name.textContent = playlist.name;
       const count = document.createElement("span");
       count.className = "count";
-      count.textContent = String(playlist.trackCount);
-      row.append(name, count);
+      count.textContent = `${playlist.trackCount} 首`;
+      row.append(art,name, count);
       row.addEventListener("click", () => {
-        void showPlaylist(playlist.id, playlist.name);
+        if(playlist.id==="tide-today")void refreshToday(false);else if(playlist.id==="tide-daily")void openHits(()=>window.tide.dailyRecommend(),"每日推荐");else if(playlist.id.startsWith("tide-list-"))showTidePlaylist(playlist.id);else void showPlaylist(playlist.id, playlist.name);
       });
       item.append(row);
       list.append(item);
@@ -541,19 +632,48 @@ export function mountLibrary(root: HTMLElement): {
   });
 
   let shownHits: SearchHit[] = [];
-  const renderHits = (rows: SearchHit[]) => {
-    shownHits = rows;
-    fillTrackList(hits, rows, playlists, showSearchNote);
+  let shownSource: SearchResult["source"];
+  const renderHits = (rows: SearchHit[], source?: SearchResult["source"]) => {
+    shownHits = rows; shownSource = source;
+    fillTrackList(hits, rows, playlists, showSearchNote, source,currentTideId?async songId=>{const id=currentTideId!;const result=await window.tide.removeTidePlaylistSong(id,songId);if(!result.ok){showSearchNote(result.message,true);return;}await refreshTideLists();showTidePlaylist(id);}:undefined);
   };
 
-  const showCatalog = (rows: SearchHit[], label: string) => {
+  const showCatalog = (rows: SearchHit[], label: string, cover?:string) => {
+    showSheet();sheet.dataset.section="playlist";playlistHero.hidden=false;const title=document.createElement("h2");title.textContent=label;const art=document.createElement("span");art.className="playlist-detail-art";paintPlaylistArt(art,label==="今日潮汐"?"./assets/today-tide.png":label==="每日推荐"?"./assets/daily-recommend.png":cover??playlists.find(p=>p.name===label)?.cover);playlistHero.replaceChildren(art,title);
     viewBar.hidden = false;
     viewTitle.textContent = `${label} · 已载 ${rows.length} 首`;
+    tideRefresh.hidden = label !== "今日潮汐";
     showSearchNote("", false);
     renderHits(rows);
   };
 
+  const appendMore = (result: SearchResult, name: string) => {
+    if (!result.source?.hasMore) return;
+    const more = document.createElement("button"); more.type = "button"; more.className = "text-button"; more.textContent = "加载更多歌曲";
+    const prior = shownHits;
+    more.addEventListener("click", async () => {
+      more.disabled = true;
+      const next = await window.tide.playlistTracks(result.source!.playlistId, result.source!.offset);
+      if (disposed || shownHits !== prior) return;
+      if (!next.ok) { more.disabled = false; showSearchNote(next.message, true); return; }
+      const seen = new Set(prior.map(h => h.id));
+      const additions = next.hits.filter(h => !seen.has(h.id));
+      showCatalog([...prior, ...additions], name);
+      renderHits(shownHits, next.source);
+      if (additions.length) appendMore(next, name);
+    });
+    const row = document.createElement("li"); row.append(more); hits.append(row);
+  };
+
+  const showTidePlaylist=(id:string)=>{const row=tideLists.find(p=>p.id===id);if(!row)return;showCatalog(row.songs,row.name,row.cover);currentTideId=id;renderHits(row.songs);
+    const description=document.createElement("p");description.textContent=row.description;description.className="playlist-description";
+    const actions=document.createElement("div");actions.className="library-actions";const edit=button("编辑歌单");edit.onclick=()=>editTidePlaylist(row,async()=>{await refreshTideLists();showTidePlaylist(id);});
+    const sync=button(row.cloudId?"同步到网易云":"创建网易云副本");sync.onclick=async()=>{sync.disabled=true;const result=await window.tide.syncTidePlaylist(id);sync.disabled=false;showSearchNote(result.message??(result.ok?"已同步":"同步失败"),!result.ok);await refreshTideLists();};
+    const remove=button("删除Tide歌单");let confirming=false;remove.onclick=async()=>{if(!confirming){confirming=true;remove.textContent="再次点击确认删除";return;}const result=await window.tide.deleteTidePlaylist(id);if(!result.ok){showSearchNote(result.message??"删除失败",true);return;}await refreshTideLists();showSheet();};actions.append(edit,sync,remove);playlistHero.append(description,actions);
+  };
+
   const showPlaylist = async (id: string, name: string) => {
+    detailFromSearch=false;
     if (opening || !apiReady || disposed) return;
     opening = true;
     showSearchNote(`正在读取${name}…`, false);
@@ -566,10 +686,13 @@ export function mountLibrary(root: HTMLElement): {
       return;
     }
     showCatalog(result.hits, name);
+    renderHits(result.hits, result.source);
+    appendMore(result, name);
   };
 
-  const showDetail = async (label: string, load: () => Promise<SearchResult | ApiFailure>) => {
+  const showDetail = async (label: string, load: () => Promise<SearchResult | ApiFailure>, cover?:string) => {
     if (opening || disposed) return;
+    detailFromSearch=!searchPage.hidden;
     opening = true;
     showSearchNote(`正在读取${label}…`, false);
     const result = await load();
@@ -579,7 +702,7 @@ export function mountLibrary(root: HTMLElement): {
       showSearchNote(result.message, true);
       return;
     }
-    showCatalog(result.hits, label);
+    showCatalog(result.hits, label,cover);
   };
 
   const openHits = async (load: () => Promise<SearchResult | ApiFailure>, label: string) => {
@@ -600,8 +723,7 @@ export function mountLibrary(root: HTMLElement): {
       showSearchNote(result.message, true);
       return;
     }
-    showSearchNote(label, false);
-    renderHits(result.hits);
+    showCatalog(result.hits,label,label==="每日推荐"?"./assets/daily-recommend.png":undefined);
     const index = result.hits.findIndex((hit) => hit.playable);
     if (index < 0) showSearchNote(result.hits.length === 0 ? `${label}是空的` : `${label}里没有可播放的曲目`, true);
   };
@@ -618,8 +740,12 @@ export function mountLibrary(root: HTMLElement): {
 
   let dragging = -1;
   let lastQueue: PlaybackSnapshot | null = null;
+  let queueSignature = "";
   const renderQueue = (snapshot: PlaybackSnapshot) => {
     lastQueue = snapshot;
+    const signature = JSON.stringify([snapshot.index, snapshot.queue]);
+    if (signature === queueSignature) return;
+    queueSignature = signature;
     queueLabel.textContent = snapshot.queue.length === 0 ? "播放队列" : `播放队列 · ${snapshot.queue.length}`;
     queueList.replaceChildren();
     snapshot.queue.forEach((track, index) => {
@@ -659,7 +785,6 @@ export function mountLibrary(root: HTMLElement): {
       name.className = "queue-title";
       name.textContent = `${track.title} · ${track.artist}`;
       name.addEventListener("click", () => {
-        openNowPlaying();
         void window.tide.changeTrack(index);
       });
       const up = iconButton("上移", "ChevronUp", ChevronUp, ICON_SIZE.row);
@@ -741,25 +866,27 @@ export function mountLibrary(root: HTMLElement): {
     if ((AUDIO_LEVELS as readonly string[]).includes(level)) quality.value = level;
   });
 
-  tideButton.addEventListener("click", () => {
-    void (async () => {
-      if (opening || disposed) return;
-      opening = true;
-      tideButton.disabled = true;
-      showSearchNote("正在整理今日潮汐…", false);
-      const result = await window.tide.tideToday();
-      opening = false;
+  const refreshToday = async (refresh: boolean) => {
+    if (opening || disposed) return;
+    opening = true; tideButton.disabled = true; tideRefresh.disabled = true;
+    showSearchNote("正在整理今日潮汐…", false);
+    try {
+      const result = await window.tide.tideToday(refresh);
       if (disposed) return;
-      tideButton.disabled = false;
-      if (!result.ok) {
-        hits.replaceChildren();
-        showSearchNote(result.message, true);
-        return;
-      }
+      if (!result.ok) { showSearchNote(result.message, true); return; }
+      const rows = result.hits.slice(0, 20);
+      if (refresh && !rows.length) { showSearchNote("暂时没有新的可用歌曲，已保留当前列表", true); return; }
+      const currentId = lastQueue?.queue[lastQueue.index]?.id;
+      if (refresh && rows.length && currentId && todayRows.some(hit => hit.id === currentId)) await window.tide.replaceUpcoming(rows);
+      todayRows = rows;
+      showCatalog(rows, "今日潮汐");
       showSearchNote(result.message ?? "今日潮汐 · 探索", false);
-      renderHits(result.hits);
-    })();
-  });
+      home.setDiscover(rows.length, rows[0] ? `${rows[0].title} · ${rows[0].artist}` : "暂时没有可用歌曲");
+    } catch { showSearchNote("刷新失败，已保留当前列表", true); }
+    finally { opening = false; tideButton.disabled = false; tideRefresh.disabled = false; }
+  };
+  tideButton.addEventListener("click", () => void refreshToday(false));
+  tideRefresh.addEventListener("click", () => void refreshToday(true));
 
   const showSearchNote = (message: string, warn: boolean) => {
     searchNote.textContent = message;
@@ -775,17 +902,17 @@ export function mountLibrary(root: HTMLElement): {
     }
   };
   markTab();
+  const artistSearch=(event:Event)=>{const name=(event as CustomEvent<string>).detail;if(typeof name!=="string"||!name.trim())return;searchInput.value=name.trim();searchType=100;markTab();showHome();searchForm.requestSubmit();};window.addEventListener("tide:artist-search",artistSearch);
   for (const [element, type] of tabButtons) {
     element.addEventListener("click", () => {
       searchType = type;
       markTab();
+      if(!searchPage.hidden&&searchInput.value.trim())searchForm.requestSubmit();
     });
   }
 
   back.addEventListener("click", () => {
-    viewBar.hidden = true;
-    hits.replaceChildren();
-    showSearchNote("", false);
+    if(detailFromSearch){detailFromSearch=false;showSearchPage();paintSearch();}else{showSheet();viewBar.hidden=true;hits.replaceChildren();showSearchNote("",false);}
   });
 
   busPlay.addEventListener("click", () => {
@@ -795,63 +922,59 @@ export function mountLibrary(root: HTMLElement): {
     void window.tide.pause();
   });
 
-  searchForm.addEventListener("submit", (event) => {
-    event.preventDefault();
-    if (searching || !apiReady) return;
-    const keywords = searchInput.value.trim();
-    if (keywords.length === 0) {
-      showSearchNote("请输入要搜索的歌名", true);
-      return;
-    }
-    searching = true;
-    searchButton.disabled = true;
-    showSheet();
-    void window.tide.search(keywords, searchType).then((result) => {
-      searching = false;
-      if (disposed) return;
-      searchButton.disabled = !apiReady;
-      if (!result.ok) {
-        hits.replaceChildren();
-        showSearchNote(result.message, true);
-        return;
-      }
-      viewBar.hidden = true;
-      if (result.kind === "artists") {
-        renderNamed(result.artists, "没有找到歌手", (row) => {
-          void showDetail(row.name, () => window.tide.artistSongs(row.id));
-        });
-        return;
-      }
-      if (result.kind === "albums") {
-        renderNamed(result.albums.map((row) => ({ id: row.id, name: `${row.name} · ${row.artist}` })), "没有找到专辑", (row) => {
-          void showDetail(row.name, () => window.tide.albumTracks(row.id));
-        });
-        return;
-      }
-      const empty = searchType === 1006 ? "没有找到歌词对应的歌曲" : "没有找到歌曲";
-      showSearchNote(result.hits.length === 0 ? empty : "", false);
-      renderHits(result.hits);
-    });
+  let searchSession:{keywords:string;type:number;offset:number;rows:SearchResult;more:boolean;busy:boolean;error:string}|null=null;
+  const showSearchPage=()=>{currentTideId=null;sheet.hidden=true;home.element.hidden=true;proofHost.hidden=true;proof.stop();searchPage.hidden=false;searchPage.insertBefore(searchNote,searchMore);searchPage.insertBefore(hits,searchMore);showHome();};
+  const paintSearch=()=>{const state=searchSession;if(!state)return;const rows=state.rows;
+    searchTitle.textContent=`“${state.keywords}”的搜索结果`;
+    if(rows.kind==="artists")renderNamed(rows.artists,"没有找到歌手",row=>void showDetail(row.name,()=>window.tide.artistSongs(row.id),row.cover));
+    else if(rows.kind==="albums")renderNamed(rows.albums.map(row=>({...row,name:`${row.name} · ${row.artist}`})),"没有找到专辑",row=>void showDetail(row.name,()=>window.tide.albumTracks(row.id),row.cover));
+    else {renderHits(rows.hits);showSearchNote(rows.hits.length?"":"没有找到歌曲",false);}
+    const count=rows.kind==="artists"?rows.artists.length:rows.kind==="albums"?rows.albums.length:rows.hits.length;
+    searchMore.hidden=!state.more;searchMore.disabled=state.busy;searchMore.textContent=state.busy?"正在加载…":state.error?"重试加载更多":"加载更多";
+    searchEnd.textContent=state.error||`${count} 条已加载${!state.more&&count?" · 已显示全部可用结果":""}`;
+  };
+  const loadSearch=async(state:NonNullable<typeof searchSession>,append:boolean)=>{
+    if(state.busy)return;state.busy=true;state.error="";searchMore.disabled=true;searchMore.textContent="正在加载…";
+    try{const result=await window.tide.search(state.keywords,state.type,append?state.offset:0);if(disposed||searchSession!==state)return;
+      if(!result.ok){state.error=result.message;return;}
+      const kind=result.kind,received=kind==="artists"?result.artists??[]:kind==="albums"?result.albums??[]:result.hits??[];
+      const prior=append?(kind==="artists"?state.rows.artists:kind==="albums"?state.rows.albums:state.rows.hits):[];
+      const known=new Set(prior.map(row=>row.id));const fresh=received.filter(row=>!known.has(row.id));
+      state.rows={ok:true,kind,hits:kind==="songs"?[...prior,...fresh] as SearchHit[]:[],artists:kind==="artists"?[...prior,...fresh] as SearchResult["artists"]:[],albums:kind==="albums"?[...prior,...fresh] as SearchResult["albums"]:[]};
+      const offset=result.nextOffset??state.offset+20;state.more=(result.hasMore??received.length===20)&&(!append||fresh.length>0)&&offset>state.offset;state.offset=offset;
+    }catch{if(searchSession===state)state.error="搜索暂时失败，请重试";}
+    finally{state.busy=false;if(searchSession===state&&!searchPage.hidden)paintSearch();}
+  };
+  searchMore.addEventListener("click",()=>{if(searchSession)void loadSearch(searchSession,true);});
+  searchForm.addEventListener("submit",event=>{event.preventDefault();if(!apiReady)return;const keywords=searchInput.value.trim();if(!keywords)return;
+    searchSession={keywords,type:searchType,offset:0,more:true,busy:false,error:"",rows:{ok:true,kind:"songs",hits:[],artists:[],albums:[]}};
+    showSearchPage();hits.replaceChildren();searchTitle.textContent=`“${keywords}”的搜索结果`;searchEnd.textContent="";showSearchNote("正在搜索…",false);void loadSearch(searchSession,false);
   });
 
   const renderNamed = (
-    rows: { id: string; name: string }[],
+    rows: { id: string; name: string; cover?: string }[],
     empty: string,
-    open: (row: { id: string; name: string }) => void,
+    open: (row: { id: string; name: string;cover?:string }) => void,
   ) => {
     hits.replaceChildren();
     showSearchNote(rows.length === 0 ? empty : "", rows.length === 0);
     for (const row of rows) {
       const item = document.createElement("li");
+      item.className = "catalog-row";
+      const art = document.createElement("span");
+      art.className = "catalog-cover";
+      paintCover(art, row.cover, { lazy: true });
       const buttonRow = button(row.name);
+      buttonRow.className = "catalog-entry";
       buttonRow.addEventListener("click", () => open(row));
-      item.append(buttonRow);
+      item.append(art, buttonRow);
       hits.append(item);
     }
   };
 
   const stopLiked = onLiked(() => {
-    fillTrackList(hits, shownHits, playlists, showSearchNote);
+    if(!searchPage.hidden&&searchSession){paintSearch();}else if(!sheet.hidden&&sheet.dataset.section!=="playlists")fillTrackList(hits, shownHits, playlists, showSearchNote, shownSource);
+    queueSignature = "";
     if (lastQueue) renderQueue(lastQueue);
   });
   return {
@@ -867,8 +990,10 @@ export function mountLibrary(root: HTMLElement): {
       home.setQueue(snapshot);
     },
     setAppearance(appearance) {
-      latticeBox.checked = appearance.lattice;
+      latticeBox.checked = appearance.shell === "lattice" && appearance.lattice;
+      latticeBox.disabled = appearance.shell === "lens";
       presets.sync(appearance);
+      paletteMenu.sync(appearance);
     },
     showHome() {
       showHomeCards();
@@ -898,7 +1023,7 @@ export function mountLibrary(root: HTMLElement): {
       }
       if (!sawReady) {
         sawReady = true;
-        void refreshSession();
+        void refreshSession();void refreshTideLists();
         void window.tide.tideToday().then((result) => {
           if (!result.ok || disposed) return;
           const first = result.hits[0];
@@ -910,10 +1035,13 @@ export function mountLibrary(root: HTMLElement): {
       }
     },
     destroy() {
-      disposed = true;
+      paletteMenu.destroy();
+      window.removeEventListener("tide:artist-search",artistSearch);aiAssist.destroy();disposed = true;
+      clearTimeout(queueTimer);
       stopPoll();
       stopLiked();
       deskForm.destroy();
+      searchControl.destroy();
       proof.stop();
       panel.remove();
     },
@@ -979,4 +1107,8 @@ function paintAvatar(button: HTMLButtonElement, avatar: string | undefined): voi
   image.alt = "";
   image.src = avatar;
   if (!existing) button.replaceChildren(image);
+}
+
+function paintPlaylistArt(host:HTMLElement,url?:string){
+ if(url?.startsWith("./assets/")||url?.startsWith("data:image/")){const image=document.createElement("img");image.src=url;image.alt="";image.decoding="async";host.replaceChildren(image);}else {paintCover(host,url,{lazy:true});const fallback=()=>{const image=document.createElement("img");image.src="./assets/today-tide.png";image.alt="";host.replaceChildren(image);};const img=host.querySelector("img");if(img)img.addEventListener("error",()=>requestAnimationFrame(fallback),{once:true});else fallback();}
 }

@@ -11,13 +11,14 @@ const STAMP = /\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]/g;
 export function parseLrc(source: string | null | undefined): LyricLine[] {
   if (!source) return [];
   const lines: LyricLine[] = [];
+  const offset = Number(/\[offset:([+-]?\d+)\]/i.exec(source)?.[1] ?? 0);
   for (const raw of source.split(/\r?\n/)) {
     const stamps: number[] = [];
     raw.replace(STAMP, (_match, minutes: string, seconds: string, fraction?: string) => {
       const fractionMs = fraction == null
         ? 0
         : Math.round(Number(fraction.padEnd(3, "0").slice(0, 3)));
-      stamps.push((Number(minutes) * 60 + Number(seconds)) * 1000 + fractionMs);
+      if (Number(seconds) < 60) stamps.push(Math.max(0, (Number(minutes) * 60 + Number(seconds)) * 1000 + fractionMs + (Number.isSafeInteger(offset) ? offset : 0)));
       return "";
     });
     const text = raw.replace(STAMP, "").trim();
@@ -110,23 +111,23 @@ export function deskLineCue(
   offsetMs: number,
   title: string,
 ): DeskLineCue {
-  const pairs = pairLyrics(original, translation);
+  const pairs = original;
   const safeTitle = title.trim().slice(0, 200);
   if (pairs.length === 0) {
     return { title: safeTitle, previous: "", current: "", translation: "", next: "", empty: true };
   }
   const index = currentLyricIndex(
-    pairs.map((row) => ({ timeMs: row.timeMs, text: row.original })),
+    original,
     lyricPosition(positionMs, offsetMs),
   );
   const at = (cursor: number) => (cursor >= 0 && cursor < pairs.length ? pairs[cursor] : undefined);
   const current = at(index);
   return {
     title: safeTitle,
-    previous: at(index - 1)?.original ?? "",
-    current: current?.original ?? "",
-    translation: current?.translation ?? "",
-    next: at(index + 1)?.original ?? "",
+    previous: at(index - 1)?.text ?? "",
+    current: current?.text ?? "",
+    translation: current ? pairLyrics([current], translation)[0]?.translation ?? "" : "",
+    next: at(index + 1)?.text ?? "",
     empty: false,
   };
 }
@@ -221,7 +222,7 @@ export function sweepProgress(words: readonly LyricWord[], widths: readonly numb
 /**
  * One progress value for the player and the desktop overlay.
  * Word timings use measured or per-glyph widths. A line with no words
- * reports wordLevel false so the overlay does not fake a character sweep.
+ * reports wordLevel false and uses the same estimated line fill as the lyric page.
  */
 export function immersiveProgress(
   yrc: readonly YrcLine[],
@@ -230,7 +231,7 @@ export function immersiveProgress(
   widthsByLine?: readonly (readonly number[])[],
 ): { text: string; progress: number; wordLevel: boolean } {
   if (yrc.length > 0) {
-    const index = currentLyricIndex(yrc.map((row) => ({ timeMs: row.timeMs, text: row.text })), positionMs);
+    const index = currentLyricIndex(yrc, positionMs);
     const row = index >= 0 ? yrc[index] : undefined;
     if (!row) return { text: "", progress: 0, wordLevel: false };
     const measured = widthsByLine?.[index];
@@ -242,14 +243,14 @@ export function immersiveProgress(
     const wordLevel = row.words.length > 0;
     return {
       text: row.text,
-      progress: wordLevel ? sweepProgress(row.words, widths, positionMs) : 1,
+      progress: wordLevel ? sweepProgress(row.words, widths, positionMs) : lineEase(positionMs, row.timeMs, yrc[index + 1]?.timeMs ?? row.timeMs + 4000),
       wordLevel,
     };
   }
   const index = currentLyricIndex(lines, positionMs);
   const row = index >= 0 ? lines[index] : undefined;
   if (!row) return { text: "", progress: 0, wordLevel: false };
-  return { text: row.text, progress: 1, wordLevel: false };
+  return { text: row.text, progress: lineEase(positionMs, row.timeMs, lines[index + 1]?.timeMs ?? row.timeMs + 4000), wordLevel: false };
 }
 
 /** Gentle line fill when a row has no word times. Smoothstep across the line. */
@@ -260,3 +261,12 @@ export function lineEase(positionMs: number, startMs: number, endMs: number): nu
   const clamped = Math.min(1, Math.max(0, raw));
   return clamped * clamped * (3 - 2 * clamped);
 }
+
+/** Shared desktop display selection; ordinary LRC keeps its estimated timing honest. */
+export function desktopLyricContent(yrc: readonly YrcLine[], original: readonly LyricLine[], translation: readonly LyricLine[], positionMs: number, offsetMs: number, title: string, artist: string) {
+ const at=lyricPosition(positionMs,offsetMs), rows=yrc.length?yrc:original;
+ const swept=immersiveProgress(yrc,original,at), frame=deskLineCue(rows,translation,positionMs,offsetMs,title);
+ const metadata=!swept.text.trim() || isInstrumentalLyric(swept.text);
+ return { ...swept, text:metadata?title:swept.text, metadata, artist, translation:metadata?artist:frame.translation, next:metadata||isInstrumentalLyric(frame.next)?"":frame.next, progress:metadata?0:swept.progress, wordLevel:!metadata&&swept.wordLevel };
+}
+export function isInstrumentalLyric(text: string): boolean { return /^(?:纯音乐(?:请欣赏)?|instrumental|music only)$/i.test(text.replace(/[\s，,。.!！·:：-]/g,"")); }

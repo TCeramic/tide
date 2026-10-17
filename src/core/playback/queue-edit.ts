@@ -8,7 +8,7 @@ export interface QueueEdit {
 }
 
 function clone(track: Track): Track {
-  return { id: track.id, title: track.title, artist: track.artist, durationMs: track.durationMs };
+  return { ...track };
 }
 
 /** Drop one row. Removing the current row keeps the playhead on what is now in that slot. */

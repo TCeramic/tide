@@ -1,16 +1,20 @@
 import type { MediaCue, PlaybackBusEvent } from "../shared/contract";
-import { pushAudioEnergy } from "./audio-energy";
+import { bindAudioClock } from "./audio-clock";
+import { attachAudioReactivity } from "./audio-reactivity";
 
 /** Hidden audio element. The main process resolves the URL; this element plays it. */
 export function mountPlayer(): () => void {
   const audio = document.createElement("audio");
   audio.preload = "auto";
+  audio.crossOrigin = "anonymous";
   audio.setAttribute("aria-hidden", "true");
   document.body.append(audio);
 
   let loadedId: string | null = null;
   let activeUrl: string | null = null;
   let pendingSeek: number | null = null;
+  const stopClock = bindAudioClock(audio, () => loadedId);
+  const stopReactivity = attachAudioReactivity(audio);
 
   const stopAudio = () => {
     loadedId = null;
@@ -21,36 +25,10 @@ export function mountPlayer(): () => void {
     audio.load();
   };
 
-  let energyOn = false;
-  const watchEnergy = () => {
-    if (energyOn) return;
-    energyOn = true;
-    try {
-      const Ctx = window.AudioContext;
-      const ctx = new Ctx();
-      const source = ctx.createMediaElementSource(audio);
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 32;
-      source.connect(analyser);
-      analyser.connect(ctx.destination);
-      const bins = new Uint8Array(analyser.frequencyBinCount);
-      const tick = () => {
-        analyser.getByteFrequencyData(bins);
-        let sum = 0;
-        for (const value of bins) sum += value;
-        pushAudioEnergy(bins.length === 0 ? 0 : sum / (bins.length * 255));
-        requestAnimationFrame(tick);
-      };
-      tick();
-    } catch {
-      energyOn = false;
-    }
-  };
-
   const playAudio = () => {
     const url = activeUrl;
     if (!url) return;
-    watchEnergy();
+
     void audio.play().catch(() => {
       if (activeUrl !== url) return;
       void window.tide.failPlayback("no_url");
@@ -98,6 +76,7 @@ export function mountPlayer(): () => void {
   };
 
   audio.addEventListener("loadedmetadata", () => {
+    if (loadedId && Number.isFinite(audio.duration)) window.tide.reportDuration(loadedId, audio.duration * 1000);
     if (pendingSeek == null) return;
     audio.currentTime = pendingSeek;
     pendingSeek = null;
@@ -130,6 +109,8 @@ export function mountPlayer(): () => void {
   return () => {
     stopMedia();
     stopEvents();
+    stopClock();
+    stopReactivity();
     stopAudio();
     audio.remove();
   };

@@ -27,19 +27,3 @@ export function contrastRatio(fg: Rgb, bg: Rgb): number {
   const darker = Math.min(l1, l2);
   return (lighter + 0.05) / (darker + 0.05);
 }
-
-/**
- * Brightest shader pixel: full mix to the theme blob plus the sheen term in lens-field.ts.
- * tideA (0.11, 0.52, 0.51) + 0.09 * (0.75, 0.92, 0.95)
- * duskA (0.70, 0.40, 0.26) + 0.09 * (1, 0.86, 0.72)
- */
-export const LENS_PEAK = {
-  tide: { r: 0.1775 * 255, g: 0.6028 * 255, b: 0.5955 * 255 },
-  dusk: { r: 0.79 * 255, g: 0.4774 * 255, b: 0.3248 * 255 },
-} as const;
-
-/** Lattice dot fills painted in stage.ts. */
-export const LATTICE_DOT = {
-  tide: { r: 214, g: 248, b: 244, a: 0.9 },
-  dusk: { r: 255, g: 220, b: 186, a: 0.88 },
-} as const;

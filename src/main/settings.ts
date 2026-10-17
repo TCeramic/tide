@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { customPaletteFromUnknown } from "../core/custom-palette";
 import { isAudioLevel, type AudioLevel } from "../core/audio-level";
 import { deskSettingsFromUnknown, type DeskLyricsSettings } from "../core/desk-lyrics";
 import { mediaShortcutsOrDefault, type MediaShortcutMap } from "../core/media-keys";
@@ -50,9 +51,9 @@ export function settingsFromUnknown(value: unknown): TideSettings {
     : 1;
   const lattice = typeof record.lattice === "boolean" ? record.lattice : false;
   const shell: ShellId = isShellId(record.shell) ? record.shell : "lens";
-  const preset: VisualPresetId = isVisualPresetId(record.preset) ? record.preset : "tide";
+  const preset: VisualPresetId = isVisualPresetId(record.preset) ? record.preset : "flow";
   const performance: PerformanceTier = isPerformanceTier(record.performance) ? record.performance : "balanced";
-  const background: StageBackground = isStageBackground(record.background) ? record.background : "solid";
+  const background: StageBackground = isStageBackground(record.background) ? record.background : "paper";
   const fontPreset: FontPresetId = isFontPresetId(record.fontPreset) ? record.fontPreset : "system";
   const fontFamily = typeof record.fontFamily === "string"
     ? record.fontFamily.replace(/[^\w\s,"'-]/g, "").trim().slice(0, 80)
@@ -62,7 +63,11 @@ export function settingsFromUnknown(value: unknown): TideSettings {
   const mediaShortcuts = mediaShortcutsOrDefault(record.mediaShortcuts);
   const captureMediaKeys = typeof record.captureMediaKeys === "boolean" ? record.captureMediaKeys : true;
   const deskLyrics = deskSettingsFromUnknown(record.deskLyrics);
+  const customPalette = customPaletteFromUnknown(record.customPalette);
   return {
+    ...(customPalette ? { customPalette } : {}),
+    lensMode: record.lensMode === "dark" ? "dark" : record.lensMode === "light" ? "light" : theme === "dusk" ? "dark" : "light",
+    latticeMode: record.latticeMode === "light" ? "light" : "dark",
     volume,
     chromeVisible,
     stageLevel,
@@ -88,14 +93,20 @@ function clamp(value: number): number {
 }
 
 export class SettingsStore {
+  private cached: TideSettings | null = null;
+  private checkedAt = 0;
   constructor(private readonly filePath: string) {}
 
-  read(): TideSettings {
+  read(force = false): TideSettings {
+    const now = Date.now();
+    if (!force && this.cached && now - this.checkedAt < 1000) return structuredClone(this.cached);
+    this.checkedAt = now;
     try {
-      return settingsFromUnknown(JSON.parse(fs.readFileSync(this.filePath, "utf8")));
+      this.cached = settingsFromUnknown(JSON.parse(fs.readFileSync(this.filePath, "utf8")));
     } catch {
-      return settingsFromUnknown({});
+      this.cached = settingsFromUnknown({});
     }
+    return structuredClone(this.cached);
   }
 
   write(patch: Partial<TideSettings>): TideSettings {
@@ -104,6 +115,8 @@ export class SettingsStore {
     const temporary = `${this.filePath}.tmp`;
     fs.writeFileSync(temporary, `${JSON.stringify(settings)}\n`, { encoding: "utf8", mode: 0o600 });
     fs.renameSync(temporary, this.filePath);
+    this.cached = settings;
+    this.checkedAt = Date.now();
     return settings;
   }
 }

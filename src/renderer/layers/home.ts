@@ -7,7 +7,6 @@ export interface HomeHooks {
   onDaily: () => void;
   onTide: () => void;
   onLocal: () => void;
-  onAddLocal: () => void;
   onProof: () => void;
 }
 
@@ -31,20 +30,11 @@ export function mountHome(root: HTMLElement, hooks: HomeHooks): {
 
   const libraryCard = card("歌单", "云端歌单在登录后出现", hooks.onPlaylists, "library");
   const tideCard = card("今日潮汐", "按听过的歌找相似的", hooks.onTide, "tide");
-  const dailyCard = card("每日推荐", "登录后解锁", hooks.onDaily, "daily");
+  const tideCover=document.createElement("img");tideCover.src="./assets/today-tide.png";tideCover.alt="";tideCover.className="home-tide-art";tideCover.decoding="async";tideCard.prepend(tideCover);
   const localCard = card("本地音乐", "不登录也能播", hooks.onLocal, "local");
-  const proofCard = card("证明树", "歌单、歌手、曲", hooks.onProof, "proof");
-  const addLocal = document.createElement("button");
-  addLocal.type = "button";
-  addLocal.className = "text-button";
-  addLocal.textContent = "添加";
-  addLocal.addEventListener("click", (event) => {
-    event.stopPropagation();
-    hooks.onAddLocal();
-  });
-  localCard.append(addLocal);
+  const proofCard = card("音乐脉络", "播放列表 → 歌手 → 专辑 → 单曲", hooks.onProof, "proof");
 
-  grid.append(continueCard, libraryCard, tideCard, dailyCard, localCard, proofCard);
+  grid.append(continueCard, libraryCard, tideCard, localCard, proofCard);
   root.append(grid);
 
   const setBody = (host: HTMLElement, text: string) => {
@@ -65,7 +55,6 @@ export function mountHome(root: HTMLElement, hooks: HomeHooks): {
     setSession(session) {
       const signedIn = session?.state === "logged_in";
       setBody(libraryCard, signedIn ? `${session?.playlists.length ?? 0} 个歌单` : "云端歌单在登录后出现");
-      setBody(dailyCard, signedIn ? "打开今天的推荐" : "登录后解锁");
     },
     setDiscover(count, note) {
       setBody(tideCard, count > 0 ? (note || `${count} 首`) : (note || "按听过的歌找相似的"));

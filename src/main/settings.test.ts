@@ -8,8 +8,15 @@ import { DEFAULT_MEDIA_SHORTCUTS } from "../core/media-keys";
 import { SettingsStore, settingsFromUnknown } from "./settings";
 
 describe("settings", () => {
+  it("persists independent modes and migrates old scenes", () => {
+    assert.equal(settingsFromUnknown({theme:"dusk"}).lensMode,"dark");
+    const value = settingsFromUnknown({lensMode:"dark",latticeMode:"light"});
+    assert.equal(value.lensMode,"dark"); assert.equal(value.latticeMode,"light");
+    assert.equal(settingsFromUnknown({lensMode:"invalid"}).lensMode,"light");
+  });
   it("keeps only a clamped volume and the local ui knobs", () => {
     assert.deepEqual(settingsFromUnknown({ volume: 2, cookie: "MUSIC_U=secret", theme: "wallpaper" }), {
+      lensMode: "light", latticeMode: "dark",
       volume: 1,
       chromeVisible: true,
       stageLevel: 1,
@@ -17,9 +24,9 @@ describe("settings", () => {
       motion: 1,
       lattice: false,
       shell: "lens",
-      preset: "tide",
+      preset: "flow",
       performance: "balanced",
-      background: "solid",
+      background: "paper",
       fontPreset: "system",
       fontFamily: "",
       quality: "standard",
@@ -29,6 +36,7 @@ describe("settings", () => {
       fontFile: "",
     });
     assert.deepEqual(settingsFromUnknown({ volume: -1, stageLevel: 2, chromeVisible: false, theme: "dusk", motion: 2, quality: "hires" }), {
+      lensMode: "dark", latticeMode: "dark",
       volume: 0,
       chromeVisible: false,
       stageLevel: 1,
@@ -36,9 +44,9 @@ describe("settings", () => {
       motion: 1,
       lattice: false,
       shell: "lens",
-      preset: "tide",
+      preset: "flow",
       performance: "balanced",
-      background: "solid",
+      background: "paper",
       fontPreset: "system",
       fontFamily: "",
       quality: "hires",
@@ -48,6 +56,7 @@ describe("settings", () => {
       fontFile: "",
     });
     assert.deepEqual(settingsFromUnknown({ volume: "0.2", motion: 0, quality: "surround" }), {
+      lensMode: "light", latticeMode: "dark",
       volume: 0.8,
       chromeVisible: true,
       stageLevel: 1,
@@ -55,9 +64,9 @@ describe("settings", () => {
       motion: 0,
       lattice: false,
       shell: "lens",
-      preset: "tide",
+      preset: "flow",
       performance: "balanced",
-      background: "solid",
+      background: "paper",
       fontPreset: "system",
       fontFamily: "",
       quality: "standard",
@@ -80,6 +89,7 @@ describe("settings", () => {
     store.write({ volume: 0.2 });
     const saved = JSON.parse(fs.readFileSync(file, "utf8")) as Record<string, unknown>;
     assert.deepEqual(saved, {
+      lensMode: "light", latticeMode: "dark",
       volume: 0.2,
       chromeVisible: true,
       stageLevel: 1,
@@ -87,9 +97,9 @@ describe("settings", () => {
       motion: 1,
       lattice: false,
       shell: "lens",
-      preset: "tide",
+      preset: "flow",
       performance: "balanced",
-      background: "solid",
+      background: "paper",
       fontPreset: "system",
       fontFamily: "",
       quality: "standard",
@@ -111,7 +121,12 @@ describe("settings", () => {
     assert.equal(settingsFromUnknown({ volume: 0.2 }).lattice, false);
     assert.equal("cookie" in saved, false);
     fs.writeFileSync(file, "{");
-    assert.equal(store.read().volume, 0.8);
+    assert.equal(store.read(true).volume, 0.8);
     fs.rmSync(dir, { recursive: true, force: true });
   });
+});
+
+it("settings reads share a short cache, stay isolated from callers, and support explicit reload",()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),"tide-settings-cache-")),file=path.join(dir,"settings.json");
+ try{fs.writeFileSync(file,JSON.stringify({volume:.3}));const store=new SettingsStore(file),first=store.read();first.volume=.9;assert.equal(store.read().volume,.3);fs.writeFileSync(file,JSON.stringify({volume:.6}));assert.equal(store.read().volume,.3);assert.equal(store.read(true).volume,.6);store.write({volume:.7});assert.equal(store.read().volume,.7);}finally{fs.rmSync(dir,{recursive:true,force:true});}
 });

@@ -1,0 +1,40 @@
+import { Heart, Pause, Play, SkipBack, SkipForward, Repeat, Repeat1, Shuffle, Layers, Pin, Lock, Maximize2, X } from "lucide";
+import { iconButton,setIcon,ICON_SIZE } from "./icons";
+import { normalizeArtworkUrl } from "../core/artwork";
+import type { MiniCue,MiniPlayerSettings } from "../shared/contract";
+const root=document.documentElement,cover=document.querySelector<HTMLImageElement>("#mini-cover")!,title=document.querySelector<HTMLElement>("#mini-title")!,artist=document.querySelector<HTMLElement>("#mini-artist")!,lyric=document.querySelector<HTMLElement>("#mini-lyric")!,range=document.querySelector<HTMLInputElement>("#mini-seek")!,time=document.querySelector<HTMLOutputElement>("#mini-time")!,tools=document.querySelector<HTMLElement>("#mini-tools")!,controls=document.querySelector<HTMLElement>("#mini-buttons")!;
+let cue:MiniCue|null=null,active=true,trackId="",artUrl="",liked=false,seeking=false,frame=0,last=0;
+const previous=iconButton("上一首","SkipBack",SkipBack,ICON_SIZE.control),play=iconButton("播放","Play",Play,ICON_SIZE.control),next=iconButton("下一首","SkipForward",SkipForward,ICON_SIZE.control),order=iconButton("播放顺序","Repeat",Repeat,ICON_SIZE.control),like=iconButton("喜欢","Heart",Heart,ICON_SIZE.control);
+previous.onclick=()=>void window.tide.previous();next.onclick=()=>void window.tide.next();play.onclick=()=>void(cue?.playback.status==="playing"?window.tide.pause():window.tide.play());
+order.onclick=()=>{if(!cue)return;const s=cue.playback;void window.tide.setMode(s.shuffle?{shuffle:false,repeat:"all",explore:false}:s.repeat==="all"?{shuffle:false,repeat:"one",explore:false}:s.repeat==="one"?{shuffle:false,repeat:"off",explore:true}:{shuffle:true,repeat:"off",explore:true});};
+like.onclick=async()=>{const track=cue?.playback.track;if(!track)return;const result=await window.tide.likeSong(track.id,!liked);if(result.ok){liked=result.liked;paintLike();}};
+function paintLike(){like.setAttribute("aria-pressed",String(liked));setIcon(like,"Heart",Heart,ICON_SIZE.control,liked);}
+window.tide.onLikeState?.(value=>{if(value.id===trackId){liked=value.liked;paintLike();}});
+controls.append(previous,play,next,order,like);
+const skin=iconButton("切换小窗风格","Layers",Layers,ICON_SIZE.row),pin=iconButton("小窗置顶","Pin",Pin,ICON_SIZE.row),lock=iconButton("小窗鼠标穿透","Lock",Lock,ICON_SIZE.row),main=iconButton("呼出主界面","Maximize2",Maximize2,ICON_SIZE.row),close=iconButton("关闭小窗","X",X,ICON_SIZE.row);
+skin.onclick=()=>{const styles:MiniPlayerSettings["style"][]=["lens","lattice","transparent"];void window.tide.setMiniPlayer({style:styles[(styles.indexOf(cue?.settings.style??"lens")+1)%3]});};pin.onclick=()=>void window.tide.setMiniPlayer({topmost:!cue?.settings.topmost});lock.onclick=()=>{lock.blur();void window.tide.setMiniPlayer({locked:!cue?.settings.locked});};main.onclick=()=>void window.tide.miniShowMain();close.onclick=()=>void window.tide.setMiniPlayer({open:false});tools.append(skin,pin,lock,main,close);
+let lockHot=false;
+function lockHover(x:number,y:number){
+ const rect=lock.getBoundingClientRect(),hot=Boolean(cue?.settings.locked&&x>=rect.left-10&&x<=rect.right+10&&y>=rect.top-10&&y<=rect.bottom+10);
+ root.dataset.lockHot=String(hot);
+ if(hot!==lockHot){lockHot=hot;void window.tide.setMiniInteractive(hot);}
+}
+document.addEventListener('mousemove',event=>lockHover(event.clientX,event.clientY));
+document.addEventListener('mouseleave',()=>lockHover(-100,-100));
+range.onpointerdown=()=>seeking=true;range.oninput=()=>{seeking=true;time.value=`${clock(Number(range.value))} / ${clock(Number(range.max))}`;};range.onchange=()=>{void window.tide.seek(Number(range.value));seeking=false;};range.onpointercancel=()=>seeking=false;
+cover.onerror=()=>{if(!cover.src.endsWith('/assets/today-tide.png'))cover.src='./assets/today-tide.png';};
+const canvas=document.querySelector<HTMLCanvasElement>("#mini-points")!;
+function stop(){cancelAnimationFrame(frame);frame=0;last=0;}
+function draw(now:number){frame=0;if(!active||document.hidden||cue?.settings.style!=="lattice")return;const fps=cue.performance==="vivid"?120:30;if(last&&now-last<1000/fps-.5){frame=requestAnimationFrame(draw);return;}last=now;const w=canvas.clientWidth,h=canvas.clientHeight;if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}const g=canvas.getContext('2d');if(!g)return;g.clearRect(0,0,w,h);g.fillStyle='#ece7da';for(let y=14;y<h;y+=20)for(let x=14;x<w;x+=20){g.globalAlpha=.06+.1*(.5+.5*Math.sin(now/1600+x/80+y/60));g.beginPath();g.arc(x,y,.9,0,Math.PI*2);g.fill();}g.globalAlpha=1;if(cue.performance!=="smooth"&&!matchMedia('(prefers-reduced-motion: reduce)').matches)frame=requestAnimationFrame(draw);}
+function syncMotion(){stop();canvas.hidden=cue?.settings.style!=="lattice";if(canvas.hidden){canvas.width=canvas.height=1;}else if(active)frame=requestAnimationFrame(draw);}
+window.tide.onMiniCue(value=>{const oldStyle=cue?.settings.style,oldPerformance=cue?.performance;cue=value;active=value.active;root.dataset.miniStyle=value.settings.style;root.dataset.performance=value.performance;root.dataset.active=String(active);skin.title=`小窗风格：${value.settings.style==="transparent"?"全透明":value.settings.style==="lens"?"透镜":"点阵"}`;pin.setAttribute("aria-pressed",String(value.settings.topmost));lock.setAttribute("aria-pressed",String(value.settings.locked));root.dataset.locked=String(value.settings.locked);if(!value.settings.locked){lockHot=false;root.dataset.lockHot="false";}const state=value.playback,track=state.track;
+ if(title.textContent!==(track?.title??"潮汐 Tide"))title.textContent=track?.title??"潮汐 Tide";if(artist.textContent!==(track?.artist??"选择一首歌曲"))artist.textContent=track?.artist??"选择一首歌曲";const art=normalizeArtworkUrl(track?.cover)??"./assets/today-tide.png";if(artUrl!==art){artUrl=art;cover.src=art;}
+ if(trackId!==(track?.id??"")){trackId=track?.id??"";liked=false;paintLike();const id=trackId;void window.tide.likedIds().then(result=>{if(result.ok&&trackId===id){liked=result.ids.includes(id);paintLike();}});}
+ const playing=state.status==="playing";play.setAttribute("aria-label",playing?"暂停":"播放");setIcon(play,playing?"Pause":"Play",playing?Pause:Play,ICON_SIZE.control);const mode=state.shuffle?Shuffle:state.repeat==="one"?Repeat1:Repeat;setIcon(order,state.shuffle?"Shuffle":state.repeat==="one"?"Repeat1":"Repeat",mode,ICON_SIZE.control);order.title=state.shuffle?"随机":state.repeat==="one"?"单曲循环":state.repeat==="all"?"列表循环":"灵感续播";
+ range.max=String(track?.durationMs??0);if(!seeking)range.value=String(state.positionMs);time.value=`${clock(Number(range.value))} / ${clock(Number(range.max))}`;range.disabled=!track;play.disabled=next.disabled=previous.disabled=like.disabled=!track;
+ const text=value.lyrics.text||track?.title||"潮汐 Tide",following=value.lyrics.next||"";
+ if(lyric.dataset.lines!==text+"\n"+following){lyric.dataset.lines=text+"\n"+following;const first=document.createElement('span'),second=document.createElement('span');first.textContent=text;second.textContent=following;lyric.replaceChildren(first,second);}
+ if(oldStyle!==value.settings.style||oldPerformance!==value.performance)syncMotion();
+});
+window.tide.onRenderActive?.(value=>{active=value;root.dataset.active=String(value);syncMotion();});document.addEventListener('visibilitychange',syncMotion);
+function clock(ms:number){const s=Math.floor(Math.max(0,ms)/1000);return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;}

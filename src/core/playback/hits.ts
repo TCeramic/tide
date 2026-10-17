@@ -19,7 +19,10 @@ export function queueFromHits(
       title: hit.title,
       artist: hit.artist,
       durationMs: hit.durationMs,
+
     };
+    if (hit.albumTitle) track.albumTitle = hit.albumTitle;
+    if (hit.albumId) track.albumId = hit.albumId;
     if (hit.cover && /^https?:\/\//.test(hit.cover)) track.cover = hit.cover;
     tracks.push(track);
   }

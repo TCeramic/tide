@@ -1,3 +1,4 @@
+import { normalizeArtworkUrl } from "../core/artwork";
 import fs from "node:fs";
 import path from "node:path";
 import type { ListenEvent, ListenKind } from "../core/tide-today";
@@ -30,6 +31,7 @@ export class ListenLog {
       title: track.title,
       artist: track.artist,
       durationMs: track.durationMs,
+      cover: track.cover,
       at: Date.now(),
       kind,
     });
@@ -59,5 +61,6 @@ function readEvent(value: unknown): ListenEvent | null {
     durationMs: Math.trunc(record.durationMs),
     at: record.at,
     kind: record.kind,
+    ...(normalizeArtworkUrl(record.cover) ? { cover: normalizeArtworkUrl(record.cover)! } : {}),
   };
 }

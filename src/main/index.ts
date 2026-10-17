@@ -1,4 +1,8 @@
-import { app, BrowserWindow, dialog, globalShortcut, ipcMain } from "electron";
+import { attachMiniPlayer } from "./mini-host";
+import { TidePlaylistStore } from "./tide-playlists";
+import { attachTidePlaylists } from "./tide-playlist-host";
+import { app, BrowserWindow, dialog, Menu, Tray, globalShortcut, ipcMain } from "electron";
+import { TodayStore } from "./today-store";
 import { titleBarChrome, windowBackground } from "../core/titlebar";
 import fs from "node:fs";
 import path from "node:path";
@@ -28,6 +32,7 @@ import { attachSession, loopbackJson } from "./session-host";
 import { attachDeskLyrics } from "./desk-host";
 import { SettingsStore } from "./settings";
 import { loadTideToday } from "./tide-today";
+import { createAiAssistant } from "./ai-assist";
 
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
 if (process.env.TIDE_SOFTWARE_GL === "1") {
@@ -39,6 +44,7 @@ if (process.env.TIDE_SOFTWARE_GL === "1") {
 if (process.env.TIDE_USER_DATA) app.setPath("userData", process.env.TIDE_USER_DATA);
 
 let mainWindow: BrowserWindow | null = null;
+let tray: Tray | null = null;
 let activeBusPort = DEFAULT_BUS_PORT;
 let apiProcess: ApiProcess | null = null;
 let apiPort: number | null = null;
@@ -51,12 +57,16 @@ let quitting = false;
 let runHardware: (source: MediaSource, action: unknown) => void = () => undefined;
 let mediaNotice: string | null = null;
 let closeDesk: () => void = () => undefined;
+let closeMini=()=>{};let restoreMain=()=>{};
 
 function windowIcon(): string {
   return path.join(__dirname, process.platform === "win32" ? "icon.ico" : "icon.png");
 }
 
 const machine = new PlaybackMachine();
+const aiAssistant = createAiAssistant();
+ipcMain.handle("tide:ai-status", () => aiAssistant.status());
+ipcMain.handle("tide:ai-generate", (_event, input: unknown) => aiAssistant.generate(input));
 
 function bindHardwareWindow(win: BrowserWindow): void {
   win.on("app-command", (event, command) => {
@@ -67,8 +77,8 @@ function bindHardwareWindow(win: BrowserWindow): void {
   });
 }
 
-function applyTitleBar(win: BrowserWindow, shell: "lens" | "lattice"): void {
-  const chrome = titleBarChrome(shell);
+function applyTitleBar(win: BrowserWindow, shell: "lens" | "lattice", theme = "tide"): void {
+  const chrome = titleBarChrome(shell, theme);
   try {
     win.setTitleBarOverlay({ color: chrome.color, symbolColor: chrome.symbolColor, height: chrome.height });
   } catch {
@@ -78,36 +88,78 @@ function applyTitleBar(win: BrowserWindow, shell: "lens" | "lattice"): void {
 
 function createWindow(): BrowserWindow {
   const shell = settingsStore?.read().shell ?? "lens";
+  const savedAppearance = settingsStore?.read();
+  const mode = shell === "lens" ? savedAppearance?.lensMode : savedAppearance?.latticeMode;
+  const theme = mode === "dark" ? "dusk" : "tide";
   const win = new BrowserWindow({
     width: 1100,
     height: 720,
     minWidth: 800,
     minHeight: 560,
     show: false,
-    backgroundColor: windowBackground(shell),
+    backgroundColor: shell === "lattice" && mode === "light" ? "#eff0ec" : windowBackground(shell, theme),
     title: "潮汐 Tide",
     icon: windowIcon(),
     autoHideMenuBar: true,
     titleBarStyle: "hidden",
-    titleBarOverlay: titleBarChrome(shell),
+    titleBarOverlay: titleBarChrome(shell, theme),
+    fullscreenable: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
+      backgroundThrottling: false,
     },
   });
 
-  applyTitleBar(win, shell);
+  applyTitleBar(win, shell, theme);
+  ipcMain.removeHandler("tide:fullscreen");
+  ipcMain.removeHandler('tide:theme-frame');
+  ipcMain.handle('tide:theme-frame',async(event)=>{if(event.sender!==win.webContents||win.isDestroyed())return null;const frame=await win.webContents.capturePage();return frame.isEmpty()?null:frame.toDataURL();});
+  ipcMain.handle("tide:fullscreen",(event,value:unknown)=>{if(event.sender!==win.webContents)return false;win.setFullScreen(typeof value==="boolean"?value:!win.isFullScreen());fullscreenState();return win.isFullScreen();});
+  const fullscreenState=()=>win.webContents.send("tide:fullscreen-state",win.isFullScreen());
+  win.on("enter-full-screen",fullscreenState);win.on("leave-full-screen",fullscreenState);
+  win.webContents.on("before-input-event",(event,input)=>{if(input.type!=="keyDown")return;if(input.key==="F11"){event.preventDefault();win.setFullScreen(!win.isFullScreen());fullscreenState();}else if(input.key==="Escape"&&win.isFullScreen()){event.preventDefault();win.setFullScreen(false);fullscreenState();}});
   win.once("ready-to-show", () => win.show());
-  win.on("close", () => {
-    closeDesk();
+  let closePrompt = false;
+  win.on("close", event => {
+    if (quitting) return;
+    event.preventDefault();
+    if (closePrompt) return;
+    closePrompt = true;
+    win.webContents.send(Ipc.closeRequest);
+
   });
+  const restoreFromTray = () => {
+    if (win.isDestroyed()) return;
+    win.setSkipTaskbar(false); win.show(); win.restore(); win.focus();
+    tray?.destroy(); tray = null;
+  };
+  restoreMain=restoreFromTray;
+  ipcMain.removeHandler(Ipc.windowAction);
+  ipcMain.handle(Ipc.windowAction, (event, action: unknown) => {
+    if (event.sender !== win.webContents) return;
+    closePrompt = false;
+    if (action === "quit") { shutdown(); return; }
+    if (action !== "tray") return;
+    if (!tray) {
+      tray = new Tray(windowIcon()); tray.setToolTip("潮汐 Tide");
+      tray.on("click", restoreFromTray); tray.on("double-click", restoreFromTray);
+      tray.setContextMenu(Menu.buildFromTemplate([{ label: "打开 Tide", click: restoreFromTray }, { type: "separator" }, { label: "退出 Tide", click: shutdown }]));
+    }
+    win.setSkipTaskbar(true); win.hide();
+  });
+  const sendActivity = () => { if (!win.isDestroyed()) win.webContents.send(Ipc.renderActive, win.isVisible() && !win.isMinimized()); };
+  win.on("show", () => { if (tray) { win.setSkipTaskbar(false); tray.destroy(); tray = null; } });
+  win.on("minimize", sendActivity); win.on("restore", sendActivity); win.on("show", sendActivity); win.on("hide", sendActivity);
   win.on("closed", () => {
     if (mainWindow === win) mainWindow = null;
   });
   win.webContents.on("did-finish-load", () => {
+    sendActivity();
+    if (closePrompt) win.webContents.send(Ipc.closeRequest);
     win.webContents.send(Ipc.playback, machine.getState());
     const current = settingsStore?.read();
     if (current) win.webContents.send(Ipc.appearance, appearanceOf(current));
@@ -143,6 +195,8 @@ function stopApi(): void {
 
 function appearanceOf(value: Appearance): Appearance {
   return {
+    ...(value.customPalette ? {customPalette: value.customPalette} : {}),
+    lensMode: value.lensMode, latticeMode: value.latticeMode,
     chromeVisible: value.chromeVisible,
     stageLevel: value.stageLevel,
     theme: value.theme,
@@ -163,8 +217,8 @@ function pushAppearance(): void {
   const win = mainWindow;
   if (win && !win.isDestroyed()) {
     win.webContents.send(Ipc.appearance, appearance);
-    applyTitleBar(win, appearance.shell);
-    win.setBackgroundColor(windowBackground(appearance.shell));
+    applyTitleBar(win, appearance.shell, (appearance.shell === "lens" ? appearance.lensMode : appearance.latticeMode) === "light" ? "tide" : "dusk");
+    win.setBackgroundColor(appearance.shell === "lattice" ? appearance.latticeMode === "light" ? "#eff0ec" : "#07080b" : windowBackground("lens", appearance.lensMode === "dark" ? "dusk" : "tide"));
   }
   commandServer?.publish({ type: "appearance", appearance });
 }
@@ -192,6 +246,7 @@ app.whenReady().then(async () => {
 
   const settings = new SettingsStore(path.join(app.getPath("userData"), "settings.json"));
   settingsStore = settings;
+  attachTidePlaylists(new TidePlaylistStore(path.join(app.getPath("userData"),"tide-playlists.json")),()=>apiPort);
   const desk = attachDeskLyrics({
     settings,
     machine,
@@ -202,11 +257,12 @@ app.whenReady().then(async () => {
     },
   });
   closeDesk = desk.close;
+  const mini=attachMiniPlayer({file:path.join(app.getPath("userData"),"mini-player.json"),machine,cue:desk.getCue,performance:()=>settings.read().performance,showMain:()=>restoreMain()});closeMini=mini.close;
   const listenLog = new ListenLog(path.join(app.getPath("userData"), "listen-log.json"));
   machine.setVolume(settings.read().volume);
   const playback = attachPlayback(() => mainWindow, machine, () => apiPort, (volume) => {
     settings.write({ volume });
-  }, listenLog, () => settings.read().quality);
+  }, listenLog, () => settings.read().quality, new TodayStore(path.join(app.getPath("userData"), "tide-today.json")));
   const libraryFile = path.join(app.getPath("userData"), "local-library.json");
   const backdropFile = path.join(app.getPath("userData"), "backdrop");
   ipcMain.handle(Ipc.localList, () => new LocalLibrary(libraryFile).list());
@@ -280,6 +336,7 @@ app.whenReady().then(async () => {
   ipcMain.handle(Ipc.appearanceSet, (_event, patch: unknown) => {
     const parsed = appearancePatchFromArgs(patch);
     if (!parsed || !settingsStore) return appearanceOf(settings.read());
+    if (parsed.shell === "lens") parsed.lattice = false;
     const next = settings.write(parsed);
     pushAppearance();
     return appearanceOf(next);
@@ -493,7 +550,9 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
-  closeDesk();
+  quitting = true;
+  tray?.destroy(); tray = null;
+  closeDesk();closeMini();
   globalShortcut.unregisterAll();
   ipcMain.removeHandler(Ipc.qualityGet);
   ipcMain.removeHandler(Ipc.qualitySet);
