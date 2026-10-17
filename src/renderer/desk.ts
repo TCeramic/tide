@@ -1,9 +1,7 @@
 import { mountDeskContext } from "./desk-context";
 import type { DeskCue } from "../shared/contract";
 
-const unlockTarget=new URLSearchParams(location.search).get("unlock");
-if(unlockTarget){document.documentElement.dataset.unlock="true";const b=document.createElement("button");b.className="unlock-handle";b.textContent="解锁";b.setAttribute("aria-label",unlockTarget==="mini"?"解锁小窗播放器":"解锁桌面歌词");b.onclick=()=>void(unlockTarget==="mini"?window.tide.setMiniPlayer({locked:false}):window.tide.setDeskLyrics({locked:false}));document.body.replaceChildren(b);}
-else if(new URLSearchParams(location.search).get("context")==="true") mountDeskContext(); else mountOverlay();
+if(new URLSearchParams(location.search).get("context")==="true") mountDeskContext(); else mountOverlay();
 function mountOverlay(): void {
 const nextEl = document.querySelector<HTMLElement>("#next")!;
 window.addEventListener("contextmenu",event=>{event.preventDefault();void window.tide.openDeskMenu();});
@@ -35,9 +33,13 @@ function measureLine(): void {
   scroller.style.setProperty("--desk-overflow", `${overflow}px`);
 }
 new ResizeObserver(measureLine).observe(viewport);
-window.tide.getDeskLyrics().then(settings => root.dataset.locked = String(settings.locked));
+window.tide.getDeskLyrics().then(settings => {root.dataset.locked = String(settings.locked);document.querySelector('#desk-lock')!.textContent=settings.locked?'解锁歌词':'锁定歌词';});
 window.tide.onDeskState(settings => root.dataset.locked = String(settings.locked));
-document.querySelector("#desk-lock")?.addEventListener("click", () => void window.tide.setDeskLyrics({ locked: true }));
+const lockButton=document.querySelector<HTMLButtonElement>("#desk-lock")!;
+lockButton.addEventListener("click",()=>void window.tide.setDeskLyrics({locked:root.dataset.locked!=="true"}));
+let lockHot=false;const hoverLock=(x:number,y:number)=>{const r=lockButton.getBoundingClientRect(),hot=root.dataset.locked==="true"&&x>=r.left-10&&x<=r.right+10&&y>=r.top-10&&y<=r.bottom+10;root.dataset.lockHot=String(hot);if(hot!==lockHot){lockHot=hot;void window.tide.setDeskInteractive(hot);}};
+document.addEventListener("mousemove",e=>hoverLock(e.clientX,e.clientY));document.addEventListener("mouseleave",()=>hoverLock(-100,-100));
+window.tide.onDeskState(settings=>{lockButton.textContent=settings.locked?"解锁歌词":"锁定歌词";if(!settings.locked){lockHot=false;root.dataset.lockHot="false";}});
 document.querySelector("#desk-close")?.addEventListener("click", () => void window.tide.setDeskLyrics({ open: false }));
 
 const ink = document.createElement("span");

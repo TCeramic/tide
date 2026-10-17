@@ -9,12 +9,13 @@ const output = path.resolve(process.env.TIDE_UI_OUTPUT || path.join(__dirname,'.
 fs.mkdirSync(output,{recursive:true});
 const mime = {'.html':'text/html','.css':'text/css','.js':'text/javascript','.json':'application/json'};
 let browser;
-const server = http.createServer((req,res)=>{if(req.url==='/fixture.wav'){const wav=Buffer.alloc(44+32000*4);wav.write('RIFF');wav.writeUInt32LE(wav.length-8,4);wav.write('WAVEfmt ',8);wav.writeUInt32LE(16,16);wav.writeUInt16LE(1,20);wav.writeUInt16LE(1,22);wav.writeUInt32LE(16000,24);wav.writeUInt32LE(32000,28);wav.writeUInt16LE(2,32);wav.writeUInt16LE(16,34);wav.write('data',36);wav.writeUInt32LE(wav.length-44,40);res.setHeader('Content-Type','audio/wav');res.end(wav);return;}if(req.url==='/fixture-cover.svg'){res.setHeader('Content-Type','image/svg+xml');res.end('<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><rect width="96" height="96" fill="#d5ee7a"/><circle cx="48" cy="48" r="24" fill="#182018"/></svg>');return;}const file=path.resolve(root,'.'+decodeURIComponent(req.url.split('?')[0]==='/'?'/index.html':req.url.split('?')[0]));if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return;}fs.readFile(file,(e,b)=>{if(e){res.writeHead(404).end();return;}res.setHeader('Content-Type',mime[path.extname(file)]||'application/octet-stream');res.end(b);});});
+const server = http.createServer((req,res)=>{if(req.url==='/fixture.wav'){const wav=Buffer.alloc(44+32000*4);wav.write('RIFF');wav.writeUInt32LE(wav.length-8,4);wav.write('WAVEfmt ',8);wav.writeUInt32LE(16,16);wav.writeUInt16LE(1,20);wav.writeUInt16LE(1,22);wav.writeUInt32LE(16000,24);wav.writeUInt32LE(32000,28);wav.writeUInt16LE(2,32);wav.writeUInt16LE(16,34);wav.write('data',36);wav.writeUInt32LE(wav.length-44,40);for(let i=0;i<32000*2;i++){const t=i/16000;wav.writeInt16LE(Math.round(Math.sin(t*2*Math.PI*100)*(t%.5<.1?.8:0)*32767),44+i*2);}res.setHeader('Content-Type','audio/wav');res.end(wav);return;}if(req.url==='/fixture-cover.svg'){res.setHeader('Content-Type','image/svg+xml');res.end('<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><rect width="96" height="96" fill="#d5ee7a"/><circle cx="48" cy="48" r="24" fill="#182018"/></svg>');return;}const file=path.resolve(root,'.'+decodeURIComponent(req.url.split('?')[0]==='/'?'/index.html':req.url.split('?')[0]));if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return;}fs.readFile(file,(e,b)=>{if(e){res.writeHead(404).end();return;}res.setHeader('Content-Type',mime[path.extname(file)]||'application/octet-stream');res.end(b);});});
 (async()=>{
  await new Promise(r=>server.listen(4179,'127.0.0.1',r));
  browser=await chromium.launch({channel:process.env.TIDE_BROWSER_CHANNEL || (process.platform === 'win32' ? 'msedge' : undefined),headless:true,args:['--enable-webgl','--ignore-gpu-blocklist','--autoplay-policy=no-user-gesture-required']});
  const page=await browser.newPage({viewport:{width:1440,height:960}});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ page.on('console',message=>{if(message.type()==='error'&&/shader|program|WebGL/i.test(message.text()))console.error(message.text());});
  await page.addInitScript(()=>{
   if(window.top !== window) return;
   localStorage.setItem('tide.risk.ack','1');
@@ -53,6 +54,26 @@ setAppearance:async patch=>{Object.assign(appearance,patch);for(const f of liste
  await page.goto('http://127.0.0.1:4179/');await page.waitForTimeout(1800);
  assert.equal(await page.locator('.home-card').count(),5);assert.equal(await page.locator('.preset-card').count(),0);
  await page.evaluate(()=>window.tide.setAppearance({shell:'lattice',background:'paper',performance:'balanced'}));await page.waitForTimeout(1000);
+ assert.equal(await page.locator('.native-paper-source').getAttribute('data-ready'),'true',await page.locator('.native-paper-source').getAttribute('data-error'));
+ await page.locator('.corner-settings').evaluate(el=>el.click());
+ await page.getByRole('button',{name:'主题配色',exact:true}).click();
+ const previewBefore=await page.locator('.palette-preview').evaluate(el=>el.style.background);
+ await page.getByLabel('背景色 1',{exact:true}).evaluate(el=>{el.value='#ff1166';el.dispatchEvent(new Event('input',{bubbles:true}));});
+ assert.notEqual(await page.locator('.palette-preview').evaluate(el=>el.style.background),previewBefore);
+ assert.notEqual(await page.locator('html').getAttribute('data-custom-colors'),'true');
+ await page.waitForTimeout(250);await page.screenshot({path:path.join(output,'palette-live-preview.png')});
+ await page.getByRole('button',{name:'应用配色',exact:true}).click();
+ await page.waitForFunction(()=>document.documentElement.dataset.customColors==='true');
+ await page.locator('.palette-open').evaluate(el=>el.click());await page.getByRole('button',{name:'恢复自动配色',exact:true}).click();
+ await page.waitForFunction(()=>document.documentElement.dataset.customColors==='false');
+ await page.evaluate(()=>window.tide.setAppearance({background:'pixel-cover'}));await page.waitForTimeout(1000);
+ assert.equal(await page.locator('.native-paper-source').getAttribute('data-ready'),'true');
+ await page.screenshot({path:path.join(output,'pixel-cover-background.png')});
+ await page.evaluate(()=>window.tide.setAppearance({background:'paper'}));
+ await page.evaluate(()=>window.fixtureMedia({trackId:'1',url:'http://127.0.0.1:4179/fixture.wav'}));
+ const beats=[];for(let i=0;i<22;i++){await page.waitForTimeout(90);beats.push(Number(await page.locator('.native-paper-source').getAttribute('data-beat')));}
+ assert.ok(Math.max(...beats)>.1,'real analyser must react to synthetic bass bursts: '+JSON.stringify(beats));
+ await page.evaluate(()=>window.tide.pause());
  const home=await page.locator('.home-card').evaluateAll(els=>els.map(el=>{const r=el.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height};}));assert.ok(home[0].x<home[1].x&&home[0].h>home[1].h);
  await page.screenshot({path:path.join(output,'home-redesign.png')});
  await page.locator('.home-card').filter({has:page.locator('h2',{hasText:'歌单'})}).click();await page.waitForFunction(()=>document.querySelectorAll('.playlist-card').length===3);
@@ -69,8 +90,11 @@ setAppearance:async patch=>{Object.assign(appearance,patch);for(const f of liste
  await page.mouse.move(700,400);await page.waitForFunction(()=>document.documentElement.dataset.dockVisible==='false');await page.waitForTimeout(600);assert.ok((await page.locator('.dock-shell').boundingBox()).y>950);
  await page.mouse.move(720,958);await page.waitForFunction(()=>document.documentElement.dataset.dockVisible==='true');await page.locator('.dock-cover').click();await page.waitForTimeout(500);assert.equal(await page.locator('html').getAttribute('data-view'),'playing');assert.equal(await page.locator('#lyrics .ai-assist').count(),0);assert.equal(await page.locator('.topbar').evaluate(el=>getComputedStyle(el).opacity),'0');
  assert.equal(await page.locator('.lyrics-art').evaluate(el=>getComputedStyle(el).scrollbarWidth),'none');
+ for(let i=0;i<10&&await page.locator('.native-set-caption').innerText()!=='POINT SETS';i++)await page.getByRole('button',{name:'下一点集',exact:true}).evaluate(el=>el.click());
+ await page.waitForTimeout(300);
+ const aligned=await page.evaluate(()=>{const a=document.querySelector('.native-point-hero').getBoundingClientRect(),b=document.querySelector('.lyrics-cover').getBoundingClientRect();return {word:a.x+a.width/2,cover:b.x+b.width/2,width:a.width};});assert.ok(aligned.width>0&&Math.abs(aligned.word-aligned.cover)<2,JSON.stringify(aligned));
  await page.locator('.lyrics-reading').hover();await page.getByRole('button',{name:'歌词选项',exact:true}).click();assert.equal(await page.getByRole('button',{name:'双语',exact:true}).isVisible(),true);
- await page.getByRole('button',{name:'搜索当前歌手',exact:true}).click();await page.waitForFunction(()=>document.documentElement.dataset.view==='home');assert.equal(await page.evaluate(()=>window.fixtureSearchCalls.at(-1).type),100);
+ await page.locator('.lyrics-artist').first().click();await page.waitForFunction(()=>document.documentElement.dataset.view==='home');assert.equal(await page.evaluate(()=>window.fixtureSearchCalls.at(-1).type),100);
  await page.getByRole('button',{name:'主页',exact:true}).click();
  await page.evaluate(()=>window.fixtureSetPlayback({queue:Array.from({length:20},(_,i)=>({id:String(1000+i),title:'树歌曲 '+i,artist:'树歌手 '+i,artistId:String(2000+i),albumTitle:'树专辑 '+i,albumId:String(3000+i),durationMs:200000,playable:true})),index:0}));
  await page.locator('.home-card').filter({has:page.locator('h2',{hasText:'音乐脉络'})}).click();await page.waitForFunction(()=>document.querySelector('.proof-canvas')?.dataset.nodes>1);await page.waitForTimeout(1500);

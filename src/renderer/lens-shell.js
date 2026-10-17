@@ -4,17 +4,30 @@ import { createGlassSystem } from "./vendor/design-systems/lens/lab/design-syste
 /** One upstream optical stage. Scrollable portals and text stay in ordinary DOM. */
 export function mountLensShell(root, portals, artwork) {
   const surfaces = new Set();
-  const selector = ".home-card,.browse-sheet,.transport,.topbar,.risk";
+  const selector = ".home-card,.browse-sheet,.search-page,.transport,.topbar,.risk,.corner-panel,.queue-col,.proof-host,.playlist-editor,.window-close-menu,.track-context-menu";
   let dead = false, frame = 0, appearance;
   const system = createGlassSystem(root, { material:"thick", scene:"aurora", artwork, motion:false, audio:{},
     onFallback: () => { root.dataset.nativeFallback = "lens"; },
   });
   let renderTimer = 0, lastPaint = 0, interactionUntil = 0;
   const renderer = system.renderer;
+  // Reuse the optical scene bitmap while the background moves; upstream
+  // setScene otherwise allocates a full-size canvas for every copied frame.
+  const artCanvas=document.createElement('canvas');let uploadedWidth=0,uploadedHeight=0,uploadedTexture=null;
   const originalRender = renderer?.render.bind(renderer);
   const interactive = () => { interactionUntil = performance.now() + 700; renderer?.invalidate(); };
   for (const event of ["pointermove", "pointerdown", "wheel", "focusin"]) root.addEventListener(event, interactive, { passive: true });
   if (renderer) {
+    if(artwork)renderer.setScene=name=>{
+      renderer.settings.scene=name;
+      if(dead||renderer.suspended||!renderer.gl||renderer.gl.isContextLost?.())return;
+      const w=renderer.width,h=renderer.height;if(artCanvas.width!==w||artCanvas.height!==h){artCanvas.width=w;artCanvas.height=h;}
+      const ctx=artCanvas.getContext('2d');ctx.clearRect(0,0,w,h);artwork(ctx,{width:w,height:h,dpr:renderer.dpr,scene:name});
+      const gl=renderer.gl;gl.bindTexture(gl.TEXTURE_2D,renderer.textures.art);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);
+      if(uploadedWidth===w&&uploadedHeight===h&&uploadedTexture===renderer.textures.art)gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,gl.RGBA,gl.UNSIGNED_BYTE,artCanvas);
+      else{gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,artCanvas);uploadedWidth=w;uploadedHeight=h;uploadedTexture=renderer.textures.art;}
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);renderer.invalidate();
+    };
     // Filter visual-only lyric mutations out of the glass geometry observer.
     renderer.mutationObserver.disconnect();
     renderer.mutationObserver = new MutationObserver(records => {
@@ -82,7 +95,7 @@ export function mountLensShell(root, portals, artwork) {
     sync(next) {
       appearance = next; system.renderer?.resize();
       system.setScene((next.lensMode ?? (next.theme === "dusk" ? "dark" : "light")) === "dark" ? "ocean" : "aurora");
-      system.renderer?.set({motion:next.motion > 0});
+      system.renderer?.set({motion:next.motion > 0,...(root.classList.contains('dock-shell')?{brightness:1.12}:{})});
       if (system.renderer) system.renderer.canvas.style.opacity = String(next.stageLevel);
       system.jelly.setIntensity(next.motion > 0 ? next.motion * 0.7 : 0);
       portals.dataset.scene = (next.lensMode ?? (next.theme === "dusk" ? "dark" : "light")) === "dark" ? "ocean" : "aurora";
@@ -93,7 +106,7 @@ export function mountLensShell(root, portals, artwork) {
       root.classList.remove("lg-stage","fallback","webgl-ready");
       delete portals.dataset.lens; delete portals.dataset.scene;
       for (const el of surfaces) { el.classList.remove("lg-surface"); delete el.dataset.glass; }
-      surfaces.clear();
+      surfaces.clear();artCanvas.width=artCanvas.height=1;
     },
   };
 }

@@ -13,10 +13,14 @@ function listen<T>(channel: string, listener: (payload: T) => void): () => void 
 }
 
 const tide: TideBridge = {
+  setFullscreen:value=>ipcRenderer.invoke("tide:fullscreen",value),
+  onFullscreen:listener=>listen<boolean>("tide:fullscreen-state",listener),
   onLikeState: listener => listen<{id:string;liked:boolean}>("tide:like-state",listener),
   getMiniPlayer:()=>ipcRenderer.invoke("tide:mini-get"),
   setMiniPlayer:patch=>ipcRenderer.invoke("tide:mini-set",patch),
   miniShowMain:()=>ipcRenderer.invoke("tide:mini-main"),
+  setMiniInteractive:interactive=>ipcRenderer.invoke("tide:mini-interactive",interactive),
+  setDeskInteractive:interactive=>ipcRenderer.invoke("tide:desk-interactive",interactive),
   onMiniCue:listener=>listen("tide:mini-cue",listener),
   centerDeskLyrics:()=>ipcRenderer.invoke(Ipc.deskCenter),
   tidePlaylists:()=>ipcRenderer.invoke("tide:lists"),

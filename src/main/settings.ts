@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { customPaletteFromUnknown } from "../core/custom-palette";
 import { isAudioLevel, type AudioLevel } from "../core/audio-level";
 import { deskSettingsFromUnknown, type DeskLyricsSettings } from "../core/desk-lyrics";
 import { mediaShortcutsOrDefault, type MediaShortcutMap } from "../core/media-keys";
@@ -62,7 +63,9 @@ export function settingsFromUnknown(value: unknown): TideSettings {
   const mediaShortcuts = mediaShortcutsOrDefault(record.mediaShortcuts);
   const captureMediaKeys = typeof record.captureMediaKeys === "boolean" ? record.captureMediaKeys : true;
   const deskLyrics = deskSettingsFromUnknown(record.deskLyrics);
+  const customPalette = customPaletteFromUnknown(record.customPalette);
   return {
+    ...(customPalette ? { customPalette } : {}),
     lensMode: record.lensMode === "dark" ? "dark" : record.lensMode === "light" ? "light" : theme === "dusk" ? "dark" : "light",
     latticeMode: record.latticeMode === "light" ? "light" : "dark",
     volume,

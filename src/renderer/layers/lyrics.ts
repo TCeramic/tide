@@ -36,7 +36,8 @@ export function mountLyrics(root: HTMLElement): {
   const artCover = document.createElement("button"); artCover.type = "button"; artCover.className = "lyrics-cover";
   artCover.setAttribute("aria-label", "返回上一页"); artCover.title = "返回上一页";
   artCover.addEventListener("click", toggleNowPlaying); paintCover(artCover, undefined);
-  const artist = document.createElement("button");artist.type="button"; artist.className = "lyrics-artist";artist.setAttribute("aria-label","搜索当前歌手");artist.addEventListener("click",()=>{if(artist.textContent)window.dispatchEvent(new CustomEvent("tide:artist-search",{detail:artist.textContent}));});
+  const artist=document.createElement("div");artist.className="lyrics-artists";
+  const setArtists=(value:string)=>{if(artist.dataset.artists===value)return;artist.dataset.artists=value;artist.replaceChildren();for(const name of [...new Set(value.split(/\s+\/\s+|、/).map(v=>v.trim()).filter(Boolean))]){const link=document.createElement("button");link.type="button";link.className="lyrics-artist";link.textContent=name;link.setAttribute("aria-label",`搜索歌手 ${name}`);link.onclick=()=>window.dispatchEvent(new CustomEvent("tide:artist-search",{detail:name}));artist.append(link);}};
   const sourceNote = document.createElement("p"); sourceNote.className = "lyrics-source";
   const reading = document.createElement("div"); reading.className = "lyrics-reading";
 
@@ -70,7 +71,7 @@ export function mountLyrics(root: HTMLElement): {
   list.addEventListener("touchstart", suspendFollow, { passive: true });
   list.addEventListener("keydown", event => { if (["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End"].includes(event.key)) suspendFollow(); });
 
-  art.append(artCover, kicker, title, artist, sourceNote);
+  art.append(artCover, kicker, title, artist);
   const options=iconButton("歌词选项","MoreHorizontal",MoreHorizontal,ICON_SIZE.control);options.classList.add("lyric-options-trigger");options.setAttribute("aria-expanded","false");
   const optionsPanel=document.createElement("div");optionsPanel.className="lyric-options-panel";optionsPanel.hidden=true;optionsPanel.append(tools,offsetMenu);
   const showOptions=(open:boolean)=>{optionsPanel.hidden=!open;options.setAttribute("aria-expanded",String(open));};options.addEventListener("click",()=>{showOptions(optionsPanel.hidden);options.blur();});optionsPanel.addEventListener("pointerleave",()=>showOptions(false));
@@ -312,7 +313,7 @@ export function mountLyrics(root: HTMLElement): {
 
   const choose = (next: LyricView) => {
     view = next;
-    renderLines();
+    renderLines();showOptions(false);
   };
 
   both.addEventListener("click", () => choose("both"));
@@ -339,7 +340,7 @@ export function mountLyrics(root: HTMLElement): {
     const id = track?.id ?? null;
     if (id === shownId) {
       if (track) {
-        if (title.textContent !== track.title) title.textContent = track.title; if (artist.textContent !== track.artist) artist.textContent = track.artist;
+        if (title.textContent !== track.title) title.textContent = track.title; setArtists(track.artist);
         if (artCover.dataset.cover !== (track.cover ?? "")) { paintCover(artCover, track.cover); artCover.dataset.cover = track.cover ?? ""; }
       }
       return;
@@ -352,14 +353,14 @@ export function mountLyrics(root: HTMLElement): {
     list.replaceChildren();
     if (!track) {
       setAiTrack(null);title.textContent = "歌词层";
-      artist.textContent = sourceNote.textContent = "";
+      setArtists("");sourceNote.textContent="";
       paintCover(artCover, undefined); artCover.dataset.cover = "";
       publishDesk();
       renderLines();
       return;
     }
     setAiTrack(track);title.textContent = track.title;
-    artist.textContent = track.artist;
+    setArtists(track.artist);
     paintCover(artCover, track.cover);
     artCover.dataset.cover = track.cover ?? "";
     sourceNote.textContent = "正在获取歌词";

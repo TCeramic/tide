@@ -1,10 +1,12 @@
 import type { MediaCue, PlaybackBusEvent } from "../shared/contract";
 import { bindAudioClock } from "./audio-clock";
+import { attachAudioReactivity } from "./audio-reactivity";
 
 /** Hidden audio element. The main process resolves the URL; this element plays it. */
 export function mountPlayer(): () => void {
   const audio = document.createElement("audio");
   audio.preload = "auto";
+  audio.crossOrigin = "anonymous";
   audio.setAttribute("aria-hidden", "true");
   document.body.append(audio);
 
@@ -12,6 +14,7 @@ export function mountPlayer(): () => void {
   let activeUrl: string | null = null;
   let pendingSeek: number | null = null;
   const stopClock = bindAudioClock(audio, () => loadedId);
+  const stopReactivity = attachAudioReactivity(audio);
 
   const stopAudio = () => {
     loadedId = null;
@@ -107,6 +110,7 @@ export function mountPlayer(): () => void {
     stopMedia();
     stopEvents();
     stopClock();
+    stopReactivity();
     stopAudio();
     audio.remove();
   };

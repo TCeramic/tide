@@ -28,6 +28,7 @@ import { createNativeSearch } from "../native-shell.js";
 import { mountDeskForm } from "./desk-form";
 import { mountHome } from "./home";
 import { mountPresetForm } from "./preset-form";
+import { mountPaletteMenu } from "./palette-menu";
 import { applyLike, isLiked, onLiked, setLikedIds } from "../liked";
 import { fillTrackList } from "../track-row";
 import { mountProof } from "./proof-view";
@@ -289,9 +290,10 @@ export function mountLibrary(root: HTMLElement): {
   });
   const deskForm = mountDeskForm();
   const presets = mountPresetForm();
+  const paletteMenu = mountPaletteMenu();
   const aiAssist=mountAiAssist(aiContext,aiCover,result=>window.dispatchEvent(new CustomEvent("tide:segments",{detail:result})));
   const miniOpen=button("打开小窗播放器");miniOpen.onclick=()=>void window.tide.setMiniPlayer({open:true});
-  settingsPanel.append(settingsSummary,miniOpen, riskNotice(), presets.element,aiAssist.element, latticeRow, qualityLabel, keyPanel, deskForm.element, bus);
+  settingsPanel.append(settingsSummary,miniOpen, riskNotice(), presets.element,paletteMenu.button,aiAssist.element, latticeRow, qualityLabel, keyPanel, deskForm.element, bus);
 
   const topbar = document.createElement("div");
   topbar.className = "topbar";
@@ -311,7 +313,7 @@ export function mountLibrary(root: HTMLElement): {
   const queueButton = iconButton("播放队列", "ListMusic", ListMusic, ICON_SIZE.control);
   queueButton.classList.add("corner-btn", "corner-queue");
   queueButton.setAttribute("aria-expanded", "false");
-  queuePeek.append(queueButton);
+  queuePeek.tabIndex=0;queuePeek.setAttribute("aria-label","显示播放队列");
   let queueTimer: ReturnType<typeof setTimeout> | undefined;
   const showQueue = (show: boolean) => {
     clearTimeout(queueTimer);
@@ -990,6 +992,7 @@ export function mountLibrary(root: HTMLElement): {
       latticeBox.checked = appearance.shell === "lattice" && appearance.lattice;
       latticeBox.disabled = appearance.shell === "lens";
       presets.sync(appearance);
+      paletteMenu.sync(appearance);
     },
     showHome() {
       showHomeCards();
@@ -1031,6 +1034,7 @@ export function mountLibrary(root: HTMLElement): {
       }
     },
     destroy() {
+      paletteMenu.destroy();
       window.removeEventListener("tide:artist-search",artistSearch);aiAssist.destroy();disposed = true;
       clearTimeout(queueTimer);
       stopPoll();

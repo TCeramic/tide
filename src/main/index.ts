@@ -103,6 +103,7 @@ function createWindow(): BrowserWindow {
     autoHideMenuBar: true,
     titleBarStyle: "hidden",
     titleBarOverlay: titleBarChrome(shell, theme),
+    fullscreenable: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -114,6 +115,11 @@ function createWindow(): BrowserWindow {
   });
 
   applyTitleBar(win, shell, theme);
+  ipcMain.removeHandler("tide:fullscreen");
+  ipcMain.handle("tide:fullscreen",(event,value:unknown)=>{if(event.sender!==win.webContents)return false;win.setFullScreen(typeof value==="boolean"?value:!win.isFullScreen());fullscreenState();return win.isFullScreen();});
+  const fullscreenState=()=>win.webContents.send("tide:fullscreen-state",win.isFullScreen());
+  win.on("enter-full-screen",fullscreenState);win.on("leave-full-screen",fullscreenState);
+  win.webContents.on("before-input-event",(event,input)=>{if(input.type!=="keyDown")return;if(input.key==="F11"){event.preventDefault();win.setFullScreen(!win.isFullScreen());fullscreenState();}else if(input.key==="Escape"&&win.isFullScreen()){event.preventDefault();win.setFullScreen(false);fullscreenState();}});
   win.once("ready-to-show", () => win.show());
   let closePrompt = false;
   win.on("close", event => {
@@ -187,6 +193,7 @@ function stopApi(): void {
 
 function appearanceOf(value: Appearance): Appearance {
   return {
+    ...(value.customPalette ? {customPalette: value.customPalette} : {}),
     lensMode: value.lensMode, latticeMode: value.latticeMode,
     chromeVisible: value.chromeVisible,
     stageLevel: value.stageLevel,

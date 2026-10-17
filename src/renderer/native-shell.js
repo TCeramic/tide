@@ -121,21 +121,21 @@ export function mountNativeShell(root) {
   document.body.append(popupLayer);
   for (const popup of root.querySelectorAll(".corner-panel")) popupLayer.append(popup);
   const paper = mountPaperBackground(root, () => {
-    if (appearance?.background === "paper") glass?.invalidateScene();
+    if (["paper","pixel-cover"].includes(appearance?.background)) {glass?.invalidateScene();dockGlass?.invalidateScene();}
   });
   let dockGlass=null;const dockRoot=root.querySelector('.dock-shell'),dockPortals=document.createElement('div');
   const syncDock=()=>{const visible=appearance?.shell==='lattice'&&document.documentElement.dataset.dockVisible==='true'&&isRenderingActive();
-    if(visible&&dockRoot){dockGlass ||= mountLensShell(dockRoot,dockPortals,paintPlayerBackground);dockGlass.sync({...appearance,lensMode:appearance.latticeMode});}
+    if(visible&&dockRoot){dockGlass ||= mountLensShell(dockRoot,dockPortals,paintDockBackground);dockGlass.sync({...appearance,lensMode:appearance.latticeMode});}
     else{dockGlass?.destroy();dockGlass=null;}
   };
   const dockWatch=new MutationObserver(syncDock);dockWatch.observe(document.documentElement,{attributes:true,attributeFilter:['data-dock-visible','data-render-active']});
   function stopLens() { glass?.destroy(); glass = null; }
   function startLens() {
-    glass ||= mountLensShell(root, popupLayer, paintPlayerBackground);
+    glass ||= mountLensShell(document.body, popupLayer, paintPlayerBackground);
   }
   let image = null, imageUrl = "";
   function paintPlayerBackground(ctx, info) {
-    if (appearance.background === "paper" && paper.canvas?.width) {
+    if (["paper","pixel-cover"].includes(appearance.background) && paper.canvas?.width) {
       ctx.drawImage(paper.canvas, 0, 0, info.width, info.height);
     } else if (appearance.background === "image" && image?.complete && image.naturalWidth > 0) {
       const scale = Math.max(info.width / image.naturalWidth, info.height / image.naturalHeight);
@@ -145,6 +145,10 @@ export function mountNativeShell(root) {
       ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--cover-tint").trim() || "#193f64";
       ctx.fillRect(0, 0, info.width, info.height);
     } else paintLensBackground(ctx, info);
+  }
+  function paintDockBackground(ctx,info){
+    if(['paper','pixel-cover'].includes(appearance.background)&&paper.canvas?.width){const box=dockRoot.getBoundingClientRect(),host=root.getBoundingClientRect(),sx=paper.canvas.width/host.width,sy=paper.canvas.height/host.height;ctx.drawImage(paper.canvas,(box.left-host.left)*sx,(box.top-host.top)*sy,box.width*sx,box.height*sy,0,0,info.width,info.height);}
+    else paintPlayerBackground(ctx,info);
   }
   function sync(next) {
     if (destroyed) return;
@@ -216,6 +220,12 @@ function mountPointField(root, tier = "balanced") {
   root.prepend(canvas);
   let renderer, field, frame = 0, paused = false, active = true, dead = false, last = 0, time = 0, setIndex = -1;
   let renderTimer = 0, lastPaint = 0, interactionUntil = 0;
+  let currentAppearance=null,targetInk=null,targetHot=null;
+  const contrastWorld=()=>{if(!currentAppearance)return;const light=currentAppearance.latticeMode==="light",base=light?WORLDS.paper:WORLDS.night;let mean=[.5,.5,.5],accent='#66baff';try{const colors=JSON.parse(document.documentElement.style.getPropertyValue('--generated-colors'));if(colors?.[0])mean=colors[0].slice(1).match(/../g).map(v=>parseInt(v,16)/255);accent=document.documentElement.style.getPropertyValue('--cover-tint').trim()||accent;}catch{}
+    const bg=mean.map(v=>v*(light?.65:.52)+(light?.32:.015)),linear=bg.map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4),lum=linear[0]*.2126+linear[1]*.7152+linear[2]*.0722;
+    const pale=(1.05/(lum+.05))>((lum+.05)/.065),ink=document.documentElement.dataset.customColors==='true'?getComputedStyle(document.documentElement).getPropertyValue('--custom-points').trim():(pale?'#eef6ff':'#152c42');const rgb=accent.slice(1).match(/../g)?.map(v=>parseInt(v,16)/255)??[.4,.7,1],hot='#'+rgb.map(v=>Math.round((pale?v*.25+.75:v*.45)*255).toString(16).padStart(2,'0')).join('');
+    const oldInk=field.du.uInk.value.clone(),oldHot=field.du.uHot.value.clone();field.setWorld({...base,ink,hot,dotGain:Math.max(1.1,base.dotGain)});targetInk=new THREE.Color(ink);targetHot=new THREE.Color(hot);field.du.uInk.value.copy(oldInk);field.du.uHot.value.copy(oldHot);canvas.dataset.pointInk=ink;
+  };
   const targetFps = tier === "vivid" ? 120 : tier === "smooth" ? 20 : 30;
   const abort = new AbortController();
   const signal = abort.signal;
@@ -250,15 +260,20 @@ function mountPointField(root, tier = "balanced") {
   const next = document.createElement("button"); next.type = "button"; next.className = "lx-btn lx-btn--ghost"; next.textContent = "下一点集";
   badge.append(counter, caption, next); root.append(badge);
   const number = mountDotText(counter, { pitch: 3 });
+  window.addEventListener("tide:palette",()=>{contrastWorld();wake();},{signal});
   // A reserved, empty layout slot for the actual upstream GPU word. Business
   // panels sit below this rectangle; no duplicate text is painted over it.
   const hero = document.createElement("div");
   hero.className = "native-point-hero";
   hero.setAttribute("role", "img"); hero.setAttribute("aria-label", "TIDE 点阵展示区");
   root.append(hero);
+  const alignHero=()=>{const cover=document.querySelector(document.documentElement.dataset.view==="playing"?".lyrics-cover":".home-cover"),box=cover?.getBoundingClientRect();if(box&&box.width>0){const width=Math.min(300,box.width),origin=root.getBoundingClientRect();hero.style.width=width+"px";hero.style.left=(box.left-origin.left+(box.width-width)/2)+"px";}};
+  let layoutFrame=0;
+  const layoutChange=new MutationObserver(()=>{cancelAnimationFrame(layoutFrame);layoutFrame=requestAnimationFrame(()=>{layoutFrame=0;if(dead)return;alignHero();if(setIndex===0)showSet(0);});});layoutChange.observe(document.documentElement,{attributes:true,attributeFilter:["data-view"]});
+  const coverResize=new ResizeObserver(()=>{if(dead)return;alignHero();if(setIndex===0)showSet(0);});for(const el of document.querySelectorAll('.lyrics-cover,.home-cover'))coverResize.observe(el);
   const formations = [
     { caption: "POINT SETS", build: lattice => {
-      const map = sets.matrixText("TIDE", 1);
+      alignHero();const map = sets.matrixText("TIDE", 1);
       const data = lattice.lit([{ map, col: 0, row: 0 }], { lift: 0, swarm: 0.24 });
       const box = hero.getBoundingClientRect(), host = root.getBoundingClientRect();
       const pitch = Math.min(12, (box.width - 24) / map.w, (box.height - 24) / map.h);
@@ -310,6 +325,7 @@ function mountPointField(root, tier = "balanced") {
     field.du.uLitAlpha.value = field.alphaTarget;
   }
   function resize() {
+    alignHero();
     stage.w = Math.max(2, root.clientWidth); stage.h = Math.max(2, root.clientHeight);
     stage.mobile = stage.w <= 760;
     camera.aspect = stage.w / stage.h; camera.updateProjectionMatrix();
@@ -348,6 +364,7 @@ function mountPointField(root, tier = "balanced") {
     lastPaint = now;
     const dt = last ? Math.min(0.05, (now - last) / 1000) : 1 / 60; last = now;
     time += paused ? 0 : dt;
+    if(targetInk){field.du.uInk.value.lerp(targetInk,1-Math.exp(-dt*7));field.du.uHot.value.lerp(targetHot,1-Math.exp(-dt*7));}
     updateRay(); field.onPointerMove(stage); field.update(paused ? 0 : dt, time, stage); renderer.render(scene, camera);
     if (!paused) wake();
   }
@@ -368,16 +385,17 @@ function mountPointField(root, tier = "balanced") {
       else wake();
     },
     sync(appearance) {
+      currentAppearance=appearance;
       paused = appearance.performance === "smooth" || appearance.motion === 0 || matchMedia("(prefers-reduced-motion: reduce)").matches;
       stage.dpr = appearance.performance === "vivid" ? Math.min(2, devicePixelRatio || 1) : appearance.performance === "smooth" ? 1 : Math.min(1.5, devicePixelRatio || 1);
       const world = appearance.latticeMode === "light" ? WORLDS.paper : WORLDS.night;
-      field.setWorld(world);
-      scene.background = appearance.shell === "lens" || appearance.background === "paper" ? null : new THREE.Color(world.bg);
+      contrastWorld();
+      scene.background = appearance.shell === "lens" || ["paper","pixel-cover"].includes(appearance.background) ? null : new THREE.Color(world.bg);
       canvas.style.opacity = String(appearance.stageLevel * (appearance.shell === "lens" ? 0.3 : 1));
       resize(); wake();
     },
     destroy() {
-      dead = true; abort.abort(); resizeObserver.disconnect(); clearTimeout(renderTimer); cancelAnimationFrame(frame);
+      dead = true; abort.abort(); resizeObserver.disconnect();layoutChange.disconnect();coverResize.disconnect();cancelAnimationFrame(layoutFrame); clearTimeout(renderTimer); cancelAnimationFrame(frame);
       field.gpu.dispose(); field.tSeed.dispose(); field.tTarget.dispose(); field.tPrev.dispose();
       field.points.geometry.dispose(); field.drawMat.dispose(); field.shadow.material.dispose();
       renderer.dispose(); renderer.forceContextLoss(); canvas.remove(); badge.remove(); hero.remove();

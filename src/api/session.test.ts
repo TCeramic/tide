@@ -259,7 +259,7 @@ describe("session routes", { concurrency: 1 }, () => {
   it("returns a song url or a clear refusal", async () => {
     const ok = await call(port, "GET", "/song/url?id=1");
     assert.equal(ok.status, 200);
-    assert.equal(ok.json.url, "http://music.126.net/a.mp3");
+    assert.match(ok.json.url!, /^http:\/\/127\.0\.0\.1:\d+\/media\/[\da-f-]+$/);
     assert.equal(ok.json.signedOut, false);
     assert.equal(ok.json.level, "standard");
     assert.equal(ok.json.requested, "standard");

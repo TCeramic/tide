@@ -114,6 +114,9 @@ export function mountProof(host: HTMLElement, onSong: (id: string, name: string)
         project(v: THREE.Vector3) { const p = v.clone().project(camera); return { x: (p.x * .5 + .5) * width, y: (-p.y * .5 + .5) * height, visible: p.z < 1 }; } };
       const projectedLabels = new Map<string, HTMLButtonElement>();
       const labelWidths = new Map<string, number>();
+      let cameraY=1,cameraZ=3.5,goalY=1,goalZ=3.5;
+      let projected: Array<{x:number;y:number;bloomed:boolean;visible:boolean}>=[];
+      const fitTree=()=>{const rows=tree.current?.nodes??[];if(!rows.length)return;const min=Math.min(...rows.map(n=>n.pos.y)),max=Math.max(...rows.map(n=>n.pos.y)),radius=Math.max(...rows.map(n=>Math.hypot(n.pos.x,n.pos.z)))+.3;goalY=(min+max)/2;goalZ=Math.max(3.5,((max-min)/2+.4)/Math.tan(21*Math.PI/180),radius/(Math.tan(21*Math.PI/180)*Math.max(.4,width/Math.max(1,height))))*1.12;};
       let pending:{records:LatticeNode[];started:number;keep:Set<string>}|null=null;
       const motion=()=>document.documentElement.dataset.performance!=="smooth"&&!matchMedia("(prefers-reduced-motion: reduce)").matches;
       const commitGraph=(rows:LatticeNode[])=>{
@@ -121,12 +124,14 @@ export function mountProof(host: HTMLElement, onSong: (id: string, name: string)
         for(const node of rows){const label=button(node.name,()=>navigate(node.id));label.classList.add("proof-label");label.title=`${kinds[node.kind]} · ${node.name}`;
           label.style.opacity=path.length>1&&!path.includes(node.id)&&!node.id.startsWith(path.at(-1)!+'/')?'.3':'1';labels.append(label);projectedLabels.set(node.id,label);}
         canvas.dataset.nodes=String(rows.length);canvas.dataset.root=rows[0].id;
+        fitTree();
       };
       refreshGraph=rows=>{const keep=new Set(rows.map(n=>n.id));if(motion()&&tree.current?.nodes.some(n=>!keep.has(n.tid)))pending={records:rows,started:performance.now(),keep};else{pending=null;commitGraph(rows);}};
       commitGraph(graph);
       tree.addEventListener("frame", event => {
         const data = (event as CustomEvent<{ tree: { nodes: Array<{ tid: string }> }; proj: Array<{ x: number; y: number; bloomed: boolean; visible: boolean }> } | null>).detail;
         if (!data) return;
+        projected=data.proj;
         const placed: Array<{ x: number; y: number; w: number }> = [];
         data.tree.nodes.map((node, i) => ({ node, p: data.proj[i] })).sort((a, b) => a.p.y - b.p.y || a.p.x - b.p.x).forEach(({ node, p }) => {
           const label = projectedLabels.get(node.tid); if (!label) return;
@@ -151,7 +156,7 @@ export function mountProof(host: HTMLElement, onSong: (id: string, name: string)
       tree.addEventListener("pick", event => navigate((event as CustomEvent<string>).detail));
       canvas.addEventListener("pointermove", event => { const rect = canvas.getBoundingClientRect(); stage.pointer = { x: event.clientX - rect.left, y: event.clientY - rect.top, inside: true }; tree.onPointerMove(stage);restart(); }, { signal: abort.signal });
       canvas.addEventListener("pointerleave", () => { stage.pointer.inside = false; }, { signal: abort.signal });
-      canvas.addEventListener("pointerdown", () => tree.onPointerDown(stage), { signal: abort.signal });
+      canvas.addEventListener("pointerdown", event => {const rect=canvas.getBoundingClientRect();stage.pointer={x:event.clientX-rect.left,y:event.clientY-rect.top,inside:true};let best:number|null=null,distance=34*34;projected.forEach((p,i)=>{const d=(p.x-stage.pointer.x)**2+(p.y-stage.pointer.y)**2;if(p.visible&&p.bloomed&&d<distance){best=i;distance=d;}});tree.hover=best;tree.onPointerDown(stage);}, { signal: abort.signal });
       canvas.addEventListener("pointerup", () => tree.onPointerUp(), { signal: abort.signal });
       const palette = () => {
         const css = getComputedStyle(host);
@@ -165,7 +170,8 @@ export function mountProof(host: HTMLElement, onSong: (id: string, name: string)
         if (!running || host.hidden || !isRenderingActive() || document.documentElement.dataset.view === "playing") return;
         if(last&&document.documentElement.dataset.performance==="vivid"&&now-last<1000/120-.5){frame=requestAnimationFrame(loop);return;}
         const w = Math.max(2, visual.clientWidth), h = Math.max(2, visual.clientHeight);
-        if (w !== width || h !== height) { width = w; height = h; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+        if (w !== width || h !== height) { width = w; height = h; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();fitTree(); }
+        const ease=motion()?1-Math.exp(-Math.min(.05,last?(now-last)/1000:1/60)*8):1;cameraY+=(goalY-cameraY)*ease;cameraZ+=(goalZ-cameraZ)*ease;camera.position.set(0,cameraY,cameraZ);camera.lookAt(0,cameraY,0);camera.updateMatrixWorld();scene.updateMatrixWorld(true);
         if(pending){const amount=Math.min(1,(now-pending.started)/360);retractBranches(tree.current,pending.keep,amount);if(amount===1){const rows=pending.records;pending=null;commitGraph(rows);}}
         tree.update(last ? Math.min(.05, (now - last) / 1000) : 1 / 60, now / 1000, stage); last = now;
         renderer.render(scene, camera);

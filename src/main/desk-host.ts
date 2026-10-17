@@ -1,4 +1,3 @@
-import { unlockHandle } from "./unlock-handle";
 import { BrowserWindow, globalShortcut, ipcMain, screen } from "electron";
 import path from "node:path";
 import {
@@ -43,7 +42,6 @@ export function attachDeskLyrics(options: {
   notify: (message: string) => void;
 }): { close: () => void;getCue:()=>DeskCue } {
   let overlay: BrowserWindow | null = null;
-  let unlock:ReturnType<typeof unlockHandle>|null=null;
   let timer: ReturnType<typeof setInterval> | null = null;
   let moveTimer: ReturnType<typeof setTimeout> | null = null;
   let registeredShortcut = "";
@@ -161,11 +159,11 @@ export function attachDeskLyrics(options: {
 
   const applyLock = (settings: DeskLyricsSettings) => {
     if (!overlay || overlay.isDestroyed()) return;
-    overlay.setIgnoreMouseEvents(settings.locked);unlock?.sync(settings.locked);
+    overlay.setIgnoreMouseEvents(settings.locked,{forward:true});
   };
 
   const destroyOverlay = () => {
-    stopTimer();unlock?.destroy();unlock=null;
+    stopTimer();
     closeContext();
     lastPayload = "";
     if (moveTimer) clearTimeout(moveTimer);
@@ -229,7 +227,7 @@ export function attachDeskLyrics(options: {
         webSecurity: true,
       },
     });
-    overlay = win;unlock=unlockHandle(win,"desk");
+    overlay = win;
     win.setAlwaysOnTop(true, "screen-saver");
     win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     win.on("move", onMoved);
@@ -272,10 +270,11 @@ export function attachDeskLyrics(options: {
   screen.on("display-metrics-changed", reclamp);
 
   ipcMain.handle(Ipc.deskCenter,()=>{if(!overlay||overlay.isDestroyed())return;const b=overlay.getBounds(),area=screen.getDisplayMatching(b).workArea;const vertical=read().orientation==="vertical";
-    const next={...b,x:vertical?b.x:Math.round(area.x+(area.width-b.width)/2),y:vertical?Math.round(area.y+(area.height-b.height)/2):b.y};programmaticBounds=next;anchor={x:next.x+b.width/2,y:next.y+b.height/2};overlay.setBounds(next);options.settings.write({deskLyrics:{...read(),x:next.x,y:next.y}});unlock?.sync(read().locked);
+    const next={...b,x:vertical?b.x:Math.round(area.x+(area.width-b.width)/2),y:vertical?Math.round(area.y+(area.height-b.height)/2):b.y};programmaticBounds=next;anchor={x:next.x+b.width/2,y:next.y+b.height/2};overlay.setBounds(next);options.settings.write({deskLyrics:{...read(),x:next.x,y:next.y}});
   });
   ipcMain.handle(Ipc.deskContext,event=>{if(event.sender===overlay?.webContents)openContext();});
   ipcMain.handle(Ipc.deskContextClose,event=>{if(event.sender===contextMenu?.webContents||event.sender===overlay?.webContents)closeContext();});
+  ipcMain.handle("tide:desk-interactive",(event,interactive:unknown)=>{if(overlay&&event.sender===overlay.webContents&&read().locked)overlay.setIgnoreMouseEvents(interactive!==true,{forward:true});});
   ipcMain.handle(Ipc.deskGet, () => read());
   ipcMain.handle(Ipc.deskSet, (_event, patch: unknown) => {
     const record = patch && typeof patch === "object" ? patch as Partial<DeskLyricsSettings> : {};
@@ -295,6 +294,7 @@ export function attachDeskLyrics(options: {
     close() {
       screen.removeListener("display-removed", reclamp);
       screen.removeListener("display-metrics-changed", reclamp);
+      ipcMain.removeHandler("tide:desk-interactive");
       ipcMain.removeHandler(Ipc.deskCenter);
       ipcMain.removeHandler(Ipc.deskContext);
       ipcMain.removeHandler(Ipc.deskContextClose);

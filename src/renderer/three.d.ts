@@ -1,6 +1,7 @@
 /** The subset of Three used by the proof-tree host. The library itself is three@0.186.1. */
 declare module "three" {
   export class Object3D {
+    updateMatrixWorld(force?:boolean):void;
     add(object: Object3D): this;
     remove(object: Object3D): this;
   }

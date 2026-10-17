@@ -1,4 +1,4 @@
-import { isRenderingActive, setRenderingActive } from "./render-activity";
+import { isRenderingActive, setRenderingActive, setThemeTransitionActive } from "./render-activity";
 import { installModuleMotion } from "./module-motion";
 import { mountCloseMenu } from "./close-menu";
 import { EventBus } from "../core/events";
@@ -11,8 +11,10 @@ import { installMediaSession, syncMediaSession } from "./media-session";
 import { mountPlayer } from "./player";
 import { mountStage } from "./layers/stage";
 import { mountNativeShell } from "./native-shell.js";
-import { updateCoverTheme } from "./generated-theme";
+import { updateCoverTheme, setCustomPalette } from "./generated-theme";
 import { applyLike } from "./liked";
+import { Maximize2, PictureInPicture2 } from "lucide";
+import { iconButton,ICON_SIZE } from "./icons";
 
 declare global {
   interface Window {
@@ -112,6 +114,7 @@ function commitAppearance(appearance: Appearance): void {
   root.dataset.theme = isThemeId(appearance.theme) ? appearance.theme : "tide";
   root.dataset.shell = appearance.shell === "lattice" ? "lattice" : "lens";
   root.dataset.colorMode = appearance.shell === "lattice" ? appearance.latticeMode ?? "dark" : appearance.lensMode ?? (appearance.theme === "dusk" ? "dark" : "light");
+  setCustomPalette(appearance.customPalette);
   root.dataset.preset = appearance.preset;
   root.dataset.performance = appearance.performance;
   root.dataset.background = appearance.background;
@@ -138,15 +141,22 @@ function applyAppearance(appearance: Appearance): Promise<void> {
  const prior=desiredAppearance;desiredAppearance=appearance;const generation=++appearanceGeneration;
  const mode=(a:Appearance)=>a.shell==="lattice"?a.latticeMode??"dark":a.lensMode??(a.theme==="dusk"?"dark":"light");
  const changed=prior&&(prior.shell!==appearance.shell||mode(prior)!==mode(appearance));
- themeTransition?.skipTransition();themeTransition=null;
+ if(changed){themeTransition?.skipTransition();themeTransition=null;setThemeTransitionActive(false);}
  if(changed&&appearance.performance!=="smooth"&&appearance.motion>0&&isRenderingActive()&&!matchMedia("(prefers-reduced-motion: reduce)").matches&&typeof document.startViewTransition==="function") {
-  document.documentElement.style.setProperty("--theme-duration",appearance.performance==="vivid"?"640ms":"380ms");
-  themeTransition=document.startViewTransition(()=>{if(generation===appearanceGeneration)commitAppearance(appearance);});
+  document.documentElement.style.setProperty("--theme-duration",appearance.performance==="vivid"?"1400ms":"1000ms");
+  document.documentElement.style.setProperty("--theme-radius",`${Math.ceil(Math.hypot(innerWidth,innerHeight)+12)}px`);
+  const transition=document.startViewTransition(async()=>{if(generation===appearanceGeneration)commitAppearance(appearance);await new Promise(resolve=>setTimeout(resolve,100));if(themeTransition===transition)setThemeTransitionActive(true);});
+  themeTransition=transition;
+  void transition.finished.finally(()=>{if(themeTransition===transition){themeTransition=null;setThemeTransitionActive(false);}}).catch(()=>{});
   return themeTransition.updateCallbackDone.catch(()=>{});
  }
  commitAppearance(appearance);return Promise.resolve();
 }
 installModuleMotion();
+const fullscreenButton=iconButton("进入全屏","Maximize2",Maximize2,ICON_SIZE.row);fullscreenButton.classList.add("fullscreen-toggle");document.body.append(fullscreenButton);
+const miniButton=iconButton("呼出小窗播放器","PictureInPicture2",PictureInPicture2,ICON_SIZE.row);miniButton.classList.add("mini-toggle");document.body.append(miniButton);miniButton.onclick=()=>void window.tide.setMiniPlayer({open:true});
+fullscreenButton.onclick=()=>void window.tide.setFullscreen();
+window.tide.onFullscreen(value=>{document.documentElement.dataset.fullscreen=String(value);fullscreenButton.setAttribute("aria-label",value?"退出全屏":"进入全屏");fullscreenButton.title=value?"退出全屏（Esc）":"进入全屏（F11）";});
 
 applyAppearance({
   chromeVisible: true,

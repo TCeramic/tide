@@ -13,7 +13,7 @@ declare module "lucide" {
   export const Compass: IconNode;
   export const Grid3x3: IconNode;
   export const Heart: IconNode;
-  export const Layers:IconNode;export const Pin:IconNode;export const Lock:IconNode;export const Maximize2:IconNode;
+  export const Layers:IconNode;export const Pin:IconNode;export const Lock:IconNode;export const Maximize2:IconNode;export const PictureInPicture2:IconNode;
   export const House: IconNode;
   export const Keyboard: IconNode;
   export const List: IconNode;

@@ -1,3 +1,4 @@
+import { customPaletteFromUnknown } from "./custom-palette";
 import {
   isFontPresetId,
   isPerformanceTier,
@@ -174,6 +175,11 @@ function readMode(record: Record<string, unknown>, host: CommandHost): Promise<u
 export function appearancePatchFromArgs(args: unknown): Partial<Appearance> | null {
   const record = args && typeof args === "object" && !Array.isArray(args) ? args as Record<string, unknown> : {};
   const patch: Partial<Appearance> = {};
+  if ("customPalette" in record) {
+    const palette = customPaletteFromUnknown(record.customPalette);
+    if (!palette) return null;
+    patch.customPalette = palette;
+  }
   for (const key of ["lensMode", "latticeMode"] as const) {
     if (key in record) {
       if (record[key] !== "light" && record[key] !== "dark") return null;
@@ -225,7 +231,7 @@ export function appearancePatchFromArgs(args: unknown): Partial<Appearance> | nu
     patch.fontFamily = record.fontFamily;
   }
   if (
-    patch.lensMode === undefined && patch.latticeMode === undefined && patch.chromeVisible === undefined
+    patch.customPalette === undefined && patch.lensMode === undefined && patch.latticeMode === undefined && patch.chromeVisible === undefined
     && patch.stageLevel === undefined
     && patch.theme === undefined
     && patch.motion === undefined

@@ -12,6 +12,7 @@ const BACKGROUNDS: { id: StageBackground; label: string }[] = [
   { id: "solid", label: "纯色" },
   { id: "cover", label: "封面色" },
   { id: "paper", label: "流动配色" },
+  { id: "pixel-cover", label: "像素封面" },
   { id: "image", label: "本地图片" },
 ];
 

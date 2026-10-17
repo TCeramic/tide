@@ -123,7 +123,7 @@ export function isFontPresetId(value: unknown): value is FontPresetId {
   return typeof value === "string" && (FONT_PRESETS as readonly string[]).includes(value);
 }
 
-export const STAGE_BACKGROUNDS = ["solid", "cover", "image", "paper"] as const;
+export const STAGE_BACKGROUNDS = ["solid", "cover", "image", "paper", "pixel-cover"] as const;
 export type StageBackground = (typeof STAGE_BACKGROUNDS)[number];
 
 export function isStageBackground(value: unknown): value is StageBackground {
@@ -131,7 +131,19 @@ export function isStageBackground(value: unknown): value is StageBackground {
 }
 
 /** Local UI knobs on #stage, #lyrics, and #chrome. No wallpaper engine and no particle clone. */
+export interface CustomPalette {
+  enabled: boolean;
+  colors: string[];
+  accent: string;
+  text: string;
+  muted: string;
+  points: string;
+  panel: string;
+  panelOpacity: number;
+}
+
 export interface Appearance {
+  customPalette?: CustomPalette;
   lensMode?: "light" | "dark";
   latticeMode?: "light" | "dark";
   chromeVisible: boolean;
@@ -339,12 +351,16 @@ export interface QueueRequest {
 
 /** Surface exposed on `window.tide` by the preload script. */
 export interface TideBridge {
+  setFullscreen(value?:boolean):Promise<boolean>;
+  onFullscreen(listener:(fullscreen:boolean)=>void):()=>void;
   onLikeState?(listener: (value: {id:string;liked:boolean}) => void): () => void;
   getMiniPlayer():Promise<MiniPlayerSettings>;
   setMiniPlayer(patch:Partial<MiniPlayerSettings>):Promise<MiniPlayerSettings>;
   miniShowMain():Promise<void>;
+  setMiniInteractive(interactive:boolean):Promise<void>;
   onMiniCue(listener:(cue:MiniCue)=>void):()=>void;
   centerDeskLyrics():Promise<void>;
+  setDeskInteractive(interactive:boolean):Promise<void>;
   tidePlaylists():Promise<TidePlaylist[]>;
   saveTidePlaylist(id:string|undefined,patch:{name?:string;description?:string;cover?:string}):Promise<TidePlaylistReply>;
   addToTidePlaylist(id:string,hit:SearchHit):Promise<TidePlaylistReply>;

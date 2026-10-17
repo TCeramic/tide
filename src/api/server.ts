@@ -1,6 +1,9 @@
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { CookieStore } from "./cookie";
 import { createNeteaseClient, type NeteaseClient } from "./netease";
 import { parseLrc, parseYrc } from "../core/lyrics";
@@ -65,9 +68,11 @@ export function createTideApiServer(options: TideApiOptions = {}): http.Server {
     return netease;
   }
   const library = new LocalLibrary(process.env.TIDE_LIBRARY_FILE ?? "");
+  // Only URLs resolved by the music service can enter this bounded relay.
+  const streams = new Map<string,string>();
 
   return http.createServer((req, res) => {
-    void route(req, res, session, library).catch((error: unknown) => {
+    void route(req, res, session, library, streams).catch((error: unknown) => {
       if (res.headersSent) return;
       if (error instanceof SessionError) {
         writeJson(res, error.status, asFailure(error));
@@ -87,9 +92,26 @@ async function route(
   res: http.ServerResponse,
   session: SessionService,
   library: LocalLibrary,
+  streams: Map<string,string>,
 ): Promise<void> {
   const url = new URL(req.url ?? "/", "http://127.0.0.1");
   const pathname = url.pathname;
+  if(pathname==='/local/audio'||pathname.startsWith('/media/'))res.setHeader('Access-Control-Allow-Origin','*');
+  if(req.method==='GET'&&pathname.startsWith('/media/')){
+    const source=streams.get(pathname.slice(7));
+    if(!source){writeJson(res,404,{ok:false,error:'missing'});return;}
+    const abort=new AbortController(),timeout=setTimeout(()=>abort.abort(),30000);
+    const cancel=()=>abort.abort();res.on('close',cancel);
+    try{const upstream=await fetch(source,{headers:req.headers.range?{Range:req.headers.range}:{},signal:abort.signal});
+      clearTimeout(timeout);
+      if(!upstream.ok||!upstream.body){writeJson(res,502,{ok:false,error:'upstream'});return;}
+      res.statusCode=upstream.status;
+      for(const key of ['content-type','content-length','content-range','accept-ranges']){const value=upstream.headers.get(key);if(value)res.setHeader(key,value);}
+      res.setHeader('Cache-Control','no-store');
+      await pipeline(Readable.fromWeb(upstream.body as import('node:stream/web').ReadableStream),res);
+    }finally{clearTimeout(timeout);res.off('close',cancel);}
+    return;
+  }
 
   if (req.method === "GET" && pathname === "/health") {
     writeJson(res, 200, { ok: true, service: "tide", version: TIDE_VERSION });
@@ -252,9 +274,11 @@ async function route(
       return;
     }
     const media = await session.mediaUrl(songId, url.searchParams.get("level"));
+    let mediaUrl=media.url;
+    if(mediaUrl){const token=randomUUID();streams.set(token,mediaUrl);while(streams.size>128)streams.delete(streams.keys().next().value!);mediaUrl=`http://127.0.0.1:${req.socket.localPort}/media/${token}`;}
     writeJson(res, 200, {
       ok: true,
-      url: media.url,
+      url: mediaUrl,
       signedOut: media.signedOut,
       level: media.level,
       requested: media.requested,
