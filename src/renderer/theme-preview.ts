@@ -9,7 +9,7 @@ window.addEventListener("message", async event => {
  document.documentElement.style.cssText=style;if(font){const f=document.createElement("template");f.innerHTML=font;const style=f.content.querySelector("style");if(style)document.head.append(style);}
  const template=document.createElement("template");template.innerHTML=html;
  template.content.querySelectorAll("script,iframe,canvas,.module-exit,.theme-reveal-frame,.native-paper-source,.native-point-hero,.native-set-control,.lx-cursor,.liquid-metal-emblem").forEach(el=>el.remove());
- template.content.querySelectorAll("*").forEach(el=>{for(const attr of Array.from(el.attributes))if(attr.name.startsWith("on"))el.removeAttribute(attr.name);el.classList.remove("lg-surface","webgl-ready","lg-stage");});
+ template.content.querySelectorAll("*").forEach(el=>{for(const attr of Array.from(el.attributes))if(attr.name.startsWith("on"))el.removeAttribute(attr.name);el.classList.remove("webgl-ready","lg-stage");});
  document.body.replaceChildren(template.content);
  const root=document.querySelector<HTMLElement>("#app")!;
  for(const p of Array.from(document.querySelectorAll(".native-popup-layer .corner-panel")))root.append(p);
