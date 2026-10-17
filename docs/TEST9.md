@@ -18,4 +18,4 @@
 
 测试脚本：`npm test`、`npm run typecheck`、`npm run verify:design-systems`、`npm run test:playback`、`npm run test:ui`、`npm run test:native`、`npm run test:cursor`、`npm run test:refresh`。
 
-未签名。云端账号权限和搜索/推荐质量未实测；AI仍为框架和本地取色。Mineradio只作本地视觉与交互参考，Tide适配代码自行实现。发布ZIP通过CRC、包内EXE/ASAR与构建文件一致性及SHA-256校验；包内Tide.exe实测通过。SHA-256：507327aca62ecfcdd380b97d9a2ddd14e7cdd388c79e6ff8086789eaaa50d360。
+未签名。云端账号权限和搜索/推荐质量未实测；AI仍为框架和本地取色。Mineradio只作本地视觉与交互参考，Tide适配代码自行实现。发布ZIP通过CRC、包内EXE/ASAR与构建文件一致性及SHA-256校验；包内Tide.exe实测通过。SHA-256：bcd273e03d9a4ed5bcba5f873337cd61b37a70f3a81833fe0b04412055ef1adc。

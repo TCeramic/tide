@@ -2,11 +2,11 @@ import { isRenderingActive } from "../render-activity";
 import { currentLyricIndex, lineEase, lyricPosition, nextLyricOffset, pairLyrics, sweepProgress, wordFill, type LyricLine } from "../../core/lyrics";
 import type { YrcLine } from "../../shared/contract";
 import type { Track } from "../../core/playback/types";
-import { Music2 } from "lucide";
-import { ICON_SIZE, prependIcon } from "../icons";
+import { MoreHorizontal } from "lucide";
+import { ICON_SIZE, iconButton } from "../icons";
 import { paintCover } from "../cover";
 import { measureTextLayout } from "../text-metrics";
-import { mountAiAssist } from "../ai-assist";
+import { setAiTrack,setAiLines } from "../ai-context";
 import { segmentLyricLines } from "../../core/ai-assist";
 import { readAudioClock, onAudioClockChange } from "../audio-clock";
 import { onShellView, toggleNowPlaying } from "../view";
@@ -26,8 +26,9 @@ export function mountLyrics(root: HTMLElement): {
 
   const kicker = document.createElement("p");
   kicker.className = "lyrics-kicker";
-  kicker.textContent = "潮汐 Tide";
-  prependIcon(kicker, "Music2", Music2, ICON_SIZE.row);
+  kicker.setAttribute("aria-label","潮汐波动");
+  const wave=document.createElementNS("http://www.w3.org/2000/svg","svg");wave.setAttribute("viewBox","0 0 160 34");wave.setAttribute("aria-hidden","true");
+  for(let i=0;i<3;i++){const path=document.createElementNS("http://www.w3.org/2000/svg","path");path.setAttribute("d",`M-20 ${12+i*6} Q0 ${-2+i*6} 20 ${12+i*6} T60 ${12+i*6} T100 ${12+i*6} T140 ${12+i*6} T180 ${12+i*6}`);path.setAttribute("fill","none");path.setAttribute("stroke","currentColor");path.setAttribute("stroke-width",String(1.6-i*.35));path.style.animationDelay=`${i*-.6}s`;wave.append(path);}kicker.append(wave);
 
   const title = document.createElement("p");
   title.className = "lyrics-title";
@@ -35,7 +36,7 @@ export function mountLyrics(root: HTMLElement): {
   const artCover = document.createElement("button"); artCover.type = "button"; artCover.className = "lyrics-cover";
   artCover.setAttribute("aria-label", "返回上一页"); artCover.title = "返回上一页";
   artCover.addEventListener("click", toggleNowPlaying); paintCover(artCover, undefined);
-  const artist = document.createElement("p"); artist.className = "lyrics-artist";
+  const artist = document.createElement("button");artist.type="button"; artist.className = "lyrics-artist";artist.setAttribute("aria-label","搜索当前歌手");artist.addEventListener("click",()=>{if(artist.textContent)window.dispatchEvent(new CustomEvent("tide:artist-search",{detail:artist.textContent}));});
   const sourceNote = document.createElement("p"); sourceNote.className = "lyrics-source";
   const reading = document.createElement("div"); reading.className = "lyrics-reading";
 
@@ -47,9 +48,9 @@ export function mountLyrics(root: HTMLElement): {
   const romaji = viewButton("罗马音");
   tools.append(both, original, translation, romaji);
 
-  const offsetMenu = document.createElement("details");
+  const offsetMenu = document.createElement("div");
   offsetMenu.className = "lyric-offset-menu";
-  const offsetSummary = document.createElement("summary");
+  const offsetSummary = document.createElement("span");
   offsetSummary.textContent = "偏移量";
   const earlier = viewButton("−0.5s");
   const later = viewButton("+0.5s");
@@ -70,7 +71,10 @@ export function mountLyrics(root: HTMLElement): {
   list.addEventListener("keydown", event => { if (["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End"].includes(event.key)) suspendFollow(); });
 
   art.append(artCover, kicker, title, artist, sourceNote);
-  reading.append(tools, offsetMenu, line, list, resume);
+  const options=iconButton("歌词选项","MoreHorizontal",MoreHorizontal,ICON_SIZE.control);options.classList.add("lyric-options-trigger");options.setAttribute("aria-expanded","false");
+  const optionsPanel=document.createElement("div");optionsPanel.className="lyric-options-panel";optionsPanel.hidden=true;optionsPanel.append(tools,offsetMenu);
+  const showOptions=(open:boolean)=>{optionsPanel.hidden=!open;options.setAttribute("aria-expanded",String(open));};options.addEventListener("click",()=>{showOptions(optionsPanel.hidden);options.blur();});optionsPanel.addEventListener("pointerleave",()=>showOptions(false));
+  reading.append(options,optionsPanel,line,list,resume);
   block.append(art, reading);
   root.append(block);
 
@@ -81,29 +85,29 @@ export function mountLyrics(root: HTMLElement): {
   let positionMs = 0;
   let bundles = { original: [] as LyricLine[], translation: [] as LyricLine[], romaji: [] as LyricLine[], yrc: [] as YrcLine[] };
   let pendingPosition = 0;
-  let paintFrame = 0, lastPaint = 0;
-  let disposed = false;
+  let paintFrame = 0, paintTimer = 0, lastPaint = 0;
+  let disposed = false, linesDirty = true;
   const tick = (now: number) => {
     paintFrame = 0;
     if (disposed || !isRenderingActive() || document.documentElement.dataset.view !== "playing") return;
+    if (linesDirty) renderLines();
     const clock = readAudioClock(shownId);
-    if (!clock?.playing || now - lastPaint >= 13) { lastPaint = now; paint(clock?.positionMs ?? pendingPosition); }
-    if (clock?.playing) paintFrame = requestAnimationFrame(tick);
+    lastPaint = now; paint(clock?.positionMs ?? pendingPosition);
+    if (clock?.playing) {
+      const interval=1000/(document.documentElement.dataset.performance==="vivid"?120:60);
+      paintTimer=window.setTimeout(()=>{paintTimer=0;if(!disposed&&isRenderingActive()&&document.documentElement.dataset.view==="playing")paintFrame=requestAnimationFrame(tick);},Math.max(0,interval-(performance.now()-lastPaint)-1));
+    }
   };
-  const wake = () => { if (!disposed && isRenderingActive() && !paintFrame) paintFrame = requestAnimationFrame(tick); };
+  const wake = () => {
+    if (!isRenderingActive() || document.documentElement.dataset.view!=="playing") {cancelAnimationFrame(paintFrame);clearTimeout(paintTimer);paintFrame=paintTimer=0;return;}
+    if (!disposed && !paintFrame && !paintTimer) paintFrame = requestAnimationFrame(tick);
+  };
   const stopView = onShellView(wake);
   const stopAudioClock = onAudioClockChange(wake);
   document.addEventListener("visibilitychange", wake);
   let active = -1;
-  const assist = mountAiAssist(task => ({ task, title: title.textContent ?? "", lines: (bundles.yrc.length ? bundles.yrc : bundles.original).map(row => row.text) }), () => artCover.dataset.cover, result => {
-    if (result.task !== "segment") return;
-    const rows = bundles.yrc.length ? bundles.yrc.map(row => ({ timeMs: row.timeMs, text: row.text })) : bundles.original;
-    bundles.yrc = segmentLyricLines(rows, result.segments, bundles.yrc);
-    sourceNote.textContent = bundles.yrc.some(row => row.estimated) ? "AI 分词 · 逐词时间为估算" : "AI 分词 · 保留原始逐词时间";
-    renderLines(); publishDesk();
-  });
-  art.append(assist.element);
-
+  const segment=(event:Event)=>{const result=(event as CustomEvent<import("../../core/ai-assist").AiResult>).detail;if(result.task!=="segment")return;const rows=bundles.yrc.length?bundles.yrc.map(row=>({timeMs:row.timeMs,text:row.text})):bundles.original;bundles.yrc=segmentLyricLines(rows,result.segments,bundles.yrc);renderLines();publishDesk();};
+  window.addEventListener("tide:segments",segment);
   const usingYrc = (): boolean => (view === "both" || view === "original") && bundles.yrc.length > 0;
 
   let cachedRows: LyricLine[] | null = null;
@@ -213,6 +217,9 @@ export function mountLyrics(root: HTMLElement): {
 
   const renderLines = () => {
     cachedRows = null;
+    linesDirty = true;
+    if (!isRenderingActive() || document.documentElement.dataset.view !== "playing") return;
+    linesDirty = false;
     active = -1;
     list.replaceChildren();
     both.setAttribute("aria-pressed", view === "both" ? "true" : "false");
@@ -287,6 +294,7 @@ export function mountLyrics(root: HTMLElement): {
   };
   const measurements = new WeakMap<HTMLElement, string>();
   const measureLines = () => {
+    if (!isRenderingActive() || document.documentElement.dataset.view !== "playing") return;
     let changed = false;
     for (const origin of Array.from(list.querySelectorAll<HTMLElement>(".lyric-origin"))) {
       const style = getComputedStyle(origin), height = Number.parseFloat(style.lineHeight) || 52;
@@ -343,14 +351,14 @@ export function mountLyrics(root: HTMLElement): {
     active = -1;
     list.replaceChildren();
     if (!track) {
-      title.textContent = "歌词层";
+      setAiTrack(null);title.textContent = "歌词层";
       artist.textContent = sourceNote.textContent = "";
       paintCover(artCover, undefined); artCover.dataset.cover = "";
       publishDesk();
       renderLines();
       return;
     }
-    title.textContent = track.title;
+    setAiTrack(track);title.textContent = track.title;
     artist.textContent = track.artist;
     paintCover(artCover, track.cover);
     artCover.dataset.cover = track.cover ?? "";
@@ -371,6 +379,7 @@ export function mountLyrics(root: HTMLElement): {
         romaji: result.romaji ?? [],
         yrc: result.yrc ?? [],
       };
+      setAiLines((bundles.yrc.length?bundles.yrc:bundles.original).map(row=>row.text));
       sourceNote.textContent = result.source === "amll" ? `AMLL TTML DB${result.credits?.length ? ` · ${result.credits.join(" / ")}` : ""}` : "网易云歌词";
       renderLines();
       measureLines();
@@ -394,8 +403,9 @@ export function mountLyrics(root: HTMLElement): {
     destroy: () => {
       disposed = true; stopView(); stopAudioClock(); document.removeEventListener("visibilitychange", wake);
       if (paintFrame !== 0) cancelAnimationFrame(paintFrame);
+      clearTimeout(paintTimer);
       layoutObserver.disconnect();
-      assist.destroy();
+      window.removeEventListener("tide:segments",segment);
       root.replaceChildren();
     },
   };

@@ -123,6 +123,12 @@ export function mountNativeShell(root) {
   const paper = mountPaperBackground(root, () => {
     if (appearance?.background === "paper") glass?.invalidateScene();
   });
+  let dockGlass=null;const dockRoot=root.querySelector('.dock-shell'),dockPortals=document.createElement('div');
+  const syncDock=()=>{const visible=appearance?.shell==='lattice'&&document.documentElement.dataset.dockVisible==='true'&&isRenderingActive();
+    if(visible&&dockRoot){dockGlass ||= mountLensShell(dockRoot,dockPortals,paintPlayerBackground);dockGlass.sync({...appearance,lensMode:appearance.latticeMode});}
+    else{dockGlass?.destroy();dockGlass=null;}
+  };
+  const dockWatch=new MutationObserver(syncDock);dockWatch.observe(document.documentElement,{attributes:true,attributeFilter:['data-dock-visible','data-render-active']});
   function stopLens() { glass?.destroy(); glass = null; }
   function startLens() {
     glass ||= mountLensShell(root, popupLayer, paintPlayerBackground);
@@ -135,11 +141,8 @@ export function mountNativeShell(root) {
       const scale = Math.max(info.width / image.naturalWidth, info.height / image.naturalHeight);
       const w = image.naturalWidth * scale, h = image.naturalHeight * scale;
       ctx.drawImage(image, (info.width - w) / 2, (info.height - h) / 2, w, h);
-    } else if (appearance.background === "cover" || appearance.preset === "cover-glow") {
+    } else if (appearance.background === "cover") {
       ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--cover-tint").trim() || "#193f64";
-      ctx.fillRect(0, 0, info.width, info.height);
-    } else if (appearance.preset === "quiet") {
-      ctx.fillStyle = info.scene === "ocean" ? "#193f64" : "#f7f8fa";
       ctx.fillRect(0, 0, info.width, info.height);
     } else paintLensBackground(ctx, info);
   }
@@ -149,7 +152,7 @@ export function mountNativeShell(root) {
     applyWorldCss(next.shell === "lattice" && next.latticeMode === "light" ? "paper" : "night");
     if (next.shell === "lens") document.documentElement.style.colorScheme = document.documentElement.dataset.colorMode;
     clockActivity();
-    paper.sync(next);
+    paper.sync(next);syncDock();
     popupLayer.hidden = !next.chromeVisible;
     const cssImage = document.documentElement.style.getPropertyValue("--tide-image");
     const url = cssImage.match(/^url\(["']?(.*?)["']?\)$/)?.[1] || "";
@@ -201,7 +204,7 @@ export function mountNativeShell(root) {
     if(records.some(r=>[...r.addedNodes].some(n=>n instanceof Element && (n.matches('.transport,input[type="range"]')||n.querySelector('.transport,input[type="range"]')))))enhanceRanges();
   });
   rangeObserver.observe(root,{childList:true,subtree:true});enhanceRanges();
-  return { sync, destroy() { destroyed = true; cursor?.destroy?.(); document.removeEventListener("visibilitychange", clockActivity); cancelAnimationFrame(latticeClock._raf); cancelAnimationFrame(widgetFrame); clearTimeout(widgetTimer); stopLens(); points?.destroy(); paper.destroy(); for(const view of progressViews)view.destroy();rangeObserver.disconnect(); popupLayer.remove(); } };
+  return { sync, destroy() { destroyed = true; cursor?.destroy?.(); document.removeEventListener("visibilitychange", clockActivity); cancelAnimationFrame(latticeClock._raf); cancelAnimationFrame(widgetFrame); clearTimeout(widgetTimer); stopLens(); points?.destroy();dockWatch.disconnect();dockGlass?.destroy();dockGlass=null; paper.destroy(); for(const view of progressViews)view.destroy();rangeObserver.disconnect(); popupLayer.remove(); } };
 }
 
 // Embed the original Field and set generators into a desktop viewport. This host supplies

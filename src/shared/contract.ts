@@ -57,6 +57,7 @@ export const Ipc = {
   hardwareKey: "tide:keys:hardware",
   likedIds: "tide:liked:ids",
   deskContext: "tide:desk:context",
+  deskCenter:"tide:desk-center",
   deskContextClose: "tide:desk:context-close",
   deskGet: "tide:desk:get",
   deskSet: "tide:desk:set",
@@ -101,7 +102,7 @@ export function isShellId(value: unknown): value is ShellId {
 }
 
 /** Play-scene recipes. Names are Tide's. They are not a visual clone of another player. */
-export const VISUAL_PRESETS = ["tide", "cover-glow", "vinyl", "stardust", "quiet"] as const;
+export const VISUAL_PRESETS = ["flow"] as const;
 export type VisualPresetId = (typeof VISUAL_PRESETS)[number];
 
 export function isVisualPresetId(value: unknown): value is VisualPresetId {
@@ -338,6 +339,19 @@ export interface QueueRequest {
 
 /** Surface exposed on `window.tide` by the preload script. */
 export interface TideBridge {
+  onLikeState?(listener: (value: {id:string;liked:boolean}) => void): () => void;
+  getMiniPlayer():Promise<MiniPlayerSettings>;
+  setMiniPlayer(patch:Partial<MiniPlayerSettings>):Promise<MiniPlayerSettings>;
+  miniShowMain():Promise<void>;
+  onMiniCue(listener:(cue:MiniCue)=>void):()=>void;
+  centerDeskLyrics():Promise<void>;
+  tidePlaylists():Promise<TidePlaylist[]>;
+  saveTidePlaylist(id:string|undefined,patch:{name?:string;description?:string;cover?:string}):Promise<TidePlaylistReply>;
+  addToTidePlaylist(id:string,hit:SearchHit):Promise<TidePlaylistReply>;
+  removeTidePlaylistSong(id:string,songId:string):Promise<TidePlaylistReply>;
+  deleteTidePlaylist(id:string):Promise<{ok:boolean;message?:string}>;
+  pickPlaylistCover():Promise<string|null>;
+  syncTidePlaylist(id:string):Promise<TidePlaylistReply>;
   onCloseRequest?(listener: () => void): () => void;
   replaceUpcoming(hits: SearchHit[]): Promise<PlaybackSnapshot>;
   windowAction(action: "tray" | "quit" | "cancel"): Promise<void>;
@@ -411,3 +425,9 @@ export interface TideBridge {
   pickBackdrop(): Promise<string | null>;
   backdropUrl(): Promise<string | null>;
 }
+
+export interface TidePlaylist {id:string;name:string;description:string;cover?:string;songs:SearchHit[];updatedAt:number;cloudId?:string}
+export type TidePlaylistReply={ok:true;playlist:TidePlaylist;message?:string}|{ok:false;message:string};
+
+export interface MiniPlayerSettings {open:boolean;style:"lens"|"lattice"|"transparent";topmost:boolean;locked:boolean;x:number|null;y:number|null}
+export interface MiniCue {playback:Omit<PlaybackSnapshot,"queue">&{track:Track|null};lyrics:DeskCue;settings:MiniPlayerSettings;performance:PerformanceTier;active:boolean}

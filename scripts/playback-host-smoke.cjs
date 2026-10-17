@@ -14,7 +14,7 @@ async function until(fn) { for (let i = 0; i < 100; i++) { if (fn()) return; awa
   const file = path.join(root, 'artifacts/playback-host-fixture.cjs'); fs.mkdirSync(path.dirname(file), { recursive: true });
   await build({ entryPoints: [path.join(root, 'src/main/playback-host.ts')], outfile: file, bundle: true, platform: 'node', format: 'cjs', plugins: [{ name: 'fixture-ipc', setup(b) {
     b.onResolve({ filter: /^electron$/ }, () => ({ path: 'electron', namespace: 'fixture' }));
-    b.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ contents: 'export const ipcMain = globalThis.__tideTestIpc;', loader: 'js' }));
+    b.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ contents: 'export const ipcMain = globalThis.__tideTestIpc; export const BrowserWindow = {getAllWindows:()=>[]};', loader: 'js' }));
   }}] });
   // Machine is exported in a separate fixture to share the exact implementation.
   const machineFile = path.join(root, 'artifacts/playback-machine-fixture.cjs');
@@ -89,4 +89,3 @@ async function until(fn) { for (let i = 0; i < 100; i++) { if (fn()) return; awa
     console.log('STALE_PLAYLIST_REQUEST_CANNOT_MODIFY_NEW_QUEUE passed');
   } finally { detach(); await new Promise(r => server.close(r)); delete global.__tideTestIpc; }
 })().catch(error => { console.error(error); process.exitCode = 1; });
-

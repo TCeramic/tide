@@ -19,7 +19,7 @@ export function mountLensShell(root, portals, artwork) {
     renderer.mutationObserver.disconnect();
     renderer.mutationObserver = new MutationObserver(records => {
       if (!isRenderingActive()) return;
-      const changed = records.some(record => record.target instanceof Element && (record.target.closest('.lg-surface') || record.target.querySelector('.lg-surface') || [...record.addedNodes, ...record.removedNodes].some(node => node instanceof Element && (node.matches('.lg-surface') || node.querySelector('.lg-surface')))));
+      const changed = records.some(record => record.target instanceof Element && !(record.target.closest('.dock-shell') && document.documentElement.dataset.dockVisible!=='true') && (record.target.closest('.lg-surface') || record.target.querySelector('.lg-surface') || [...record.addedNodes, ...record.removedNodes].some(node => node instanceof Element && (node.matches('.lg-surface') || node.querySelector('.lg-surface')))));
       if (changed) renderer.invalidate(0, true);
     });
     renderer.mutationObserver.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style', 'hidden', 'aria-selected', 'aria-pressed', 'aria-checked'] });

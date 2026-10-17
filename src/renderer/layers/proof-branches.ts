@@ -8,16 +8,15 @@ export function branchGraph(tree:ProofTree, records:LatticeNode[], positions:Map
  const previous=tree.current;
  tree.byId=latticeRecords(records);
  const next=tree.grow(records[0].id);
+ const generated=new Map(next.nodes.map(n=>[n.tid,n.pos.clone()]));
  if(previous){tree.spin.g.remove(previous.object);previous.dispose();tree.trees=[next];}
  tree.hover=null;
- // A planar fan makes labels legible while preserving upstream particle geometry.
+ // Preserve the original 3D fan; existing branches retain their positions.
  for(const node of next.nodes){
   const saved=positions.get(node.tid);
   if(saved)node.pos.set(saved.x,saved.y,saved.z);
   else if(node.parent){
-   const siblings=next.nodes.filter(n=>n.parent===node.parent),index=siblings.indexOf(node);
-   const width=node.depth===1?3.6:node.depth===2?3:2.5;
-   node.pos.set(node.parent.pos.x+(siblings.length===1?0:(index/(siblings.length-1)-.5)*width),node.parent.pos.y+1,0);
+   const oldParent=positions.get(node.parent.tid);if(oldParent){const generatedParent=generated.get(node.parent.tid)!;node.pos.set(node.pos.x+oldParent.x-generatedParent.x,node.pos.y+oldParent.y-generatedParent.y,node.pos.z+oldParent.z-generatedParent.z);}
   }
   next.ndData.set([node.pos.x,node.pos.y,node.pos.z,saved||!animate?-1:.45],node.i*8);
   node.bloom=saved||!animate?-1:.45;

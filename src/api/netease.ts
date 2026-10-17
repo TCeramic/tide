@@ -34,6 +34,10 @@ interface NcmResult {
 }
 
 interface NcmModule {
+  playlist_create(query:{name:string;privacy:string;cookie:string}):Promise<unknown>;
+  playlist_name_update(query:{id:string;name:string;cookie:string}):Promise<unknown>;
+  playlist_desc_update(query:{id:string;desc:string;cookie:string}):Promise<unknown>;
+  playlist_cover_update(query:{id:string;imgFile:{name:string;data:Buffer};cookie:string}):Promise<unknown>;
   login_qr_key(query: { cookie?: string }): Promise<NcmResult>;
   login_qr_create(query: { key: string; qrimg?: boolean; cookie?: string }): Promise<NcmResult>;
   login_qr_check(query: { key: string; cookie?: string }): Promise<NcmResult>;
@@ -45,7 +49,7 @@ interface NcmModule {
   personal_fm(query: { cookie?: string }): Promise<unknown>;
   fm_trash(query: { id: string; cookie?: string }): Promise<unknown>;
   login_refresh(query: { cookie?: string }): Promise<NcmResult>;
-  playlist_track_all(query: { id: string; limit?: number; cookie?: string }): Promise<unknown>;
+  playlist_track_all(query: { id: string; limit?: number; offset?: number; cookie?: string }): Promise<unknown>;
   recommend_songs(query: { cookie?: string }): Promise<unknown>;
   recommend_resource(query: { cookie?: string }): Promise<unknown>;
   simi_song(query: { id: string; limit?: number; cookie?: string }): Promise<unknown>;
@@ -91,6 +95,8 @@ export interface LoginRefresh {
 
 /** Calls into the pinned NeteaseCloudMusicApi package. No HTTP surface of its own. */
 export interface NeteaseClient {
+  createCloudPlaylist?(name:string,cookie:string):Promise<string>;
+  syncCloudPlaylist?(input:{id:string;name:string;description:string;cover?:string;songIds:string[]},cookie:string):Promise<void>;
   songArtwork?(ids: string[], cookie: string | null): Promise<Record<string, string>>;
   qrKey(): Promise<string>;
   qrImage(key: string): Promise<QrImage>;
@@ -189,6 +195,17 @@ export function createNeteaseClient(module: NcmModule = loadNeteaseModule()): Ne
       } catch (error) {
         rethrowSignedOut(error);
       }
+    },
+    async createCloudPlaylist(name,cookie){
+      const result=await module.playlist_create({name,privacy:"10",cookie});readMutation(result,"create_playlist_failed");const body=bodyOf(result),playlist=asRecord(body?.playlist),id=String(playlist?.id??body?.id??"");if(!/^\d{1,20}$/.test(id))throw new Error("create_playlist_failed");return id;
+    },
+    async syncCloudPlaylist(input,cookie){
+      readMutation(await module.playlist_name_update({id:input.id,name:input.name,cookie}),"playlist_name_failed");readMutation(await module.playlist_desc_update({id:input.id,desc:input.description,cookie}),"playlist_desc_failed");
+      const existing:string[]=[];
+      for(let offset=0;offset<10000;offset+=100){const page=readPlaylistTracks(await module.playlist_track_all({id:input.id,limit:100,offset,cookie}));existing.push(...page.map(h=>h.id));if(page.length<100)break;}
+      const desired=new Set(input.songIds),known=new Set(existing);
+      for(const [op,ids]of [["del",existing.filter(id=>!desired.has(id))],["add",input.songIds.filter(id=>!known.has(id))]] as const){for(let i=0;i<ids.length;i+=500)readCollect(await module.playlist_tracks({op,pid:input.id,tracks:ids.slice(i,i+500).join(","),cookie}));}
+      if(input.cover?.startsWith("data:image/jpeg;base64,")){const result=await module.playlist_cover_update({id:input.id,cookie,imgFile:{name:"tide-cover.jpg",data:Buffer.from(input.cover.split(",")[1],"base64")}});readMutation(result,"playlist_cover_failed");const detail=asRecord(bodyOf(result)?.data);if(detail?.code&&detail.code!==200)throw new Error("playlist_cover_failed");}
     },
     async searchKind(keywords, type, cookie, offset=0) {
       const page = readCatalog(await module.cloudsearch(withCookie({ keywords, type, limit: 20, offset }, cookie)), type);

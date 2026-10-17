@@ -12,6 +12,7 @@ import { mountPlayer } from "./player";
 import { mountStage } from "./layers/stage";
 import { mountNativeShell } from "./native-shell.js";
 import { updateCoverTheme } from "./generated-theme";
+import { applyLike } from "./liked";
 
 declare global {
   interface Window {
@@ -154,9 +155,9 @@ applyAppearance({
   motion: 1,
   lattice: false,
   shell: "lens",
-  preset: "tide",
+  preset: "flow",
   performance: "balanced",
-  background: "solid",
+  background: "paper",
   fontPreset: "system",
   fontFamily: "",
 });
@@ -191,6 +192,7 @@ window.tide.onEvent((event: PlaybackBusEvent) => {
 });
 
 window.tide.onRenderActive?.(setRenderingActive);
+window.tide.onLikeState?.(value=>applyLike(value.id,value.liked));
 document.addEventListener("visibilitychange", () => { if (isRenderingActive() && latestPlayback) showPlayback(latestPlayback); });
 window.tide.onPlayback(showPlayback);
 window.tide.onNotice((message) => library.notify(message));

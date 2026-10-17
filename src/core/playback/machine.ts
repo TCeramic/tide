@@ -41,6 +41,9 @@ export class PlaybackMachine {
     explore: false,
   };
 
+  /** Small visual windows never need to clone the full queue on every lyric tick. */
+  nowPlaying():Omit<PlaybackSnapshot,"queue">&{track:Track|null}{const {queue,...state}=this.snapshot;return {...state,track:queue[state.index]?cloneTrack(queue[state.index]):null};}
+
   getState(): PlaybackSnapshot {
     return {
       ...this.snapshot,

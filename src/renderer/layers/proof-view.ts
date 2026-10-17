@@ -104,20 +104,20 @@ export function mountProof(host: HTMLElement, onSong: (id: string, name: string)
       renderer.setClearColor(0x000000, 0);
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 40);
-      camera.position.set(0, 1.55, 6.6); camera.lookAt(0, 1.55, 0);
+      camera.position.set(0, 1, 3.5); camera.lookAt(0, 1, 0);
       const tree = new ProofTree({ byId: new Map(), station: "tree", ground: false });
       tree.shared.uSize.value = 1.2;
-      const spinUpdate=tree.spin.update.bind(tree.spin);tree.spin.update=dt=>{if(!tree.spin.d&&!matchMedia("(prefers-reduced-motion: reduce)").matches)tree.spin.yaw.target-=dt*.12;spinUpdate(dt);};
       scene.add(tree.object);
       const abort = new AbortController();
       let width = 0, height = 0, last = 0;
       const stage = { scene, camera, renderer, dpr: renderer.getPixelRatio(), pointer: { x: 0, y: 0, inside: false }, near: () => true,
         project(v: THREE.Vector3) { const p = v.clone().project(camera); return { x: (p.x * .5 + .5) * width, y: (-p.y * .5 + .5) * height, visible: p.z < 1 }; } };
       const projectedLabels = new Map<string, HTMLButtonElement>();
+      const labelWidths = new Map<string, number>();
       let pending:{records:LatticeNode[];started:number;keep:Set<string>}|null=null;
       const motion=()=>document.documentElement.dataset.performance!=="smooth"&&!matchMedia("(prefers-reduced-motion: reduce)").matches;
       const commitGraph=(rows:LatticeNode[])=>{
-        branchGraph(tree,rows,positions,path,motion());labels.replaceChildren();projectedLabels.clear();
+        branchGraph(tree,rows,positions,path,motion());labels.replaceChildren();projectedLabels.clear();labelWidths.clear();
         for(const node of rows){const label=button(node.name,()=>navigate(node.id));label.classList.add("proof-label");label.title=`${kinds[node.kind]} · ${node.name}`;
           label.style.opacity=path.length>1&&!path.includes(node.id)&&!node.id.startsWith(path.at(-1)!+'/')?'.3':'1';labels.append(label);projectedLabels.set(node.id,label);}
         canvas.dataset.nodes=String(rows.length);canvas.dataset.root=rows[0].id;
@@ -132,7 +132,8 @@ export function mountProof(host: HTMLElement, onSong: (id: string, name: string)
           const label = projectedLabels.get(node.tid); if (!label) return;
           label.hidden = !p.bloomed || !p.visible;
           if (label.hidden) return;
-          const w = Math.min(150, Math.max(50, label.offsetWidth));
+          let w = labelWidths.get(node.tid);
+          if (w === undefined) { w = Math.min(150, Math.max(50, label.offsetWidth)); labelWidths.set(node.tid, w); }
           const x = Math.max(w / 2 + 6, Math.min(width - w / 2 - 6, p.x));
           let y=Math.max(4,Math.min(height-30,p.y+13));
           let settled=false;
@@ -174,7 +175,7 @@ export function mountProof(host: HTMLElement, onSong: (id: string, name: string)
       };
       restart = () => { if (!frame && running && isRenderingActive() && !host.hidden && document.documentElement.dataset.view !== "playing") { clearTimeout(drawTimer); drawTimer = 0; last = 0; frame = requestAnimationFrame(loop); } };
       disposeGl = () => { abort.abort(); theme.disconnect(); tree.trees.forEach(t => t.dispose()); renderer.dispose(); labels.replaceChildren(); };
-      const resize=new ResizeObserver(()=>restart());resize.observe(visual);
+      const resize=new ResizeObserver(()=>{labelWidths.clear();restart();});resize.observe(visual);
       const cleanup=disposeGl;disposeGl=()=>{resize.disconnect();cleanup();};
       restart();
     } catch {

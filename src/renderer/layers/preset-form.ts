@@ -1,14 +1,6 @@
-import type { Appearance, FontPresetId, PerformanceTier, ShellId, StageBackground, VisualPresetId } from "../../shared/contract";
+import type { Appearance, FontPresetId, PerformanceTier, ShellId, StageBackground } from "../../shared/contract";
 
 import { createNativeChoiceRow, openDesignCatalog } from "../native-shell.js";
-
-const PRESETS: { id: VisualPresetId; title: string; detail: string }[] = [
-  { id: "tide", title: "潮汐默认", detail: "液体玻璃 · 歌词为主" },
-  { id: "cover-glow", title: "封面晕影", detail: "封面色晕开 · 字仍清晰" },
-  { id: "vinyl", title: "唱片", detail: "圆形封面 · 轻一点的转动" },
-  { id: "stardust", title: "星尘", detail: "深空星点 · 方块潮汐" },
-  { id: "quiet", title: "留白", detail: "纯净底 · 只留歌词" },
-];
 
 const TIERS: { id: PerformanceTier; label: string }[] = [
   { id: "smooth", label: "低" },
@@ -45,30 +37,10 @@ export function mountPresetForm(): {
   root.className = "preset-form";
   const kicker = document.createElement("p");
   kicker.className = "preset-kicker";
-  kicker.textContent = "视觉预设";
+  kicker.textContent = "外观与动效";
   const hint = document.createElement("p");
   hint.className = "library-note";
-  hint.textContent = "先选整体风格，再进入细节。歌词可读性优先于效果。";
-  const grid = document.createElement("div");
-  grid.className = "preset-grid";
-  const buttons = new Map<string, HTMLButtonElement>();
-  for (const preset of PRESETS) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "preset-card";
-    button.dataset.preset = preset.id;
-    const title = document.createElement("strong");
-    title.textContent = preset.title;
-    const detail = document.createElement("span");
-    detail.textContent = preset.detail;
-    button.append(title, detail);
-    button.addEventListener("click", () => {
-      void window.tide.setAppearance({ preset: preset.id });
-    });
-    buttons.set(`preset:${preset.id}`, button);
-    grid.append(button);
-  }
-
+  hint.textContent = "封面流动配色跟随歌曲；低档静态，中档柔和过渡，高档完整动态。";
   const detailHeading = document.createElement("p");
   detailHeading.className = "preset-kicker";
   detailHeading.textContent = "细节";
@@ -118,7 +90,7 @@ export function mountPresetForm(): {
   const later = document.createElement("p");
   later.className = "library-note";
   later.textContent = "Lens / Lattice · DayDreamInAReverie · MIT";
-  root.append(kicker, hint, shellRow.element, modeRow.element, catalogs, grid, detailHeading, tierRow.element, backgroundRow.element, fontRow.element, family, importFont, imageButton, later);
+  root.append(kicker, hint, shellRow.element, modeRow.element, catalogs, detailHeading, tierRow.element, backgroundRow.element, fontRow.element, family, importFont, imageButton, later);
 
   return {
     element: root,
@@ -130,10 +102,6 @@ export function mountPresetForm(): {
       backgroundRow.sync(appearance.background);
       fontRow.sync(appearance.fontPreset);
       if (document.activeElement !== family) family.value = appearance.fontFamily;
-      for (const [key, button] of buttons) {
-        const [, id] = key.split(":");
-        button.setAttribute("aria-pressed", String(appearance.preset === id));
-      }
     },
   };
 }

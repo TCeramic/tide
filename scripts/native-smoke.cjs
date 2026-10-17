@@ -23,7 +23,7 @@ let app;
   await page.evaluate(() => localStorage.setItem('tide.risk.ack', '1')); await page.reload();
   await page.waitForFunction(async () => (await window.tide.getHealth()).ok, null, { timeout: 30000 });
   assert.match(await page.title(), /Tide|潮汐/i);
-  assert.equal(await page.locator('.home-card').count(), 6);
+  assert.equal(await page.locator('.home-card').count(), 5);
   await page.evaluate(() => window.tide.setAppearance({ shell: 'lattice', motion: 1 }));
   await page.waitForFunction(() => document.documentElement.dataset.shell === 'lattice');
   await page.waitForTimeout(2200);

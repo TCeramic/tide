@@ -188,7 +188,16 @@ export function mountChrome(root: HTMLElement): {
   dockMain.className = "dock-main";
   dockMain.append(cover, meta, controls, volumeWrap);
   transport.append(dockMain, seekRow);
-  root.append(transport);
+  const dock=document.createElement("div");dock.className="dock-shell";dock.append(transport);
+  const zone=document.createElement("div");zone.className="dock-trigger";zone.setAttribute("aria-label","显示播放栏");root.append(dock,zone);
+  const abort=new AbortController();let hideTimer=0;
+  const showDock=()=>{clearTimeout(hideTimer);document.documentElement.dataset.dockVisible="true";};
+  const hideDock=()=>{clearTimeout(hideTimer);hideTimer=window.setTimeout(()=>{if(!dock.matches(":hover")&&!zone.matches(":hover")&&!dock.querySelector(":focus-visible"))document.documentElement.dataset.dockVisible="false";},260);};
+  for(const el of [zone,dock]){el.addEventListener("pointerenter",showDock,{signal:abort.signal});el.addEventListener("pointerleave",hideDock,{signal:abort.signal});}dock.addEventListener("focusin",showDock,{signal:abort.signal});dock.addEventListener("focusout",hideDock,{signal:abort.signal});
+  window.addEventListener("blur",()=>document.documentElement.dataset.dockVisible="false",{signal:abort.signal});
+  document.addEventListener("pointerdown",e=>{if(e.target instanceof Node&&!dock.contains(e.target)&&!zone.contains(e.target))document.documentElement.dataset.dockVisible="false";},{signal:abort.signal});
+  document.documentElement.dataset.dockVisible="false";const dockResize=new ResizeObserver(()=>dock.style.setProperty("--dock-shell-h",`${transport.getBoundingClientRect().height}px`));dockResize.observe(transport);
+
 
   const setPlayback = (snapshot: PlaybackSnapshot) => {
     latest = snapshot;
@@ -257,6 +266,7 @@ export function mountChrome(root: HTMLElement): {
       // The lattice switch lives in Settings. The stage still follows appearance.
     },
     destroy: () => {
+      abort.abort();clearTimeout(hideTimer);dockResize.disconnect();
       stopLiked();
       stopView();
       marquee.destroy();
@@ -278,4 +288,3 @@ function formatTime(ms: number): string {
   const seconds = total % 60;
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
-

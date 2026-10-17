@@ -1,3 +1,6 @@
+import { attachMiniPlayer } from "./mini-host";
+import { TidePlaylistStore } from "./tide-playlists";
+import { attachTidePlaylists } from "./tide-playlist-host";
 import { app, BrowserWindow, dialog, Menu, Tray, globalShortcut, ipcMain } from "electron";
 import { TodayStore } from "./today-store";
 import { titleBarChrome, windowBackground } from "../core/titlebar";
@@ -54,6 +57,7 @@ let quitting = false;
 let runHardware: (source: MediaSource, action: unknown) => void = () => undefined;
 let mediaNotice: string | null = null;
 let closeDesk: () => void = () => undefined;
+let closeMini=()=>{};let restoreMain=()=>{};
 
 function windowIcon(): string {
   return path.join(__dirname, process.platform === "win32" ? "icon.ico" : "icon.png");
@@ -125,6 +129,7 @@ function createWindow(): BrowserWindow {
     win.setSkipTaskbar(false); win.show(); win.restore(); win.focus();
     tray?.destroy(); tray = null;
   };
+  restoreMain=restoreFromTray;
   ipcMain.removeHandler(Ipc.windowAction);
   ipcMain.handle(Ipc.windowAction, (event, action: unknown) => {
     if (event.sender !== win.webContents) return;
@@ -232,6 +237,7 @@ app.whenReady().then(async () => {
 
   const settings = new SettingsStore(path.join(app.getPath("userData"), "settings.json"));
   settingsStore = settings;
+  attachTidePlaylists(new TidePlaylistStore(path.join(app.getPath("userData"),"tide-playlists.json")),()=>apiPort);
   const desk = attachDeskLyrics({
     settings,
     machine,
@@ -242,6 +248,7 @@ app.whenReady().then(async () => {
     },
   });
   closeDesk = desk.close;
+  const mini=attachMiniPlayer({file:path.join(app.getPath("userData"),"mini-player.json"),machine,cue:desk.getCue,performance:()=>settings.read().performance,showMain:()=>restoreMain()});closeMini=mini.close;
   const listenLog = new ListenLog(path.join(app.getPath("userData"), "listen-log.json"));
   machine.setVolume(settings.read().volume);
   const playback = attachPlayback(() => mainWindow, machine, () => apiPort, (volume) => {
@@ -536,7 +543,7 @@ app.on("window-all-closed", () => {
 app.on("before-quit", () => {
   quitting = true;
   tray?.destroy(); tray = null;
-  closeDesk();
+  closeDesk();closeMini();
   globalShortcut.unregisterAll();
   ipcMain.removeHandler(Ipc.qualityGet);
   ipcMain.removeHandler(Ipc.qualitySet);

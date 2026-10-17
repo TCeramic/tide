@@ -25,7 +25,7 @@ const out=path.resolve(process.env.TIDE_PERF_OUTPUT||'artifacts/perf-baseline');
    },{file:wav,lineMs});
    await page.evaluate(async()=>{const hits=await window.tide.addLocalTracks();await window.tide.playHits(hits,0);window.perfAudioReady=true;document.querySelector('audio').loop=true;});
    await page.waitForFunction(()=>document.querySelector('audio')&&!document.querySelector('audio').paused);
-   await page.locator('.dock-cover').click();
+   await page.evaluate(()=>document.querySelector('.dock-cover').click());
   }
   await page.evaluate(shell=>window.tide.setAppearance({shell,motion:1,performance:'balanced'}),shell);await page.waitForTimeout(2500);
   const before=await app.evaluate(({app})=>app.getAppMetrics()); const frames=await page.evaluate(()=>window.frameCalls);

@@ -1,5 +1,5 @@
 import http from "node:http";
-import { ipcMain } from "electron";
+import { BrowserWindow, ipcMain } from "electron";
 import { hasMusicU, normalizeCookie } from "../api/cookie";
 import { Ipc, type ApiFailure } from "../shared/contract";
 
@@ -47,11 +47,13 @@ export function attachSession(getPort: () => number | null): () => void {
   ipcMain.handle(Ipc.albumTracks, (_event, id: unknown) => trackList(getPort(), "/album/tracks", id));
   ipcMain.handle(Ipc.lyric, (_event, id: unknown) => trackList(getPort(), "/lyric", id));
   ipcMain.handle(Ipc.likedIds, () => loopbackJson(getPort(), "GET", "/liked"));
-  ipcMain.handle(Ipc.likeSong, (_event, id: unknown, like: unknown) => {
+  ipcMain.handle(Ipc.likeSong, async (_event, id: unknown, like: unknown) => {
     if (typeof id !== "string" || !/^\d{1,20}$/.test(id)) {
       return { ok: false, error: "bad_id", message: "曲目编号无效" } satisfies ApiFailure;
     }
-    return loopbackJson(getPort(), "POST", "/song/like", { id, like: like !== false });
+    const result = await loopbackJson(getPort(), "POST", "/song/like", { id, like: like !== false }) as ApiFailure | {ok:true;liked:boolean};
+    if (result.ok) for (const window of BrowserWindow.getAllWindows()) window.webContents.send("tide:like-state", {id,liked:result.liked});
+    return result;
   });
   ipcMain.handle(Ipc.collectSong, (_event, playlistId: unknown, trackId: unknown) => {
     if (typeof playlistId !== "string" || typeof trackId !== "string") {
@@ -116,7 +118,7 @@ function requestJson(port: number, method: string, pathname: string, body?: unkn
         port,
         path: pathname,
         method,
-        timeout: UPSTREAM_TIMEOUT_MS,
+        timeout: pathname.startsWith("/tide-playlist/") ? 120_000 : UPSTREAM_TIMEOUT_MS,
         headers: payload
           ? { "Content-Type": "application/json", "Content-Length": payload.length }
           : {},

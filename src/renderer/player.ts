@@ -1,6 +1,4 @@
-import { isRenderingActive } from "./render-activity";
 import type { MediaCue, PlaybackBusEvent } from "../shared/contract";
-import { pushAudioEnergy } from "./audio-energy";
 import { bindAudioClock } from "./audio-clock";
 
 /** Hidden audio element. The main process resolves the URL; this element plays it. */
@@ -24,45 +22,10 @@ export function mountPlayer(): () => void {
     audio.load();
   };
 
-  let energyOn = false;
-  let energyFrame = 0, energyTimer = 0;
-  let context: AudioContext | null = null;
-  let energyTick = () => {};
-  const wakeEnergy = () => { cancelAnimationFrame(energyFrame); clearTimeout(energyTimer); energyTimer = 0; energyFrame = 0; if (isRenderingActive() && !audio.paused) energyFrame = requestAnimationFrame(energyTick); };
-  document.addEventListener("visibilitychange", wakeEnergy);
-  audio.addEventListener("playing", wakeEnergy);
-  audio.addEventListener("pause", wakeEnergy);
-  const watchEnergy = () => {
-    if (energyOn) return;
-    energyOn = true;
-    try {
-      const Ctx = window.AudioContext;
-      const ctx = new Ctx(); context = ctx;
-      const source = ctx.createMediaElementSource(audio);
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 32;
-      source.connect(analyser);
-      analyser.connect(ctx.destination);
-      const bins = new Uint8Array(analyser.frequencyBinCount);
-      const tick = () => {
-        energyFrame = 0;
-        if (!isRenderingActive() || audio.paused) return;
-        analyser.getByteFrequencyData(bins);
-        let sum = 0;
-        for (const value of bins) sum += value;
-        pushAudioEnergy(bins.length === 0 ? 0 : sum / (bins.length * 255));
-        energyTimer = window.setTimeout(() => { energyTimer = 0; energyFrame = requestAnimationFrame(tick); }, 1000 / 30);
-      };
-      energyTick = tick; wakeEnergy();
-    } catch {
-      energyOn = false;
-    }
-  };
-
   const playAudio = () => {
     const url = activeUrl;
     if (!url) return;
-    watchEnergy();
+
     void audio.play().catch(() => {
       if (activeUrl !== url) return;
       void window.tide.failPlayback("no_url");
@@ -141,10 +104,6 @@ export function mountPlayer(): () => void {
   });
 
   return () => {
-    cancelAnimationFrame(energyFrame); clearTimeout(energyTimer);
-    document.removeEventListener("visibilitychange", wakeEnergy);
-    audio.removeEventListener("playing", wakeEnergy); audio.removeEventListener("pause", wakeEnergy);
-    void context?.close();
     stopMedia();
     stopEvents();
     stopClock();

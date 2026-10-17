@@ -1,3 +1,4 @@
+import { unlockHandle } from "./unlock-handle";
 import { BrowserWindow, globalShortcut, ipcMain, screen } from "electron";
 import path from "node:path";
 import {
@@ -40,8 +41,9 @@ export function attachDeskLyrics(options: {
   machine: PlaybackMachine;
   getMainWindow: () => BrowserWindow | null;
   notify: (message: string) => void;
-}): { close: () => void } {
+}): { close: () => void;getCue:()=>DeskCue } {
   let overlay: BrowserWindow | null = null;
+  let unlock:ReturnType<typeof unlockHandle>|null=null;
   let timer: ReturnType<typeof setInterval> | null = null;
   let moveTimer: ReturnType<typeof setTimeout> | null = null;
   let registeredShortcut = "";
@@ -63,9 +65,9 @@ export function attachDeskLyrics(options: {
   const areas = () => screen.getAllDisplays().map((display) => display.workArea);
 
   const estimatePosition = () => {
-    const state = options.machine.getState();
+    const state = options.machine.nowPlaying();
     const now = Date.now();
-    const id=state.queue[state.index]?.id??"";
+    const id=state.track?.id??"";
     if (!seenAt || seenTrack!==id || state.status !== "playing" || state.positionMs !== seenMs) {
       seenTrack=id;
       seenMs = state.positionMs;
@@ -78,8 +80,8 @@ export function attachDeskLyrics(options: {
   const cueNow = (): DeskCue => {
     const settings = read();
     const budget = performanceBudget(options.settings.read().performance);
-    const state = options.machine.getState();
-    const track = state.index >= 0 ? state.queue[state.index] : undefined;
+    const state = options.machine.nowPlaying();
+    const track = state.track??undefined;
     const same = Boolean(track && track.id === bundle.trackId);
     const display = desktopLyricContent(same?bundle.yrc:[],same?bundle.original:[],same?bundle.translation:[],estimatePosition(),same?bundle.offsetMs:0,track?.title??"",track?.artist??"");
     const text=display.text, translation=settings.pair||display.metadata?display.translation:"";
@@ -159,11 +161,11 @@ export function attachDeskLyrics(options: {
 
   const applyLock = (settings: DeskLyricsSettings) => {
     if (!overlay || overlay.isDestroyed()) return;
-    overlay.setIgnoreMouseEvents(settings.locked);
+    overlay.setIgnoreMouseEvents(settings.locked);unlock?.sync(settings.locked);
   };
 
   const destroyOverlay = () => {
-    stopTimer();
+    stopTimer();unlock?.destroy();unlock=null;
     closeContext();
     lastPayload = "";
     if (moveTimer) clearTimeout(moveTimer);
@@ -227,7 +229,7 @@ export function attachDeskLyrics(options: {
         webSecurity: true,
       },
     });
-    overlay = win;
+    overlay = win;unlock=unlockHandle(win,"desk");
     win.setAlwaysOnTop(true, "screen-saver");
     win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     win.on("move", onMoved);
@@ -269,6 +271,9 @@ export function attachDeskLyrics(options: {
   screen.on("display-removed", reclamp);
   screen.on("display-metrics-changed", reclamp);
 
+  ipcMain.handle(Ipc.deskCenter,()=>{if(!overlay||overlay.isDestroyed())return;const b=overlay.getBounds(),area=screen.getDisplayMatching(b).workArea;const vertical=read().orientation==="vertical";
+    const next={...b,x:vertical?b.x:Math.round(area.x+(area.width-b.width)/2),y:vertical?Math.round(area.y+(area.height-b.height)/2):b.y};programmaticBounds=next;anchor={x:next.x+b.width/2,y:next.y+b.height/2};overlay.setBounds(next);options.settings.write({deskLyrics:{...read(),x:next.x,y:next.y}});unlock?.sync(read().locked);
+  });
   ipcMain.handle(Ipc.deskContext,event=>{if(event.sender===overlay?.webContents)openContext();});
   ipcMain.handle(Ipc.deskContextClose,event=>{if(event.sender===contextMenu?.webContents||event.sender===overlay?.webContents)closeContext();});
   ipcMain.handle(Ipc.deskGet, () => read());
@@ -286,9 +291,11 @@ export function attachDeskLyrics(options: {
   else armShortcut();
 
   return {
+    getCue:cueNow,
     close() {
       screen.removeListener("display-removed", reclamp);
       screen.removeListener("display-metrics-changed", reclamp);
+      ipcMain.removeHandler(Ipc.deskCenter);
       ipcMain.removeHandler(Ipc.deskContext);
       ipcMain.removeHandler(Ipc.deskContextClose);
       ipcMain.removeHandler(Ipc.deskGet);

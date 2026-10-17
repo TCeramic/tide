@@ -11,6 +11,7 @@ export function mountDeskForm(): { element: HTMLElement; destroy: () => void } {
   help.className = "library-note";
   help.textContent = "独立透明窗口，置顶在其它窗口之上。锁定后点击会穿透到下层。显隐热键默认 Ctrl+Alt+D；右键可快捷调整。";
 
+  const center=document.createElement("button");center.type="button";center.className="text-button";center.textContent="居中桌面歌词";center.onclick=()=>void window.tide.centerDeskLyrics();
   const openRow = checkRow("桌面歌词");
   const lockRow = checkRow("锁定（点击穿透）");
   const sweepRow = checkRow("字内扫过");

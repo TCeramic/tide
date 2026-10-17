@@ -1,5 +1,6 @@
+import { aiTrackId } from "./ai-context";
 import { aiPrompt, parseAiResult, type AiInput, type AiResult } from "../core/ai-assist";
-import { applyGeneratedTheme, updateCoverTheme } from "./generated-theme";
+import { replaceCurrentTheme, updateCoverTheme } from "./generated-theme";
 
 export function mountAiAssist(getInput: (task: "theme" | "segment") => AiInput, cover: () => string | undefined, apply: (result: AiResult) => void) {
   const element = document.createElement("details"); element.className = "ai-assist";
@@ -8,7 +9,7 @@ export function mountAiAssist(getInput: (task: "theme" | "segment") => AiInput, 
   const note = document.createElement("p"); note.className = "library-note"; note.textContent = "本地配色无需密钥；模型生成需要配置服务。";
   const actions = document.createElement("div"); actions.className = "ai-assist-actions";
   const input = document.createElement("textarea"); input.rows = 5; input.maxLength = 256000; input.setAttribute("aria-label", "AI 生成结果 JSON"); input.placeholder = "粘贴主题或分词 JSON";
-  const local = button("生成封面配色", () => { const current = getInput("theme"); updateCoverTheme(`manual:${Date.now()}`, cover(), current.title); void window.tide.setAppearance({ background: "paper" }); note.textContent = "已生成本地配色，没有调用大模型"; });
+  const local = button("生成封面配色", () => { const current = getInput("theme"); updateCoverTheme(aiTrackId(), cover(), current.title,true); void window.tide.setAppearance({ background: "paper" }); note.textContent = "已生成本地配色，没有调用大模型"; });
   const copy = (task: "theme" | "segment") => async () => {
     const prompt = aiPrompt(getInput(task));
     try { await navigator.clipboard.writeText(prompt); note.textContent = "提示词已复制，模型返回 JSON 后粘贴到下方"; }
@@ -16,7 +17,7 @@ export function mountAiAssist(getInput: (task: "theme" | "segment") => AiInput, 
   };
   let disposed = false, generation = 0;
   const commit = (result: AiResult) => {
-    if (result.task === "theme") { applyGeneratedTheme(result.theme); void window.tide.setAppearance({ background: "paper" }); note.textContent = "模型配色已应用"; }
+    if (result.task === "theme") { replaceCurrentTheme(result.theme); void window.tide.setAppearance({ background: "paper" }); note.textContent = "模型配色已应用"; }
     else { apply(result); note.textContent = "分词已应用；没有原始逐词时间的行会明确标为估算"; }
   };
   const generate = (task: "theme" | "segment") => async () => {

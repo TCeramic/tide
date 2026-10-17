@@ -16,6 +16,7 @@ export function fillTrackList(
   playlists: readonly PlaylistSummary[],
   note: (message: string, warn: boolean) => void,
   source?: PlaylistCursor,
+  onRemove?: (id:string)=>void,
 ): void {
   list.replaceChildren();
   const start = document.createElement("li");
@@ -24,9 +25,9 @@ export function fillTrackList(
   startButton.type = "button";
   startButton.className = "text-button";
   startButton.textContent = "开始播放";
-  startButton.addEventListener("click", () => {
-    const selected = Number(list.dataset.selected ?? "");
-    const index = Number.isInteger(selected) && hits[selected]?.playable ? selected : hits.findIndex((row) => row.playable);
+  startButton.addEventListener("click", async () => {
+    const state=await window.tide.getPlayback();const playable=hits.map((h,i)=>h.playable?i:-1).filter(i=>i>=0);
+    const index=state.shuffle?playable[Math.floor(Math.random()*playable.length)]??-1:playable[0]??-1;
     if (index < 0) {
       note("没有可播放的地址", true);
       return;
@@ -137,12 +138,13 @@ export function fillTrackList(
         note(playlists.length === 0 ? "请先登录后再收藏" : "先选一个歌单", true);
         return;
       }
-      void window.tide.collectSong(picker.value, hit.id).then((result) => {
-        note(result.ok ? result.message : result.message, !result.ok);
+      void (picker.value.startsWith("tide-list-")?window.tide.addToTidePlaylist(picker.value,hit):window.tide.collectSong(picker.value, hit.id)).then((result) => {
+        note(result.message??(result.ok?"已收藏":"收藏失败"), !result.ok);
       });
     });
     collect.append(picker, save);
     menu.append(playItem, nextItem, likeItem, collect, shareItem);
+    if(onRemove)menu.append(menuButton("从此歌单移除",()=>onRemove(hit.id)));
 
     item.append(art, play, main, like, more);
     list.append(item);

@@ -36,8 +36,9 @@ export function mountProgress(el) {
   el.setAttribute("role", "progressbar");
   el.setAttribute("aria-valuemin", "0"); el.setAttribute("aria-valuemax", "100");
   let done = false;
+  const visible=()=>!el.closest('.dock-shell')||document.documentElement.dataset.dockVisible==='true';
   let cl = colors();
-  const theme = new MutationObserver(()=>{cl=colors();lastChange=clock.time;wake();}); theme.observe(document.documentElement,{attributes:true,attributeFilter:["data-world","data-color-mode","data-performance","data-shell"]});
+  const theme = new MutationObserver(()=>{cl=colors();lastChange=clock.time;wake();}); theme.observe(document.documentElement,{attributes:true,attributeFilter:["data-world","data-color-mode","data-performance","data-shell","data-dock-visible"]});
   const api = {
     set(v) { const next=Math.max(0,Math.min(1,v));if(next!==target)lastChange=clock.time;target=next; indeterminate = false; el.setAttribute("aria-valuenow", String(Math.round(target * 100)));wake(); },
     indeterminate(on = true) { indeterminate = on; el.removeAttribute("aria-valuenow"); },
@@ -45,7 +46,7 @@ export function mountProgress(el) {
   };
   function render(now) {
     frame=0;
-    if(dead || !isRenderingActive() || document.documentElement.dataset.shell!=="lattice" || size.w<=0 || size.h<=0 || (el.dataset.playing!=="true" && clock.time-lastChange>1.2)){last=0;return;}
+    if(dead || !visible() || !isRenderingActive() || document.documentElement.dataset.shell!=="lattice" || size.w<=0 || size.h<=0 || (el.dataset.playing!=="true" && clock.time-lastChange>1.2)){last=0;return;}
     const fps=document.documentElement.dataset.performance === "vivid" ? 120 : 30;
     if(last && now-last<1000/fps-.5){wake();return;}
     const dt=last?Math.min(.05,(now-last)/1000):1/fps,t=clock.time;last=now;
@@ -87,7 +88,7 @@ export function mountProgress(el) {
     g.globalAlpha = 1;
     wake();
   }
-  function wake(){if(!dead&&!frame&&isRenderingActive()&&document.documentElement.dataset.shell==="lattice")frame=requestAnimationFrame(render);}
+  function wake(){if(!dead&&!frame&&visible()&&isRenderingActive()&&document.documentElement.dataset.shell==="lattice")frame=requestAnimationFrame(render);}
   const activity=()=>{cancelAnimationFrame(frame);frame=0;last=0;wake();};document.addEventListener("visibilitychange",activity);
   api.set(target);
   el._progress = api;

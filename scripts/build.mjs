@@ -99,3 +99,7 @@ await cp(path.join(root, "build/icon.png"), path.join(dist, "icon.png"));
 await cp(path.join(root, "licenses"), path.join(dist, "licenses"), { recursive: true });
 
 await cp(path.join(root,"src/renderer/assets"),path.join(dist,"assets"),{recursive:true});
+
+await build({entryPoints:[path.join(root,"src/renderer/mini.ts")],bundle:true,platform:"browser",format:"iife",target:"es2022",sourcemap:true,outfile:path.join(dist,"mini.js"),logLevel:"info"});
+await cp(path.join(root,"src/renderer/mini.html"),path.join(dist,"mini.html"));
+await cp(path.join(root,"src/renderer/mini.css"),path.join(dist,"mini.css"));

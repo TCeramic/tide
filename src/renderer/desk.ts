@@ -1,7 +1,9 @@
 import { mountDeskContext } from "./desk-context";
 import type { DeskCue } from "../shared/contract";
 
-if(new URLSearchParams(location.search).get("context")==="true") mountDeskContext(); else mountOverlay();
+const unlockTarget=new URLSearchParams(location.search).get("unlock");
+if(unlockTarget){document.documentElement.dataset.unlock="true";const b=document.createElement("button");b.className="unlock-handle";b.textContent="解锁";b.setAttribute("aria-label",unlockTarget==="mini"?"解锁小窗播放器":"解锁桌面歌词");b.onclick=()=>void(unlockTarget==="mini"?window.tide.setMiniPlayer({locked:false}):window.tide.setDeskLyrics({locked:false}));document.body.replaceChildren(b);}
+else if(new URLSearchParams(location.search).get("context")==="true") mountDeskContext(); else mountOverlay();
 function mountOverlay(): void {
 const nextEl = document.querySelector<HTMLElement>("#next")!;
 window.addEventListener("contextmenu",event=>{event.preventDefault();void window.tide.openDeskMenu();});

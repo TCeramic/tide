@@ -3,22 +3,24 @@ const hex = (value: number) => Math.max(0, Math.min(255, Math.round(value))).toS
 
 /** Local cover quantization, independent of Folia's AGPL implementation. No model call. */
 export function themeFromPixels(pixels: ArrayLike<number>, seed: string): GeneratedTheme {
+  let sumR=0,sumG=0,sumB=0,count=0;
   const bins = new Map<number, { count: number; r: number; g: number; b: number }>();
   for (let i = 0; i + 3 < pixels.length; i += 4) {
     const r = pixels[i]!, g = pixels[i + 1]!, b = pixels[i + 2]!;
     if (pixels[i + 3]! < 128 || Math.max(r, g, b) < 20 || Math.min(r, g, b) > 235) continue;
+    sumR+=r;sumG+=g;sumB+=b;count++;
     const key = (r >> 5) * 64 + (g >> 5) * 8 + (b >> 5);
     const bin = bins.get(key) ?? { count: 0, r: 0, g: 0, b: 0 };
     bin.count++; bin.r += r; bin.g += g; bin.b += b; bins.set(key, bin);
   }
-  const palette = [...bins.values()].sort((a, b) => b.count - a.count).slice(0, 4).map(bin => `#${hex(bin.r / bin.count)}${hex(bin.g / bin.count)}${hex(bin.b / bin.count)}`);
+  const palette = [...bins.values()].sort((a, b) => b.count - a.count).slice(0, 6).map(bin => `#${hex(bin.r / bin.count)}${hex(bin.g / bin.count)}${hex(bin.b / bin.count)}`);
   if (!palette.length) {
     let hash = 2166136261; for (const char of seed) hash = Math.imul(hash ^ char.codePointAt(0)!, 16777619);
     const color = (shift: number) => `#${hex(72 + (hash >>> shift & 127))}${hex(72 + (hash >>> (shift + 6) & 127))}${hex(72 + (hash >>> (shift + 12) & 127))}`;
     palette.push(color(0), color(5), color(10));
   }
   const accent = palette[0]!;
-  return { name: bins.size ? "封面配色" : "本地配色", colors: ["#101a27", ...palette, "#23394b"], accent, source: bins.size ? "cover" : "local" };
+  return { name: bins.size ? "封面配色" : "本地配色", colors: count?[`#${hex(sumR/count)}${hex(sumG/count)}${hex(sumB/count)}`,...palette]:[...palette,palette[0]!], accent, source: bins.size ? "cover" : "local" };
 }
 
 export function validateGeneratedTheme(value: unknown): GeneratedTheme {

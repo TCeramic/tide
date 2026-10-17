@@ -1276,7 +1276,7 @@ html[data-view="playing"] #lyrics {
 }
 
 .peek:hover .corner-btn,
-.peek:focus-within .corner-btn,
+.peek .corner-btn:focus-visible,
 .corner-btn[data-open="true"] {
   opacity: 1;
   visibility: visible;
@@ -1423,61 +1423,8 @@ html[data-view="playing"] #lyrics {
   height: 28px;
 }
 
-html[data-preset="vinyl"] .dock-cover {
-  border-radius: 50%;
-  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.35);
-}
-
-html[data-preset="vinyl"] .dock-cover img {
-  animation: tide-spin 18s linear infinite;
-  animation-play-state: paused;
-}
-
-html[data-preset="vinyl"][data-status="playing"] .dock-cover img {
-  animation-play-state: running;
-}
-
-@keyframes tide-spin {
-  to { transform: rotate(360deg); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  html[data-preset="vinyl"] .dock-cover img,
-  .home-card,
-  .transport .icon-button {
-    animation: none;
-    transition: none;
-  }
-}
-
 .dock-seek input[type="range"] {
   width: 100%;
-}
-
-html[data-preset="quiet"] #stage,
-html[data-preset="quiet"] #stage::after {
-  background: var(--tide-bg);
-}
-
-html[data-preset="cover-glow"] #stage::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(circle at 50% 70%, var(--cover-tint, transparent), transparent 58%);
-  box-shadow: inset 0 0 160px rgba(0, 0, 0, 0.45);
-}
-
-html[data-preset="stardust"] #stage {
-  background: #071018;
-}
-
-html[data-preset="stardust"] #stage::after {
-  opacity: 1;
-}
-
-html:not([data-preset="stardust"]) #stage::after {
-  opacity: 0.35;
 }
 
 html[data-background="cover"] #stage {
@@ -1685,3 +1632,4 @@ html[data-shell="lattice"] .corner-panel {
   object-fit: cover;
   display: block;
 }
+#lyrics .lyric-options-trigger, #lyrics .lyric-options-panel, #lyrics .lyrics-artist { pointer-events: auto; }

@@ -36,7 +36,7 @@ export function createTideApiServer(options: TideApiOptions = {}): http.Server {
     dailySongs: (cookie) => client().dailySongs(cookie),
     radarId: (cookie) => client().radarId(cookie),
     similarSongs: (id, cookie) => client().similarSongs(id, cookie),
-    searchKind: (keywords, type, cookie) => client().searchKind(keywords, type, cookie),
+    searchKind: (keywords, type, cookie, offset) => client().searchKind(keywords, type, cookie, offset),
     artistSongs: (id, cookie) => client().artistSongs(id, cookie),
     albumTracks: (id, cookie) => client().albumTracks(id, cookie),
     lyric: (id, cookie) => client().lyric(id, cookie),
@@ -48,6 +48,16 @@ export function createTideApiServer(options: TideApiOptions = {}): http.Server {
     likedIds: (uid, cookie) => client().likedIds(uid, cookie),
     collectSong: (playlistId, trackId, cookie) => client().collectSong(playlistId, trackId, cookie),
     songArtwork: (ids, cookie) => client().songArtwork?.(ids, cookie) ?? Promise.resolve({}),
+    createCloudPlaylist: (name, cookie) => {
+      const create = client().createCloudPlaylist;
+      if (!create) throw new Error("云端歌单创建暂不可用");
+      return create(name, cookie);
+    },
+    syncCloudPlaylist: (input, cookie) => {
+      const sync = client().syncCloudPlaylist;
+      if (!sync) throw new Error("云端歌单同步暂不可用");
+      return sync(input, cookie);
+    },
   }, options.netease ? undefined : createCommunityLyrics());
 
   function client(): NeteaseClient {
@@ -124,6 +134,8 @@ async function route(
     streamFile(req, res, track.file);
     return;
   }
+  if(req.method==="POST"&&pathname==="/tide-playlist/link"){const id=await session.linkTidePlaylist(await readJson(req));writeJson(res,200,{ok:true,id});return;}
+  if(req.method==="POST"&&pathname==="/tide-playlist/sync"){const message=await session.syncTidePlaylist(await readJson(req,2_000_000));writeJson(res,200,{ok:true,message});return;}
   if (req.method === "GET" && pathname === "/search") {
     const type = Number(url.searchParams.get("type") ?? "1");
     const keywords = url.searchParams.get("keywords") ?? "";
@@ -274,13 +286,13 @@ async function route(
   writeJson(res, 404, { ok: false, error: "not_found", message: "没有这个接口" });
 }
 
-function readJson(req: http.IncomingMessage): Promise<unknown> {
+function readJson(req: http.IncomingMessage,max=32_768): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let size = 0;
     req.on("data", (chunk: Buffer) => {
       size += chunk.length;
-      if (size > 32_768) {
+      if (size > max) {
         reject(new Error("body_too_large"));
         req.destroy();
         return;

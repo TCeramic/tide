@@ -33,6 +33,7 @@ const entryPoints = [
   "src/api/server.test.ts",
   "src/api/session.test.ts",
   "src/main/settings.test.ts",
+  "src/main/tide-playlists.test.ts",
   "src/core/tide-today.test.ts",
   "src/main/listen-log.test.ts",
   "src/core/command-bus.test.ts",

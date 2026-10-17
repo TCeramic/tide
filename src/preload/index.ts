@@ -13,6 +13,19 @@ function listen<T>(channel: string, listener: (payload: T) => void): () => void 
 }
 
 const tide: TideBridge = {
+  onLikeState: listener => listen<{id:string;liked:boolean}>("tide:like-state",listener),
+  getMiniPlayer:()=>ipcRenderer.invoke("tide:mini-get"),
+  setMiniPlayer:patch=>ipcRenderer.invoke("tide:mini-set",patch),
+  miniShowMain:()=>ipcRenderer.invoke("tide:mini-main"),
+  onMiniCue:listener=>listen("tide:mini-cue",listener),
+  centerDeskLyrics:()=>ipcRenderer.invoke(Ipc.deskCenter),
+  tidePlaylists:()=>ipcRenderer.invoke("tide:lists"),
+  saveTidePlaylist:(id,patch)=>ipcRenderer.invoke("tide:list-save",id,patch),
+  addToTidePlaylist:(id,hit)=>ipcRenderer.invoke("tide:list-add",id,hit),
+  removeTidePlaylistSong:(id,songId)=>ipcRenderer.invoke("tide:list-remove-song",id,songId),
+  deleteTidePlaylist:id=>ipcRenderer.invoke("tide:list-delete",id),
+  pickPlaylistCover:()=>ipcRenderer.invoke("tide:list-cover"),
+  syncTidePlaylist:id=>ipcRenderer.invoke("tide:list-sync",id),
   aiStatus: () => ipcRenderer.invoke("tide:ai-status"),
   aiGenerate: (input) => ipcRenderer.invoke("tide:ai-generate", input),
   mediaKeys: mediaKeyMode(process.platform),

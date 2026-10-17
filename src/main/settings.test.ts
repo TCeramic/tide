@@ -24,9 +24,9 @@ describe("settings", () => {
       motion: 1,
       lattice: false,
       shell: "lens",
-      preset: "tide",
+      preset: "flow",
       performance: "balanced",
-      background: "solid",
+      background: "paper",
       fontPreset: "system",
       fontFamily: "",
       quality: "standard",
@@ -44,9 +44,9 @@ describe("settings", () => {
       motion: 1,
       lattice: false,
       shell: "lens",
-      preset: "tide",
+      preset: "flow",
       performance: "balanced",
-      background: "solid",
+      background: "paper",
       fontPreset: "system",
       fontFamily: "",
       quality: "hires",
@@ -64,9 +64,9 @@ describe("settings", () => {
       motion: 0,
       lattice: false,
       shell: "lens",
-      preset: "tide",
+      preset: "flow",
       performance: "balanced",
-      background: "solid",
+      background: "paper",
       fontPreset: "system",
       fontFamily: "",
       quality: "standard",
@@ -97,9 +97,9 @@ describe("settings", () => {
       motion: 1,
       lattice: false,
       shell: "lens",
-      preset: "tide",
+      preset: "flow",
       performance: "balanced",
-      background: "solid",
+      background: "paper",
       fontPreset: "system",
       fontFamily: "",
       quality: "standard",
@@ -121,7 +121,12 @@ describe("settings", () => {
     assert.equal(settingsFromUnknown({ volume: 0.2 }).lattice, false);
     assert.equal("cookie" in saved, false);
     fs.writeFileSync(file, "{");
-    assert.equal(store.read().volume, 0.8);
+    assert.equal(store.read(true).volume, 0.8);
     fs.rmSync(dir, { recursive: true, force: true });
   });
+});
+
+it("settings reads share a short cache, stay isolated from callers, and support explicit reload",()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),"tide-settings-cache-")),file=path.join(dir,"settings.json");
+ try{fs.writeFileSync(file,JSON.stringify({volume:.3}));const store=new SettingsStore(file),first=store.read();first.volume=.9;assert.equal(store.read().volume,.3);fs.writeFileSync(file,JSON.stringify({volume:.6}));assert.equal(store.read().volume,.3);assert.equal(store.read(true).volume,.6);store.write({volume:.7});assert.equal(store.read().volume,.7);}finally{fs.rmSync(dir,{recursive:true,force:true});}
 });

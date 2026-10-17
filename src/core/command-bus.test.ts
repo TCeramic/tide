@@ -190,13 +190,13 @@ describe("command bus", () => {
 
     const themed = await dispatchCommand({
       command: "appearance.write",
-      args: { shell: "lattice", preset: "stardust", performance: "smooth", background: "cover" },
+      args: { shell: "lattice", preset: "flow", performance: "smooth", background: "cover" },
       allow: true,
     }, api, []);
     assert.equal(themed.ok, true);
     const disk = store.read();
     assert.equal(disk.shell, "lattice");
-    assert.equal(disk.preset, "stardust");
+    assert.equal(disk.preset, "flow");
     assert.equal(disk.performance, "smooth");
     assert.equal(disk.background, "cover");
     const after = await dispatchCommand({ command: "appearance.read" }, api, []);
@@ -204,7 +204,7 @@ describe("command bus", () => {
     if (after.ok) {
       const look = after.result as { shell: string; preset: string };
       assert.equal(look.shell, "lattice");
-      assert.equal(look.preset, "stardust");
+      assert.equal(look.preset, "flow");
     }
     const badPreset = await dispatchCommand({
       command: "appearance.write",
@@ -213,7 +213,7 @@ describe("command bus", () => {
     }, api, []);
     assert.equal(badPreset.ok, false);
     if (!badPreset.ok) assert.equal(badPreset.error, "bad_args");
-    assert.equal(store.read().preset, "stardust");
+    assert.equal(store.read().preset, "flow");
     fs.rmSync(dir, { recursive: true, force: true });
   });
 

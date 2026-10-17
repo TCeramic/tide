@@ -21,6 +21,7 @@ export function setLikedIds(next: readonly string[], isKnown: boolean): void {
 }
 
 export function applyLike(id: string, liked: boolean): void {
+  if (known && ids.has(id) === liked) return;
   known = true;
   if (liked) ids.add(id);
   else ids.delete(id);

@@ -1,6 +1,9 @@
+import { mountAiAssist } from "../ai-assist";
+import { aiContext,aiCover } from "../ai-context";
+import { editTidePlaylist } from "./playlist-editor";
 import { AUDIO_LEVELS, AUDIO_LEVEL_LABEL, type AudioLevel } from "../../core/audio-level";
 import { MEDIA_ACTION_LABEL, MEDIA_CUSTOM_ACTIONS, type MediaShortcutMap } from "../../core/media-keys";
-import type { ApiFailure, Appearance, PlaybackSnapshot, PlaylistSummary, SearchHit, SearchResult, SessionSnapshot } from "../../shared/contract";
+import type { TidePlaylist, ApiFailure, Appearance, PlaybackSnapshot, PlaylistSummary, SearchHit, SearchResult, SessionSnapshot } from "../../shared/contract";
 import {
   ChevronDown,
   ChevronLeft,
@@ -124,9 +127,9 @@ export function mountLibrary(root: HTMLElement): {
   recommend.hidden = true;
   recommend.append(dailyButton, radarButton, fmButton);
 
-  const queueDetails = document.createElement("details");
+  const queueDetails = document.createElement("section");
   queueDetails.className = "queue-panel";
-  const queueSummary = document.createElement("summary");
+  const queueSummary = document.createElement("h2");
   const queueLabel = document.createElement("span");
   queueLabel.textContent = "播放队列";
   prependIcon(queueSummary, "ListMusic", ListMusic, ICON_SIZE.row);
@@ -264,9 +267,9 @@ export function mountLibrary(root: HTMLElement): {
   busStatus.textContent = "状态：空闲";
   bus.append(busSummary, busBody, busPlay, busPause, busStatus);
 
-  const settingsPanel = document.createElement("details");
+  const settingsPanel = document.createElement("section");
   settingsPanel.className = "settings-panel";
-  const settingsSummary = document.createElement("summary");
+  const settingsSummary = document.createElement("h2");
   settingsSummary.textContent = "设置";
   prependIcon(settingsSummary, "Settings", Settings, ICON_SIZE.row);
   const latticeRow = document.createElement("label");
@@ -286,7 +289,9 @@ export function mountLibrary(root: HTMLElement): {
   });
   const deskForm = mountDeskForm();
   const presets = mountPresetForm();
-  settingsPanel.append(settingsSummary, riskNotice(), presets.element, latticeRow, qualityLabel, keyPanel, deskForm.element, bus);
+  const aiAssist=mountAiAssist(aiContext,aiCover,result=>window.dispatchEvent(new CustomEvent("tide:segments",{detail:result})));
+  const miniOpen=button("打开小窗播放器");miniOpen.onclick=()=>void window.tide.setMiniPlayer({open:true});
+  settingsPanel.append(settingsSummary,miniOpen, riskNotice(), presets.element,aiAssist.element, latticeRow, qualityLabel, keyPanel, deskForm.element, bus);
 
   const topbar = document.createElement("div");
   topbar.className = "topbar";
@@ -298,7 +303,6 @@ export function mountLibrary(root: HTMLElement): {
   queueCol.className = "queue-col corner-panel glass";
   queueCol.hidden = true;
   queueCol.setAttribute("aria-label", "播放队列");
-  queueDetails.open = true;
   queueCol.append(queueDetails);
   const queuePeek = document.createElement("div");
   queuePeek.className = "peek peek-queue";
@@ -316,7 +320,7 @@ export function mountLibrary(root: HTMLElement): {
     queueButton.setAttribute("aria-expanded", String(show));
   };
   const delayQueue = () => { queueTimer = setTimeout(() => {
-    if (!queueCol.matches(":hover") && !queuePeek.matches(":hover") && !queueCol.contains(document.activeElement) && !queuePeek.contains(document.activeElement)) showQueue(false);
+    if (!queueCol.matches(":hover") && !queuePeek.matches(":hover")) showQueue(false);
   }, 240); };
   queuePeek.addEventListener("pointerenter", () => showQueue(true));
   queuePeek.addEventListener("focusin", () => showQueue(true));
@@ -325,7 +329,7 @@ export function mountLibrary(root: HTMLElement): {
   queueCol.addEventListener("pointerenter", () => clearTimeout(queueTimer));
   queueCol.addEventListener("pointerleave", delayQueue);
   queueCol.addEventListener("focusout", delayQueue);
-  queueButton.addEventListener("click", () => showQueue(queueCol.hidden));
+  queueButton.addEventListener("click", () => {showQueue(queueCol.hidden);queueButton.blur();});
 
   const sheet = document.createElement("section");
   sheet.className = "browse-sheet glass";
@@ -344,7 +348,7 @@ export function mountLibrary(root: HTMLElement): {
   localHeading.textContent = "本地音乐";
   const addLocal = button("添加本地音乐");
   localActions.append(localHeading, addLocal);
-  const playlistPageTitle=document.createElement("h2");playlistPageTitle.className="playlist-page-title";playlistPageTitle.textContent="我的歌单";sheet.append(playlistPageTitle);
+  const playlistPageTitle=document.createElement("h2");playlistPageTitle.className="playlist-page-title";playlistPageTitle.textContent="我的歌单";const createPlaylist=button("创建歌单");createPlaylist.className="text-button playlist-create";createPlaylist.addEventListener("click",()=>editTidePlaylist(undefined,async id=>{await refreshTideLists();showTidePlaylist(id);}));sheet.append(playlistPageTitle,createPlaylist);
   sheet.append(viewBar,playlistHero, localActions, searchNote, hits, tideHeading, tideActions, recommendHeading, recommend, list);
 
   const loginPeek = document.createElement("div");
@@ -365,16 +369,16 @@ export function mountLibrary(root: HTMLElement): {
   settingsPop.className = "corner-panel settings-pop glass";
   settingsPop.hidden = true;
   settingsPop.append(settingsPanel);
-  settingsPanel.open = true;
 
   const showSheet = () => {
-    localActions.hidden = true;
+    currentTideId=null;localActions.hidden = true;
     searchPage.hidden=true;sheet.insertBefore(searchNote,hits.parentElement===sheet?hits:localActions.nextSibling);sheet.insertBefore(hits,tideHeading);
     playlistHero.hidden=true;sheet.dataset.section = "playlists";
     sheet.hidden = false;
     home.element.hidden = true;
   };
   const showHomeCards = () => {
+    detailFromSearch=false;
     showQueue(false);
     sheet.hidden = true;searchPage.hidden=true;
     proofHost.hidden = true;
@@ -385,16 +389,22 @@ export function mountLibrary(root: HTMLElement): {
   homeButton.addEventListener("click", showHomeCards);
   loginButton.addEventListener("click", () => {
     loginPop.hidden = !loginPop.hidden;
-    loginButton.dataset.open = loginPop.hidden ? "false" : "true";
+    loginButton.dataset.open = loginPop.hidden ? "false" : "true";loginButton.blur();
     settingsPop.hidden = true;
     settingsButton.dataset.open = "false";
   });
   settingsButton.addEventListener("click", () => {
     settingsPop.hidden = !settingsPop.hidden;
-    settingsButton.dataset.open = settingsPop.hidden ? "false" : "true";
+    settingsButton.dataset.open = settingsPop.hidden ? "false" : "true";settingsButton.blur();
     loginPop.hidden = true;
     loginButton.dataset.open = "false";
   });
+
+  const autoHide=(peek:HTMLElement,pop:HTMLElement,control:HTMLElement)=>{
+    let timer=0;const cancel=()=>{clearTimeout(timer);timer=0;};
+    const leave=()=>{cancel();timer=window.setTimeout(()=>{const editing=pop.contains(document.activeElement)&&document.activeElement?.matches("input,select,textarea");if(!peek.matches(":hover")&&!pop.matches(":hover")&&!editing){pop.hidden=true;control.dataset.open="false";if(control===document.activeElement)control.blur();}},260);};
+    for(const el of [peek,pop]){el.addEventListener("pointerenter",cancel);el.addEventListener("pointerleave",leave);el.addEventListener("focusout",leave);}
+  };autoHide(loginPeek,loginPop,loginButton);autoHide(settingsPeek,settingsPop,settingsButton);
 
   const proofHost = document.createElement("section");
   proofHost.className = "proof-host";
@@ -407,7 +417,7 @@ export function mountLibrary(root: HTMLElement): {
     if (index >= 0) void window.tide.changeTrack(index);
   }, showHomeCards);
   const home = mountHome(root, {
-    onPlaylists: () => showSheet(),
+    onPlaylists: () => {detailFromSearch=false;showSheet();void refreshTideLists();},
     onDaily: () => {
       showSheet();
       proofHost.hidden = true;
@@ -459,6 +469,8 @@ export function mountLibrary(root: HTMLElement): {
   let pollTimer = 0;
   let apiReady = false;
   let playlists: PlaylistSummary[] = [];
+  let tideLists:TidePlaylist[]=[];let currentTideId:string|null=null;let currentSession:SessionSnapshot|null=null;
+  const refreshTideLists=async()=>{try{const rows=await window.tide.tidePlaylists();if(Array.isArray(rows))tideLists=rows;if(currentSession)render(currentSession);}catch{}};
   let searchType = 1;
   const tabButtons = [
     [tabSong, 1],
@@ -489,14 +501,14 @@ export function mountLibrary(root: HTMLElement): {
   };
 
   const render = (session: SessionSnapshot) => {
-    refreshLiked();
+    currentSession=session;refreshLiked();
     loginLabel.textContent = session.user?.nickname
       ?? (session.state === "invalid" ? "需要重新登录" : "登录网易云");
     note.textContent = session.message ?? "";
     note.classList.toggle("warn", session.state === "invalid");
-    playlists = session.playlists;
+    playlists = [...session.playlists,...tideLists.map(p=>({id:p.id,name:p.name,trackCount:p.songs.length,cover:p.cover}))];
     list.replaceChildren();
-    for (const playlist of [{id:"tide-today",name:"今日潮汐",trackCount:20,cover:"./assets/today-tide.png"},...session.playlists]) {
+    for (const playlist of [{id:"tide-today",name:"今日潮汐",trackCount:20,cover:"./assets/today-tide.png"},{id:"tide-daily",name:"每日推荐",trackCount:30,cover:"./assets/daily-recommend.png"},...playlists]) {
       const item = document.createElement("li");
       const row = document.createElement("button");
       row.type = "button";
@@ -509,7 +521,7 @@ export function mountLibrary(root: HTMLElement): {
       count.textContent = `${playlist.trackCount} 首`;
       row.append(art,name, count);
       row.addEventListener("click", () => {
-        if(playlist.id==="tide-today")void refreshToday(false);else void showPlaylist(playlist.id, playlist.name);
+        if(playlist.id==="tide-today")void refreshToday(false);else if(playlist.id==="tide-daily")void openHits(()=>window.tide.dailyRecommend(),"每日推荐");else if(playlist.id.startsWith("tide-list-"))showTidePlaylist(playlist.id);else void showPlaylist(playlist.id, playlist.name);
       });
       item.append(row);
       list.append(item);
@@ -620,11 +632,11 @@ export function mountLibrary(root: HTMLElement): {
   let shownSource: SearchResult["source"];
   const renderHits = (rows: SearchHit[], source?: SearchResult["source"]) => {
     shownHits = rows; shownSource = source;
-    fillTrackList(hits, rows, playlists, showSearchNote, source);
+    fillTrackList(hits, rows, playlists, showSearchNote, source,currentTideId?async songId=>{const id=currentTideId!;const result=await window.tide.removeTidePlaylistSong(id,songId);if(!result.ok){showSearchNote(result.message,true);return;}await refreshTideLists();showTidePlaylist(id);}:undefined);
   };
 
   const showCatalog = (rows: SearchHit[], label: string, cover?:string) => {
-    showSheet();sheet.dataset.section="playlist";playlistHero.hidden=false;const title=document.createElement("h2");title.textContent=label;const art=document.createElement("span");art.className="playlist-detail-art";paintPlaylistArt(art,label==="今日潮汐"?"./assets/today-tide.png":cover??playlists.find(p=>p.name===label)?.cover);playlistHero.replaceChildren(art,title);
+    showSheet();sheet.dataset.section="playlist";playlistHero.hidden=false;const title=document.createElement("h2");title.textContent=label;const art=document.createElement("span");art.className="playlist-detail-art";paintPlaylistArt(art,label==="今日潮汐"?"./assets/today-tide.png":label==="每日推荐"?"./assets/daily-recommend.png":cover??playlists.find(p=>p.name===label)?.cover);playlistHero.replaceChildren(art,title);
     viewBar.hidden = false;
     viewTitle.textContent = `${label} · 已载 ${rows.length} 首`;
     tideRefresh.hidden = label !== "今日潮汐";
@@ -650,7 +662,15 @@ export function mountLibrary(root: HTMLElement): {
     const row = document.createElement("li"); row.append(more); hits.append(row);
   };
 
+  const showTidePlaylist=(id:string)=>{const row=tideLists.find(p=>p.id===id);if(!row)return;showCatalog(row.songs,row.name,row.cover);currentTideId=id;renderHits(row.songs);
+    const description=document.createElement("p");description.textContent=row.description;description.className="playlist-description";
+    const actions=document.createElement("div");actions.className="library-actions";const edit=button("编辑歌单");edit.onclick=()=>editTidePlaylist(row,async()=>{await refreshTideLists();showTidePlaylist(id);});
+    const sync=button(row.cloudId?"同步到网易云":"创建网易云副本");sync.onclick=async()=>{sync.disabled=true;const result=await window.tide.syncTidePlaylist(id);sync.disabled=false;showSearchNote(result.message??(result.ok?"已同步":"同步失败"),!result.ok);await refreshTideLists();};
+    const remove=button("删除Tide歌单");let confirming=false;remove.onclick=async()=>{if(!confirming){confirming=true;remove.textContent="再次点击确认删除";return;}const result=await window.tide.deleteTidePlaylist(id);if(!result.ok){showSearchNote(result.message??"删除失败",true);return;}await refreshTideLists();showSheet();};actions.append(edit,sync,remove);playlistHero.append(description,actions);
+  };
+
   const showPlaylist = async (id: string, name: string) => {
+    detailFromSearch=false;
     if (opening || !apiReady || disposed) return;
     opening = true;
     showSearchNote(`正在读取${name}…`, false);
@@ -700,8 +720,7 @@ export function mountLibrary(root: HTMLElement): {
       showSearchNote(result.message, true);
       return;
     }
-    showSearchNote(label, false);
-    renderHits(result.hits);
+    showCatalog(result.hits,label,label==="每日推荐"?"./assets/daily-recommend.png":undefined);
     const index = result.hits.findIndex((hit) => hit.playable);
     if (index < 0) showSearchNote(result.hits.length === 0 ? `${label}是空的` : `${label}里没有可播放的曲目`, true);
   };
@@ -880,10 +899,12 @@ export function mountLibrary(root: HTMLElement): {
     }
   };
   markTab();
+  const artistSearch=(event:Event)=>{const name=(event as CustomEvent<string>).detail;if(typeof name!=="string"||!name.trim())return;searchInput.value=name.trim();searchType=100;markTab();showHome();searchForm.requestSubmit();};window.addEventListener("tide:artist-search",artistSearch);
   for (const [element, type] of tabButtons) {
     element.addEventListener("click", () => {
       searchType = type;
       markTab();
+      if(!searchPage.hidden&&searchInput.value.trim())searchForm.requestSubmit();
     });
   }
 
@@ -899,7 +920,7 @@ export function mountLibrary(root: HTMLElement): {
   });
 
   let searchSession:{keywords:string;type:number;offset:number;rows:SearchResult;more:boolean;busy:boolean;error:string}|null=null;
-  const showSearchPage=()=>{sheet.hidden=true;home.element.hidden=true;proofHost.hidden=true;proof.stop();searchPage.hidden=false;searchPage.insertBefore(searchNote,searchMore);searchPage.insertBefore(hits,searchMore);showHome();};
+  const showSearchPage=()=>{currentTideId=null;sheet.hidden=true;home.element.hidden=true;proofHost.hidden=true;proof.stop();searchPage.hidden=false;searchPage.insertBefore(searchNote,searchMore);searchPage.insertBefore(hits,searchMore);showHome();};
   const paintSearch=()=>{const state=searchSession;if(!state)return;const rows=state.rows;
     searchTitle.textContent=`“${state.keywords}”的搜索结果`;
     if(rows.kind==="artists")renderNamed(rows.artists,"没有找到歌手",row=>void showDetail(row.name,()=>window.tide.artistSongs(row.id),row.cover));
@@ -998,7 +1019,7 @@ export function mountLibrary(root: HTMLElement): {
       }
       if (!sawReady) {
         sawReady = true;
-        void refreshSession();
+        void refreshSession();void refreshTideLists();
         void window.tide.tideToday().then((result) => {
           if (!result.ok || disposed) return;
           const first = result.hits[0];
@@ -1010,7 +1031,7 @@ export function mountLibrary(root: HTMLElement): {
       }
     },
     destroy() {
-      disposed = true;
+      window.removeEventListener("tide:artist-search",artistSearch);aiAssist.destroy();disposed = true;
       clearTimeout(queueTimer);
       stopPoll();
       stopLiked();
@@ -1084,5 +1105,5 @@ function paintAvatar(button: HTMLButtonElement, avatar: string | undefined): voi
 }
 
 function paintPlaylistArt(host:HTMLElement,url?:string){
- if(url?.startsWith("./assets/")){const image=document.createElement("img");image.src=url;image.alt="";image.decoding="async";host.replaceChildren(image);}else paintCover(host,url,{lazy:true});
+ if(url?.startsWith("./assets/")||url?.startsWith("data:image/")){const image=document.createElement("img");image.src=url;image.alt="";image.decoding="async";host.replaceChildren(image);}else {paintCover(host,url,{lazy:true});const fallback=()=>{const image=document.createElement("img");image.src="./assets/today-tide.png";image.alt="";host.replaceChildren(image);};const img=host.querySelector("img");if(img)img.addEventListener("error",()=>requestAnimationFrame(fallback),{once:true});else fallback();}
 }

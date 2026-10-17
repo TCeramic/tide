@@ -212,6 +212,19 @@ export class SessionService {
     return { known: true, ids };
   }
 
+  async linkTidePlaylist(value:unknown):Promise<string>{
+    const p=value&&typeof value==="object"?value as Record<string,unknown>:{};const cookie=this.requireCookie();if(typeof p.cloudId==="string"&&/^\d{1,20}$/.test(p.cloudId))return p.cloudId;
+    if(typeof p.name!=="string"||!p.name.trim()||!this.netease.createCloudPlaylist)throw new SessionError(400,"bad_args","歌单名称无效");
+    try{return await this.netease.createCloudPlaylist(p.name.slice(0,100),cookie);}catch(e){throw catalogFailure(e,"网易云歌单创建失败");}
+  }
+  async syncTidePlaylist(value:unknown):Promise<string>{
+    const p=value&&typeof value==="object"?value as Record<string,unknown>:{};const cookie=this.requireCookie();
+    if(typeof p.cloudId!=="string"||!/^\d{1,20}$/.test(p.cloudId)||typeof p.name!=="string"||!this.netease.syncCloudPlaylist)throw new SessionError(400,"bad_args","同步歌单信息无效");
+    const songs=Array.isArray(p.songs)?p.songs:[],ids=[...new Set(songs.flatMap(v=>{const id=v&&typeof v==="object"?(v as {id?:unknown}).id:null;return typeof id==="string"&&/^\d{1,20}$/.test(id)?[id]:[];}))].slice(0,10000);
+    const cover=typeof p.cover==="string"&&p.cover.length<1500000&&p.cover.startsWith("data:image/jpeg;base64,")?p.cover:undefined;
+    try{await this.netease.syncCloudPlaylist({id:p.cloudId,name:p.name.slice(0,100),description:typeof p.description==="string"?p.description.slice(0,2000):"",cover,songIds:ids},cookie);return `已同步 ${ids.length} 首网易云歌曲${songs.length>ids.length?"；本地文件保留在 Tide 中":""}`;}catch(e){throw catalogFailure(e,"同步未完成，Tide歌单已保留，可重试");}
+  }
+
   async collectSong(playlistId: string, trackId: string): Promise<string> {
     if (!/^\d{1,20}$/.test(playlistId) || !/^\d{1,20}$/.test(trackId)) {
       throw new SessionError(400, "bad_id", "歌单或曲目编号无效");
