@@ -1,6 +1,6 @@
 import type { Appearance, FontPresetId, PerformanceTier, ShellId, StageBackground } from "../../shared/contract";
 
-import { createNativeChoiceRow, openDesignCatalog } from "../native-shell.js";
+import { createNativeChoiceRow } from "../native-shell.js";
 
 const TIERS: { id: PerformanceTier; label: string }[] = [
   { id: "smooth", label: "低" },
@@ -52,16 +52,6 @@ export function mountPresetForm(): {
   let currentShell: ShellId = "lens";
   const modeRow = createNativeChoiceRow("明暗模式", [{ id: "light", label: "明亮" }, { id: "dark", label: "深色" }], id => void window.tide.setAppearance(currentShell === "lens" ? { lensMode: id as "light" | "dark" } : { latticeMode: id as "light" | "dark" }));
   const fontRow = createNativeChoiceRow("字体", FONTS, (id) => void window.tide.setAppearance({ fontPreset: id as FontPresetId }));
-  const catalogs = document.createElement("div");
-  catalogs.className = "preset-catalogs";
-  for (const shell of SHELLS) {
-    const show = document.createElement("button");
-    show.type = "button";
-    show.className = "text-button";
-    show.textContent = `${shell.label} · 完整组件`;
-    show.addEventListener("click", () => openDesignCatalog(shell.id));
-    catalogs.append(show);
-  }
   const family = document.createElement("input");
   family.type = "text";
   family.className = "key-input";
@@ -92,7 +82,7 @@ export function mountPresetForm(): {
   const later = document.createElement("p");
   later.className = "library-note";
   later.textContent = "Lens / Lattice · DayDreamInAReverie · MIT";
-  root.append(kicker, hint, shellRow.element, modeRow.element, catalogs, detailHeading, tierRow.element, backgroundRow.element, emblemRow.element, fontRow.element, family, importFont, imageButton, later);
+  root.append(kicker, hint, shellRow.element, modeRow.element, detailHeading, tierRow.element, backgroundRow.element, emblemRow.element, fontRow.element, family, importFont, imageButton, later);
 
   return {
     element: root,

@@ -1,2 +1,4 @@
-import {describe,it} from 'node:test';import assert from 'node:assert/strict';import {tideShape} from './point-formations';
-describe('Tide 3D formations',()=>{for(const kind of ['saturn','helix','shell','heart','orbit'])it(kind+' is finite, bounded, deterministic and has depth',()=>{const a=tideShape(1024,kind);assert.deepEqual(a,tideShape(1024,kind));assert.equal(a.length,3072);assert.ok(a.every(v=>Number.isFinite(v)&&Math.abs(v)<2.1));const depth=Array.from(a).filter((_,i)=>i%3===2);assert.ok(Math.max(...depth)-Math.min(...depth)>.2);});});
+import {describe,it} from 'node:test';import assert from 'node:assert/strict';import {tideShape,TIDE_SHAPES} from './point-formations';
+describe('Tide 3D formations',()=>{for(const [kind] of TIDE_SHAPES)it(kind+' is finite, bounded, deterministic and has depth',()=>{const a=tideShape(1024,kind);assert.deepEqual(a,tideShape(1024,kind));assert.equal(a.length,3072);assert.ok(a.every(v=>Number.isFinite(v)&&Math.abs(v)<2.1));const depth=Array.from(a).filter((_,i)=>i%3===2);assert.ok(Math.max(...depth)-Math.min(...depth)>.2);});});
+
+it('DNA contains two backbones and interior connecting rungs',()=>{const points=tideShape(4096,'helix');let rails=0,rungs=0;for(let i=0;i<4096;i++){const radius=Math.hypot(points[i*3],points[i*3+2]);if(radius>.65)rails++;if(radius<.45)rungs++;}assert.ok(rails>2000);assert.ok(rungs>500);});
