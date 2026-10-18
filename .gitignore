@@ -17,3 +17,5 @@ Thumbs.db
 artifacts/
 !src/renderer/vendor/design-systems/lattice/dist/
 !src/renderer/vendor/design-systems/lattice/dist/lattice-showcase.html
+
+android/assets/web/
