@@ -27,6 +27,11 @@ public class MainActivity extends Activity {
   private WebView mobile;
   private boolean webReady;
   private long smsAfter;
+  private final Object qrLock = new Object();
+  private String qrPendingKey="",qrSessionBefore="",qrActiveRequestId="";
+  private String qrLatestRequestId="";
+  private boolean qrChallengeActive;
+  private boolean cloudLikesRefreshing;
   private final ArrayList<Song> collectionRows = new ArrayList<>(), cloudFavoriteRows = new ArrayList<>();
   private LinearLayout shell, body, dock;
   private Backdrop backdrop;
@@ -76,6 +81,7 @@ public class MainActivity extends Activity {
           receiver, new IntentFilter(PlaybackService.UPDATE), Context.RECEIVER_NOT_EXPORTED);
     else registerReceiver(receiver, new IntentFilter(PlaybackService.UPDATE));
     render();
+    PlaybackService.restoreIfAvailable(this);
     repairArtwork();
     if (Build.VERSION.SDK_INT >= 33
         && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
@@ -111,6 +117,7 @@ public class MainActivity extends Activity {
     ui.removeCallbacks(tick);
     ui.post(tick);
     refresh();
+    if(webReady&&Favorites.stale()&&!Favorites.session().isEmpty())refreshCloudLikes();
   }
 
   protected void onPause() {
@@ -127,6 +134,7 @@ public class MainActivity extends Activity {
   protected void onDestroy() {
     alive = false;
     request++;
+    cancelAllQrChallenges();
     unregisterReceiver(receiver);
     ui.removeCallbacksAndMessages(null);
     jobs.shutdownNow();
@@ -393,13 +401,119 @@ public class MainActivity extends Activity {
   }
 
   private boolean isLiked(Song s) {return Favorites.liked(this,s);}
+  private void favoriteResult(Song song,boolean pending,String message){try{mobileMessage("result",new JSONObject().put("type","favorite").put("id",song.id).put("pending",pending).put("message",message).toString());}catch(Exception ignored){}}
   private void favorite(Song s) {
-    jobs.execute(()->{try{boolean liked=Favorites.toggle(this,s);ui.post(()->{favorites=Song.read(this,"favorites");if(service()!=null)service().refreshFavorite();pushMobileState();toast(liked?"已喜欢":"已取消喜欢");});}
-      catch(Exception e){ui.post(()->toast(e.getMessage()));}});
+    favoriteResult(s,true,"");
+    jobs.execute(()->{try{boolean liked=Favorites.toggle(this,s);ui.post(()->{favorites=Song.read(this,"favorites");if(service()!=null)service().refreshFavorite();pushMobileState();favoriteResult(s,false,liked?"已喜欢":"已取消喜欢");});}
+      catch(Exception e){ui.post(()->{pushMobileState();favoriteResult(s,false,e.getMessage());});}});
   }
   private void refreshCloudLikes(){
-    jobs.execute(()->{try{Favorites.refresh(this);ui.post(()->{pushMobileState();if(service()!=null)service().refreshFavorite();});}
-      catch(Exception e){ui.post(()->toast("网易云喜欢状态未同步："+e.getMessage()));}});
+    if(cloudLikesRefreshing)return;cloudLikesRefreshing=true;
+    jobs.execute(()->{try{Favorites.refresh(this);ui.post(()->{cloudLikesRefreshing=false;pushMobileState();if(service()!=null)service().refreshFavorite();});}
+      catch(Exception e){ui.post(()->{cloudLikesRefreshing=false;toast("网易云喜欢状态未同步："+e.getMessage());});}});
+  }
+
+  private String requiredQrRequestId(JSONObject data) throws IOException {
+    String requestId = data.optString("requestId", "");
+    if (!requestId.matches("[A-Za-z0-9_-]{1,64}")) throw new IOException("二维码请求编号无效");
+    return requestId;
+  }
+
+  private long[] qrRequestOrder(String requestId) throws IOException {
+    int separator = requestId.lastIndexOf('_');
+    if (separator <= 0 || separator == requestId.length() - 1)
+      throw new IOException("二维码请求编号无效");
+    try {
+      return new long[] {
+        Long.parseLong(requestId.substring(0, separator), 36),
+        Long.parseLong(requestId.substring(separator + 1), 36)
+      };
+    } catch (NumberFormatException e) {
+      throw new IOException("二维码请求编号无效");
+    }
+  }
+
+  private boolean isNewerQrRequest(String requestId, String previous) {
+    if (previous.isEmpty()) return true;
+    try {
+      long[] next = qrRequestOrder(requestId), old = qrRequestOrder(previous);
+      return next[0] > old[0] || (next[0] == old[0] && next[1] > old[1]);
+    } catch (IOException ignored) {
+      return false;
+    }
+  }
+
+  private boolean beginQrChallenge(String requestId) throws IOException {
+    qrRequestOrder(requestId);
+    String session = Favorites.session();
+    synchronized (qrLock) {
+      if (!isNewerQrRequest(requestId, qrLatestRequestId)) return false;
+      qrLatestRequestId = requestId;
+      qrActiveRequestId = requestId;
+      qrPendingKey = "";
+      qrSessionBefore = session;
+      qrChallengeActive = true;
+      return true;
+    }
+  }
+
+  private boolean setQrChallengeKey(String requestId, String key) {
+    synchronized (qrLock) {
+      if (!qrChallengeActive || !requestId.equals(qrActiveRequestId)) return false;
+      qrPendingKey = key;
+      return true;
+    }
+  }
+
+  private boolean isQrRequestCurrent(String requestId) {
+    synchronized (qrLock) {
+      return qrChallengeActive && requestId.equals(qrActiveRequestId);
+    }
+  }
+
+  private boolean isQrPollCurrent(String requestId, String key) {
+    synchronized (qrLock) {
+      return qrChallengeActive && requestId.equals(qrActiveRequestId)
+          && !key.isEmpty() && key.equals(qrPendingKey);
+    }
+  }
+
+  private boolean commitQrCookies(String requestId, String key, boolean poll,
+      Cloud.CookieCommitAction apply) throws Exception {
+    synchronized (qrLock) {
+      boolean current = qrChallengeActive && requestId.equals(qrActiveRequestId)
+          && (!poll || (!key.isEmpty() && key.equals(qrPendingKey)));
+      if (!current) return false;
+      // CookieCommitAction only enqueues CookieManager.setCookie calls on the UI
+      // thread; it must never wait for their callbacks while this lock is held.
+      apply.apply();
+      return true;
+    }
+  }
+
+  private String qrSessionBefore(String requestId) {
+    synchronized (qrLock) {
+      return qrChallengeActive && requestId.equals(qrActiveRequestId) ? qrSessionBefore : "";
+    }
+  }
+
+  private void cancelQrChallenge(String requestId) {
+    synchronized (qrLock) {
+      if (requestId.isEmpty() || !requestId.equals(qrActiveRequestId)) return;
+      qrChallengeActive = false;
+      qrActiveRequestId = "";
+      qrPendingKey = "";
+      qrSessionBefore = "";
+    }
+  }
+
+  private void cancelAllQrChallenges() {
+    synchronized (qrLock) {
+      qrChallengeActive = false;
+      qrActiveRequestId = "";
+      qrPendingKey = "";
+      qrSessionBefore = "";
+    }
   }
 
   private void searchPage() {
@@ -1172,6 +1286,7 @@ public class MainActivity extends Activity {
   private void pushMobileState() {
     if (!webReady) return;
     try {
+      Favorites.syncSession();
       PlaybackService p = service();
       List<Song> queue = p == null ? Song.read(this, "queue") : p.queue;
       String cookie = CookieManager.getInstance().getCookie("https://music.163.com");
@@ -1183,6 +1298,7 @@ public class MainActivity extends Activity {
               .put("index", p == null ? prefs.getInt("queueIndex", 0) : p.index)
               .put("appearance", appearanceJson())
               .put("loggedIn", cookie != null && cookie.contains("MUSIC_U="))
+              .put("accountId", prefs.getString("userId", ""))
               .put("nickname", prefs.getString("nickname", ""))
               .put("avatar",prefs.getString("avatar",""))
               .put("repeat",prefs.getString("repeat","list"));
@@ -1190,6 +1306,16 @@ public class MainActivity extends Activity {
     } catch (Exception e) {
       toast("界面同步失败");
     }
+  }
+
+  private void saveAccountProfile(JSONObject profile) {
+    String userId = profile.optString("userId", "");
+    android.content.SharedPreferences.Editor editor = prefs.edit()
+        .putString("nickname", profile.optString("nickname"))
+        .putString("avatar", profile.optString("avatarUrl").replaceFirst("^http://", "https://"));
+    if (userId.matches("[0-9]+")) editor.putString("userId", userId);
+    else editor.remove("userId").remove("todayTideOwner");
+    editor.apply();
   }
 
   private List<Song> sourceRows(String source) {
@@ -1226,6 +1352,7 @@ public class MainActivity extends Activity {
         if(mobile!=null)mobile.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
         break;
       case "logout":
+        cancelAllQrChallenges();
         CookieManager.getInstance().removeAllCookies(done->{CookieManager.getInstance().flush();prefs.edit().remove("nickname").remove("avatar").apply();Favorites.clear();cloudFavoriteRows.clear();pushMobileState();try{mobileMessage("result",new JSONObject().put("type","logout").put("message","已退出登录").toString());}catch(Exception ignored){}});
         break;
       case "ready":
@@ -1317,6 +1444,22 @@ public class MainActivity extends Activity {
           pushMobileState();
           break;
         }
+      case "like-probe":
+        if(!getIntent().getBooleanExtra("qa",false))break;
+        cloudAction(action,data);break;
+      case "qr-key": {
+        String requestId = requiredQrRequestId(data);
+        if (beginQrChallenge(requestId)) cloudAction(action, data);
+        break;
+      }
+      case "qr-check": {
+        String requestId = requiredQrRequestId(data), key = data.optString("key", "");
+        if (isQrPollCurrent(requestId, key)) cloudAction(action, data);
+        break;
+      }
+      case "qr-cancel":
+        cancelQrChallenge(data.optString("requestId", ""));
+        break;
       case "account":
       case "create-playlist":
       case "album":
@@ -1325,13 +1468,19 @@ public class MainActivity extends Activity {
       case "collect":
       case "refresh-likes":
       case "search":
-      case "qr-key":
-      case "qr-check":
+        cloudAction(action, data);
+        break;
       case "captcha":
+        cloudAction(action, data);
+        break;
       case "login":
+        cancelAllQrChallenges();
+        cloudAction(action, data);
+        break;
       case "playlists":
       case "collection":
       case "daily":
+      case "daily-recommend":
         cloudAction(action, data);
         break;
       case "system-info":
@@ -1358,14 +1507,22 @@ public class MainActivity extends Activity {
         && (!data.optString("phone").matches("[0-9]{5,16}")
             || !data.optString("captcha").matches("[0-9]{4,8}")))
       throw new IllegalArgumentException("请填写手机号和验证码");
+    final String qrRequestId = action.equals("qr-key") || action.equals("qr-check")
+        ? data.optString("requestId", "") : "";
+    final String qrPollKey = action.equals("qr-check") ? data.optString("key", "") : "";
     jobs.execute(
         () -> {
           try {
             Cloud cloud = new Cloud(this);
             JSONObject response = new JSONObject().put("type", action);
+            if (!qrRequestId.isEmpty()) response.put("requestId", qrRequestId);
+            if (action.equals("qr-check")) response.put("key", qrPollKey);
             ArrayList<Song> songs = null;
             JSONObject result = null;
             switch (action) {
+              case "like-probe": {
+                Favorites.refresh(this);JSONArray liked=Favorites.ids();if(liked.length()==0)throw new IOException("喜欢列表为空，跳过写入验证");String id=liked.getString(0);cloud.like(id,true);boolean remains=cloud.likedIds().contains(id);response.put("code",200).put("alreadyLiked",true).put("stillLiked",remains);break;
+              }
               case "liked-songs":
                 if(!Favorites.known)Favorites.refresh(this);
                 int likeOffset=Math.max(0,data.optInt("offset"));songs=cloud.likedSongs(likeOffset);
@@ -1382,26 +1539,39 @@ public class MainActivity extends Activity {
               }
               case "create-playlist":cloud.createPlaylist(data.optString("name"),data.optBoolean("privacy"));response.put("code",200).put("message","歌单已创建");break;
               case "account":{
-                JSONObject profile=cloud.account().optJSONObject("profile");if(profile!=null)prefs.edit().putString("nickname",profile.optString("nickname")).putString("avatar",profile.optString("avatarUrl").replaceFirst("^http://","https://")).apply();break;
+                JSONObject profile=cloud.account().optJSONObject("profile");if(profile!=null)saveAccountProfile(profile);break;
               }
               case "artist":
               case "album":{
                 String id=data.optString("id");if(!id.matches("[0-9]+"))throw new IOException("编号无效");songs=action.equals("artist")?cloud.artist(id):cloud.album(id);collectionRows.clear();collectionRows.addAll(songs);response.put("items",webSongs(songs)).put("title",data.optString("title")).put("id",id);break;
               }
-              case "qr-key":
-                result = cloud.qrKey();
+              case "qr-key": {
+                if (!isQrRequestCurrent(qrRequestId)) return;
+                Cloud.CookieCommitGuard guard = apply -> commitQrCookies(qrRequestId, "", false, apply);
+                result = cloud.qrKey(guard);
+                if (!isQrRequestCurrent(qrRequestId)) return;
                 String key = result.optString("unikey");
                 if (key.isEmpty()) throw new IOException(result.optString("message", "二维码生成失败"));
-                response.put("key", key);
+                if (!setQrChallengeKey(qrRequestId, key)) return;
+                response.put("code", 200).put("key", key);
                 break;
-              case "qr-check":
+              }
+              case "qr-check": {
                 {
-                  String qr = data.optString("key");
+                  String qr = qrPollKey;
                   if (!qr.matches("[A-Za-z0-9_-]{8,200}")) throw new IOException("二维码无效");
-                  result = cloud.qrCheck(qr);
-                  response.put("code", result.optInt("code"));
+                  if (!isQrPollCurrent(qrRequestId, qr)) return;
+                  Cloud.CookieCommitGuard guard = apply -> commitQrCookies(qrRequestId, qr, true, apply);
+                  result = cloud.qrCheck(qr, guard);
+                  if (!isQrPollCurrent(qrRequestId, qr)) return;
+                  JSONObject nested=result.optJSONObject("data");int qrCode=nested!=null&&nested.has("code")?nested.optInt("code"):result.optInt("code");
+                  boolean sessionChanged=!Favorites.session().isEmpty()&&!Favorites.session().equals(qrSessionBefore(qrRequestId));
+                  if(qrCode==803||qrCode==200&&sessionChanged){JSONObject profile=cloud.account().optJSONObject("profile");if(profile!=null&&!Favorites.session().isEmpty()){qrCode=803;saveAccountProfile(profile);}else qrCode=802;}
+                  else if(qrCode==200)qrCode=802;
+                  response.put("code",qrCode).put("message",result.optString("message"));
                   break;
                 }
+              }
               case "captcha":
                 result = cloud.captcha(data.optString("phone"));
                 if (result.optInt("code") == 200) smsAfter = SystemClock.elapsedRealtime() + 60000;
@@ -1421,18 +1591,13 @@ public class MainActivity extends Activity {
                         result.optInt("code") == 200
                             ? "登录成功"
                             : result.optString("message", "登录失败，请尝试扫码授权"));
-                if (result.optJSONObject("profile") != null)
-                  prefs
-                      .edit()
-                      .putString("nickname", result.getJSONObject("profile").optString("nickname"))
-                      .putString("avatar",result.getJSONObject("profile").optString("avatarUrl").replaceFirst("^http://","https://"))
-                      .apply();
+                if (result.optJSONObject("profile") != null) saveAccountProfile(result.getJSONObject("profile"));
                 break;
               case "playlists":
                 result = cloud.account();
                 JSONObject profile = result.optJSONObject("profile");
                 if (profile == null) throw new IOException("请先扫码或验证码登录网易云");
-                prefs.edit().putString("nickname", profile.optString("nickname")).putString("avatar",profile.optString("avatarUrl").replaceFirst("^http://","https://")).apply();
+                saveAccountProfile(profile);
                 response.put(
                     "playlists",
                     webPlaylists(cloud.playlists(profile.optLong("userId")).optJSONArray("playlist")));
@@ -1445,39 +1610,60 @@ public class MainActivity extends Activity {
                 response.put("items", webSongs(songs)).put("title",data.optString("title")).put("id",data.optString("id"));
                 break;
               case "daily":
-                songs=new ArrayList<>();
+                {
+                String userId = prefs.getString("userId", "");
+                boolean refreshDaily = data.optBoolean("refresh", false);
+                boolean cacheMatches = !userId.isEmpty() && userId.equals(prefs.getString("todayTideOwner", ""));
+                songs = !refreshDaily && cacheMatches ? Song.read(this, "daily-tide") : new ArrayList<>();
+                if (songs.isEmpty()) {
                 PlaybackService currentService=service();List<Song> seedQueue=currentService==null?Song.read(this,"queue"):new ArrayList<>(currentService.queue);
                 ArrayList<Song> seeds=new ArrayList<>(seedQueue);Collections.shuffle(seeds);Set<String> seen=new HashSet<>();
                 for(int i=0;i<Math.min(3,seeds.size());i++){Song seed=seeds.get(i);if(seed.uri.isEmpty())try{for(Song candidate:cloud.similar(seed.id))if(seen.add(candidate.id))songs.add(candidate);}catch(Exception ignored){}}
                 if(songs.size()<20)for(Song candidate:cloud.daily())if(seen.add(candidate.id))songs.add(candidate);
                 Collections.shuffle(songs);if(songs.size()>40)songs=new ArrayList<>(songs.subList(0,40));
+                if (!userId.isEmpty()) {
+                  Song.save(this, "daily-tide", songs);
+                  prefs.edit().putString("todayTideOwner", userId).apply();
+                }
+                }
                 collectionRows.clear();
                 collectionRows.addAll(songs);
                 response.put("items", webSongs(songs));
+                break;
+                }
+              case "daily-recommend":
+                songs = cloud.daily();
+                collectionRows.clear();
+                collectionRows.addAll(songs);
+                response.put("items", webSongs(songs)).put("title", "每日推荐");
                 break;
             }
             JSONObject output = response;
             ui.post(
                 () -> {
                   if (!alive) return;
+                  if (action.equals("qr-key") && !isQrRequestCurrent(qrRequestId)) return;
+                  if (action.equals("qr-check") && !isQrPollCurrent(qrRequestId, qrPollKey)) return;
                   mobileMessage("result", output.toString());
-                  if(action.equals("login")&&output.optInt("code")==200||action.equals("qr-check")&&output.optInt("code")==803){Favorites.clear();cloudFavoriteRows.clear();refreshCloudLikes();try{cloudAction("account",new JSONObject());}catch(Exception ignored){}}
+                  if(action.equals("login")&&output.optInt("code")==200||action.equals("qr-check")&&output.optInt("code")==803){if(action.equals("qr-check"))cancelQrChallenge(qrRequestId);Favorites.clear();cloudFavoriteRows.clear();refreshCloudLikes();try{cloudAction("account",new JSONObject());}catch(Exception ignored){}}
                   pushMobileState();
                 });
           } catch (Exception failure) {
             ui.post(
                 () -> {
                   if (!alive) return;
+                  if (action.equals("qr-key") && !isQrRequestCurrent(qrRequestId)) return;
+                  if (action.equals("qr-check") && !isQrPollCurrent(qrRequestId, qrPollKey)) return;
                   try {
-                    mobileMessage(
-                        "result",
-                        new JSONObject()
+                    JSONObject failed = new JSONObject()
                             .put("type", action)
                             .put("code", 0)
                             .put(
                                 "message",
-                                failure.getMessage() == null ? "网络请求失败" : failure.getMessage())
-                            .toString());
+                                failure.getMessage() == null ? "网络请求失败" : failure.getMessage());
+                    if (!qrRequestId.isEmpty()) failed.put("requestId", qrRequestId);
+                    if (action.equals("qr-check")) failed.put("key", qrPollKey);
+                    mobileMessage("result", failed.toString());
                   } catch (Exception ignored) {
                   }
                 });

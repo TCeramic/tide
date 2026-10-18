@@ -96,3 +96,5 @@ html[data-mobile=true] .native-point-field[data-point-set="0"]{opacity:0!importa
 
 .bottom-sheet .dialog-header{touch-action:none;cursor:grab}.bottom-sheet .dialog-header h2{font-size:18px}.bottom-sheet::before{content:"";display:block;width:36px;height:4px;border-radius:4px;background:var(--muted);opacity:.5;margin:-7px auto 12px}
 @media(orientation:landscape){.proof-body{grid-template-columns:minmax(260px,1.3fr) minmax(220px,1fr)}.proof-visual{height:54dvh;min-height:190px}.mobile-setting-group .native-choice-row{grid-template-columns:100px minmax(0,1fr);align-items:center}}
+
+#app :is(#player-like,#dock-like)[aria-pressed=true] svg{fill:currentColor;stroke:currentColor}#app :is(#player-like,#dock-like)[aria-busy=true]{opacity:.55}

@@ -32,6 +32,14 @@ public class PlaybackService extends Service {
   private boolean foreground;
   private boolean playWhenReady;
   private boolean inspirationLoading;
+  private long pendingSeekPosition = -1;
+  private final Runnable checkpoint = new Runnable() {
+    public void run() {
+      if (!playing) return;
+      persistPosition();
+      handler.postDelayed(this, 5000);
+    }
+  };
 
   public Song current() {
     return index >= 0 && index < queue.size() ? queue.get(index) : null;
@@ -158,6 +166,8 @@ public class PlaybackService extends Service {
     } else if ("toggle".equals(action)) {
       if (playing) pause();
       else resume();
+    } else if ("restore".equals(action)) {
+      restorePaused();
     } else if ("next".equals(action)) next(1);
     else if ("previous".equals(action)) next(-1);
     else if ("favorite".equals(action)) toggleFavorite();
@@ -176,7 +186,25 @@ public class PlaybackService extends Service {
     c.startForegroundService(i);
   }
 
+  /** Rebuild the last player in a paused state after Android has killed the app process. */
+  public static void restoreIfAvailable(Context c) {
+    if (instance != null || Song.read(c, "queue").isEmpty()) return;
+    Intent intent = new Intent(c, PlaybackService.class).setAction("restore");
+    if (Build.VERSION.SDK_INT >= 26) c.startForegroundService(intent);
+    else c.startService(intent);
+  }
+
+  private void restorePaused() {
+    if (current() == null || player != null || loading) return;
+    long savedPosition = Math.max(0, getSharedPreferences("tide", 0).getLong("resumePosition", 0));
+    play(index, savedPosition, false, true);
+  }
+
   public void play(int at) {
+    play(at, 0, true, false);
+  }
+
+  private void play(int at, long savedPosition, boolean shouldPlay, boolean restoring) {
     if (queue.isEmpty()) return;
     index = (at % queue.size() + queue.size()) % queue.size();
     Song song = current();
@@ -188,9 +216,12 @@ public class PlaybackService extends Service {
     lyrics = Collections.emptyList(); translations=Collections.emptyList();romaji=Collections.emptyList();
     loading = true;
     playing = false;
-    playWhenReady = true;
+    playWhenReady = shouldPlay;
+    pendingSeekPosition = -1;
     Song.save(this, "queue", queue);
-    getSharedPreferences("tide", 0).edit().putInt("queueIndex", index).apply();
+    android.content.SharedPreferences.Editor resume = getSharedPreferences("tide", 0).edit().putInt("queueIndex", index);
+    if (!restoring) resume.putLong("resumePosition", 0);
+    resume.apply();
     promote();
     metadata(null);
     changed();
@@ -216,15 +247,28 @@ public class PlaybackService extends Service {
                           loading = false;
                           song.duration = p.getDuration();
                           metadata(null);
+                          if (savedPosition > 0) {
+                            long seekTo = Math.min(savedPosition, Math.max(0, p.getDuration() - 1000));
+                            pendingSeekPosition = seekTo;
+                            getSharedPreferences("tide", 0).edit().putLong("resumePosition", seekTo).apply();
+                            p.seekTo((int) seekTo, MediaPlayer.SEEK_CLOSEST);
+                          }
                           if (playWhenReady) resume();
                           else {
+                            if (savedPosition <= 0) persistPosition();
                             changed();
                             if (foreground) {
                               stopForeground(false);
                               foreground = false;
                             }
                           }
-                        });
+                      });
+                    player.setOnSeekCompleteListener(p -> {
+                      if (token != generation || p != player) return;
+                      pendingSeekPosition = -1;
+                      persistPosition();
+                      changed();
+                    });
                     player.setOnCompletionListener(
                         p -> {
                           String repeat =
@@ -321,6 +365,8 @@ public class PlaybackService extends Service {
       player.start();
       playing = true;
       error = "";
+      handler.removeCallbacks(checkpoint);
+      handler.postDelayed(checkpoint, 5000);
       changed();
     } catch (Exception e) {
       fail("恢复播放失败");
@@ -329,12 +375,14 @@ public class PlaybackService extends Service {
 
   public void pause() {
     playWhenReady = false;
+    handler.removeCallbacks(checkpoint);
     if (player != null && prepared)
       try {
         player.pause();
       } catch (Exception ignored) {
       }
     playing = false;
+    persistPosition();
     changed();
     if (foreground) {
       stopForeground(false);
@@ -345,7 +393,10 @@ public class PlaybackService extends Service {
   public void seek(long position) {
     if (player != null && prepared)
       try {
-        player.seekTo(Math.max(0, Math.min(position, duration())), MediaPlayer.SEEK_CLOSEST);
+        long target = Math.max(0, Math.min(position, duration()));
+        pendingSeekPosition = target;
+        getSharedPreferences("tide", 0).edit().putLong("resumePosition", target).apply();
+        player.seekTo((int) target, MediaPlayer.SEEK_CLOSEST);
         changed();
       } catch (Exception ignored) {
       }
@@ -367,6 +418,19 @@ public class PlaybackService extends Service {
     } catch (Exception e) {
       return 0;
     }
+  }
+
+  private void persistPosition() {
+    // A newly created/restoring player reports 0 until prepare completes. Preserve the
+    // last checkpoint during that window instead of overwriting it with a false zero.
+    if (!prepared || player == null) return;
+    if (pendingSeekPosition >= 0) {
+      getSharedPreferences("tide", 0).edit().putLong("resumePosition", pendingSeekPosition).apply();
+      return;
+    }
+    long position = position();
+    if (position < 0) return;
+    getSharedPreferences("tide", 0).edit().putLong("resumePosition", position).apply();
   }
 
   private void metadata(Bitmap bitmap) {
@@ -505,6 +569,8 @@ public class PlaybackService extends Service {
   }
 
   public void onDestroy() {
+    persistPosition();
+    handler.removeCallbacks(checkpoint);
     generation++;
     releasePlayer();
     audio.abandonAudioFocusRequest(focus);
@@ -517,6 +583,11 @@ public class PlaybackService extends Service {
     getSystemService(NotificationManager.class).cancel(11);
     instance = null;
     super.onDestroy();
+  }
+
+  public void onTaskRemoved(Intent rootIntent) {
+    persistPosition();
+    super.onTaskRemoved(rootIntent);
   }
 
   public IBinder onBind(Intent i) {
