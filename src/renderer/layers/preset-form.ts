@@ -3,9 +3,9 @@ import type { Appearance, FontPresetId, PerformanceTier, ShellId, StageBackgroun
 import { createNativeChoiceRow } from "../native-shell.js";
 
 const TIERS: { id: PerformanceTier; label: string }[] = [
-  { id: "smooth", label: "低" },
-  { id: "balanced", label: "中" },
-  { id: "vivid", label: "高" },
+  { id: "smooth", label: "关闭" },
+  { id: "balanced", label: "标准" },
+  { id: "vivid", label: "完整" },
 ];
 
 const BACKGROUNDS: { id: StageBackground; label: string }[] = [
@@ -41,14 +41,14 @@ export function mountPresetForm(): {
   kicker.textContent = "外观与动效";
   const hint = document.createElement("p");
   hint.className = "library-note";
-  hint.textContent = "封面流动配色跟随歌曲；低档静态，中档柔和过渡，高档完整动态。";
+  hint.hidden = true;
   const detailHeading = document.createElement("p");
   detailHeading.className = "preset-kicker";
-  detailHeading.textContent = "细节";
-  const tierRow = createNativeChoiceRow("性能", TIERS, (id) => void window.tide.setAppearance({ performance: id as PerformanceTier }));
+  detailHeading.hidden = true;
+  const tierRow = createNativeChoiceRow("动画", TIERS, (id) => void window.tide.setAppearance({ performance: id as PerformanceTier }));
   const backgroundRow = createNativeChoiceRow("背景", BACKGROUNDS, (id) => void window.tide.setAppearance({ background: id as StageBackground }));
   const emblemRow=createNativeChoiceRow("TIDE 标识材质",[{id:"auto",label:"随设计系统"},{id:"liquid-metal",label:"Liquid Metal"}],id=>void window.tide.setAppearance({emblem:id as "auto"|"liquid-metal"}));
-  const shellRow = createNativeChoiceRow("设计系统", SHELLS, (id) => void window.tide.setAppearance({ shell: id as ShellId }));
+  const shellRow = createNativeChoiceRow("主题", SHELLS, (id) => void window.tide.setAppearance({ shell: id as ShellId }));
   let currentShell: ShellId = "lens";
   const modeRow = createNativeChoiceRow("明暗模式", [{ id: "light", label: "明亮" }, { id: "dark", label: "深色" }], id => void window.tide.setAppearance(currentShell === "lens" ? { lensMode: id as "light" | "dark" } : { latticeMode: id as "light" | "dark" }));
   const fontRow = createNativeChoiceRow("字体", FONTS, (id) => void window.tide.setAppearance({ fontPreset: id as FontPresetId }));
@@ -81,12 +81,13 @@ export function mountPresetForm(): {
   });
   const later = document.createElement("p");
   later.className = "library-note";
-  later.textContent = "Lens / Lattice · DayDreamInAReverie · MIT";
+  later.hidden = true;
   root.append(kicker, hint, shellRow.element, modeRow.element, detailHeading, tierRow.element, backgroundRow.element, emblemRow.element, fontRow.element, family, importFont, imageButton, later);
 
   return {
     element: root,
     sync(appearance) {
+      family.hidden=appearance.fontPreset!=="custom";importFont.hidden=appearance.fontPreset!=="custom";imageButton.hidden=appearance.background!=="image";
       currentShell = appearance.shell;
       modeRow.sync(appearance.shell === "lens" ? appearance.lensMode ?? (appearance.theme === "dusk" ? "dark" : "light") : appearance.latticeMode ?? "dark");
       shellRow.sync(appearance.shell);

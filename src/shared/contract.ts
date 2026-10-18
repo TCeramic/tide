@@ -351,7 +351,14 @@ export interface QueueRequest {
 }
 
 /** Surface exposed on `window.tide` by the preload script. */
+export interface UpdateStatus {ok:boolean;current:string;version?:string;available?:boolean;notes?:string;message?:string;mirror?:string}
 export interface TideBridge {
+  checkUpdate():Promise<UpdateStatus>;
+  getUpdateInfo():Promise<{current:string;mirror:string}>;
+  setUpdateMirror(value:string):Promise<{ok:boolean;message?:string}>;
+  downloadUpdate():Promise<{ok:boolean;message:string}>;
+  onUpdateProgress(listener:(percent:number)=>void):()=>void;
+  openProject():Promise<void>;
   setFullscreen(value?:boolean):Promise<boolean>;
   captureThemeFrame():Promise<string|null>;
   onFullscreen(listener:(fullscreen:boolean)=>void):()=>void;

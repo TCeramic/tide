@@ -13,6 +13,12 @@ function listen<T>(channel: string, listener: (payload: T) => void): () => void 
 }
 
 const tide: TideBridge = {
+  checkUpdate:()=>ipcRenderer.invoke('tide:update-check'),
+  getUpdateInfo:()=>ipcRenderer.invoke('tide:update-info'),
+  setUpdateMirror:value=>ipcRenderer.invoke('tide:update-mirror',value),
+  downloadUpdate:()=>ipcRenderer.invoke('tide:update-download'),
+  onUpdateProgress:listener=>listen<number>('tide:update-progress',listener),
+  openProject:()=>ipcRenderer.invoke('tide:open-project'),
   setFullscreen:value=>ipcRenderer.invoke("tide:fullscreen",value),
   captureThemeFrame:()=>ipcRenderer.invoke("tide:theme-frame"),
   onFullscreen:listener=>listen<boolean>("tide:fullscreen-state",listener),

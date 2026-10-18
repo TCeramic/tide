@@ -9,7 +9,7 @@ export function mountDeskForm(): { element: HTMLElement; destroy: () => void } {
 
   const help = document.createElement("p");
   help.className = "library-note";
-  help.textContent = "独立透明窗口，置顶在其它窗口之上。锁定后点击会穿透到下层。显隐热键默认 Ctrl+Alt+D；右键可快捷调整。";
+  help.textContent = "歌词置顶显示；锁定后可点击下层窗口。右键歌词可快捷调整。";
 
   const center=document.createElement("button");center.type="button";center.className="text-button";center.textContent="居中桌面歌词";center.onclick=()=>void window.tide.centerDeskLyrics();
   const openRow = checkRow("桌面歌词");
@@ -35,25 +35,15 @@ export function mountDeskForm(): { element: HTMLElement; destroy: () => void } {
   const motionLevelRow = rangeRow("动效强度", 35, 100, 100);
   const backdropRow = rangeRow("背景", 0, 55, 0);
 
-  panel.append(
-    summary,
-    help,
-    openRow.row,
-    lockRow.row,
-    sweepRow.row,
-    motionRow.row,
-    lineRow, pairRow.row, shortcutRow,
-    waveRow.row,
-    columnRow.row,
-    sizeRow.row,
-    colorRow.row,
-    highlightRow.row,
-    fontRow, family,
-    opacityRow.row,
-    glowRow.row,
-    motionLevelRow.row,
-    backdropRow.row,
-  );
+  const group = (title: string, ...rows: HTMLElement[]) => {
+    const section = document.createElement("section"); section.className = "desk-group";
+    const heading = document.createElement("h3"); heading.textContent = title;
+    section.append(heading, ...rows); return section;
+  };
+  panel.append(summary, help,
+    group("显示", openRow.row, lockRow.row, lineRow, pairRow.row, columnRow.row, shortcutRow, center),
+    group("文字", fontRow, family, sizeRow.row, colorRow.row, highlightRow.row, opacityRow.row),
+    group("效果", sweepRow.row, motionRow.row, waveRow.row, glowRow.row, motionLevelRow.row, backdropRow.row));
 
   const paint = (settings: DeskLyricsSettings) => {
     openRow.input.checked = settings.open;
@@ -76,6 +66,7 @@ export function mountDeskForm(): { element: HTMLElement; destroy: () => void } {
     glowRow.input.value = String(Math.round(settings.glow * 100));
     motionLevelRow.input.value = String(Math.round(settings.motionLevel * 100));
     backdropRow.input.value = String(Math.round(settings.backdrop * 100));
+    for (const control of [sizeRow, opacityRow, glowRow, motionLevelRow, backdropRow]) control.refresh();
   };
 
   const push = (patch: Partial<DeskLyricsSettings>) => {
@@ -121,11 +112,11 @@ function checkRow(label: string): { row: HTMLLabelElement; input: HTMLInputEleme
   input.setAttribute("aria-label", label);
   const text = document.createElement("span");
   text.textContent = label;
-  row.append(input, text);
+  row.append(text, input);
   return { row, input };
 }
 
-function rangeRow(label: string, min: number, max: number, value: number): { row: HTMLLabelElement; input: HTMLInputElement } {
+function rangeRow(label: string, min: number, max: number, value: number): { row: HTMLLabelElement; input: HTMLInputElement; refresh: () => void } {
   const row = document.createElement("label");
   row.className = "key-row";
   const text = document.createElement("span");
@@ -136,8 +127,12 @@ function rangeRow(label: string, min: number, max: number, value: number): { row
   input.max = String(max);
   input.value = String(value);
   input.setAttribute("aria-label", label);
-  row.append(text, input);
-  return { row, input };
+  row.classList.add("desk-range");
+  const output = document.createElement("output"); output.setAttribute("aria-hidden", "true");
+  const refresh = () => { output.textContent = input.value + (label === "字号" ? "" : "%"); };
+  input.addEventListener("input", refresh); refresh();
+  row.append(text, input, output);
+  return { row, input, refresh };
 }
 
 function colorRowOf(label: string): { row: HTMLLabelElement; input: HTMLInputElement } {

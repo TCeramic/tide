@@ -1,0 +1,7 @@
+Tide - personal music player
+Copyright (c) 2026 TCeramic
+
+New author-owned Tide code is licensed under GPL-3.0-only. See LICENSE.
+Previously published MIT code keeps its existing grant; see licenses/Tide-MIT-historical.txt and repository history.
+Third-party components retain their own copyright and license notices in licenses/ and src/renderer/vendor/.
+Corresponding source and build instructions: https://github.com/TCeramic/tide

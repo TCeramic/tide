@@ -18,4 +18,4 @@ for(const [name,files]of Object.entries({lens:['lens/lab/design-system/tokens.cs
 }
 await writeFile(path.join(out,'native-systems.css'),styles.join('\n'));
 await mkdir(path.join(out,'licenses'),{recursive:true});
-for(const [source,name]of [['src/renderer/vendor/design-systems/LICENSE','Lens-Lattice-MIT.txt'],['node_modules/@paper-design/shaders/LICENSE','Paper-Apache-2.0.txt'],['node_modules/@paper-design/shaders/NOTICE','Paper-NOTICE.txt'],['node_modules/three/LICENSE','Three-MIT.txt'],['node_modules/qrcode/license','QRCode-MIT.txt']])await cp(path.join(root,source),path.join(out,'licenses',name));
+for(const [source,name]of [['LICENSE','Tide-GPL-3.0.txt'],['NOTICE','Tide-NOTICE.txt'],['src/renderer/vendor/design-systems/LICENSE','Lens-Lattice-MIT.txt'],['node_modules/@paper-design/shaders/LICENSE','Paper-Apache-2.0.txt'],['node_modules/@paper-design/shaders/NOTICE','Paper-NOTICE.txt'],['node_modules/three/LICENSE','Three-MIT.txt'],['node_modules/qrcode/license','QRCode-MIT.txt']])await cp(path.join(root,source),path.join(out,'licenses',name));

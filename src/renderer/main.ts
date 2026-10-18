@@ -164,7 +164,9 @@ async function applyAppearance(appearance:Appearance):Promise<void>{
 }
 installModuleMotion();
 const fullscreenButton=iconButton("进入全屏","Maximize2",Maximize2,ICON_SIZE.row);fullscreenButton.classList.add("fullscreen-toggle");document.body.append(fullscreenButton);
-const miniButton=iconButton("呼出小窗播放器","PictureInPicture2",PictureInPicture2,ICON_SIZE.row);miniButton.classList.add("mini-toggle");document.body.append(miniButton);miniButton.onclick=()=>void window.tide.setMiniPlayer({open:true});
+const miniButton=iconButton("呼出小窗播放器","PictureInPicture2",PictureInPicture2,ICON_SIZE.row);miniButton.classList.add("mini-toggle");document.body.append(miniButton);let miniTogglePending=false;
+miniButton.onclick=async()=>{if(miniTogglePending)return;miniTogglePending=true;try{const state=await window.tide.getMiniPlayer();await window.tide.setMiniPlayer({open:!state.open});}finally{miniTogglePending=false;}};
+miniButton.title="打开 / 关闭小窗播放器"; miniButton.setAttribute("aria-label","打开 / 关闭小窗播放器");
 fullscreenButton.onclick=()=>void window.tide.setFullscreen();
 window.tide.onFullscreen(value=>{document.documentElement.dataset.fullscreen=String(value);fullscreenButton.setAttribute("aria-label",value?"退出全屏":"进入全屏");fullscreenButton.title=value?"退出全屏（Esc）":"进入全屏（F11）";});
 

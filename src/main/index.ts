@@ -1,3 +1,4 @@
+import { attachUpdates } from "./update-host";
 import { attachMiniPlayer } from "./mini-host";
 import { TidePlaylistStore } from "./tide-playlists";
 import { attachTidePlaylists } from "./tide-playlist-host";
@@ -167,6 +168,7 @@ function createWindow(): BrowserWindow {
     void publishHealth();
   });
   bindHardwareWindow(win);
+  attachUpdates(win);
 
   void win.loadFile(path.join(__dirname, "index.html"));
   return win;

@@ -9,3 +9,53 @@
 #app .player-controls .primary-play{width:64px;height:64px;}
 #app #player-page .brand-space{height:24px;}
 #app .native-point-hero{max-width:calc(100vw - 36px);}
+/* Mobile viewport anchors are independent of shared component surfaces. */
+#app>.topbar{position:fixed!important;top:calc(14px + var(--safe-top,0px))!important;left:calc(18px + var(--safe-left,0px))!important;right:calc(18px + var(--safe-right,0px))!important;width:auto!important;transform:none!important;}
+#app>.transport{position:fixed!important;top:auto!important;bottom:calc(12px + var(--safe-bottom,0px))!important;left:calc(14px + var(--safe-left,0px))!important;right:calc(14px + var(--safe-right,0px))!important;width:auto!important;transform:none!important;}
+#app>.mobile-scroll{top:calc(78px + var(--safe-top,0px));bottom:calc(92px + var(--safe-bottom,0px));}
+html[data-shell=lens] body:not(.webgl-ready) .lg-surface{background:var(--surface);backdrop-filter:blur(16px);}
+html[data-shell=lens] body:not(.webgl-ready) .native-paper-source{opacity:1!important;}
+body.lg-stage{border-radius:0!important;background:#142536!important;}
+button[aria-busy=true]{opacity:.65;cursor:wait;}
+html[data-player-view=lyrics] #player-cover{display:none}html[data-player-view=lyrics] .mobile-lyrics{min-height:50dvh}html[data-player-view=lyrics] #current-line{font-size:29px}#app .transport button{min-width:34px}#app .transport #dock-like{display:grid!important;width:32px;min-width:32px}#app .transport #dock-like svg{width:20px;height:20px}#app .transport .dock-song{flex:1;min-width:0}#app .transport .dock-song img{width:38px;height:38px;flex-shrink:0}#app .transport .dock-song strong{font-size:12px}#app .transport .dock-song small{font-size:10px}
+
+/* Playing has its own controls; the global dock belongs to browsing pages. */
+html[data-view=playing] #app>.transport{display:none!important}
+html[data-view=playing] #app>.mobile-scroll{bottom:calc(12px + var(--safe-bottom,0px))}
+#app #player-page{min-height:100%;display:flex;flex-direction:column;justify-content:center;gap:12px;padding:12px 2px}
+#app #player-page .brand-space{height:0;display:none}
+#app #player-cover{width:min(76vw,36dvh,360px);margin:0 auto 14px;flex-shrink:0}
+#app .player-heading h1{font-size:24px}#app .player-heading p{font-size:14px}
+#player-status:empty{display:none}#player-status{font-size:13px;color:var(--muted);margin:0}
+#player-more{align-self:flex-end;font-size:12px;padding:6px 12px;min-height:36px}
+#app .mobile-progress{margin-top:4px}#app .player-controls{margin:8px 0 0}
+html[data-player-view=lyrics] #app #player-cover,html[data-player-view=lyrics] #app .player-heading,html[data-player-view=lyrics] #player-more{display:none}
+#lyric-view{flex:1;min-height:240px;display:flex;flex-direction:column;max-height:calc(100dvh - 310px - var(--safe-top,0px) - var(--safe-bottom,0px))}
+.lyric-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.lyric-toolbar select{color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:9px;font:inherit;font-size:13px}
+.all-lyrics{position:relative;overflow-y:auto;overscroll-behavior:contain;flex:1;min-height:150px;padding:40px 0 90px;scrollbar-width:none}
+.lyric-entry{display:block;width:100%;border:0;background:none;text-align:left;padding:14px 8px;color:var(--muted);font-size:23px;font-weight:600;line-height:1.45;overflow-wrap:anywhere}
+.lyric-entry.active{color:var(--text)}.lyric-entry small{display:block;font-size:14px;font-weight:400;margin-top:7px}
+#lyric-confirm{display:flex;align-items:center;justify-content:space-between;gap:5px;font-size:12px;flex-wrap:wrap}
+#lyric-confirm button{font-size:12px;padding:8px 12px}
+@media(orientation:landscape) and (max-height:600px){#app #player-page{display:grid;grid-template-columns:minmax(140px,35%) minmax(0,1fr);align-content:center}#app #player-cover{grid-column:1;grid-row:1/6;width:min(28vw,52dvh);margin:auto}.player-heading,#player-more,.mobile-progress,.player-controls{grid-column:2}html[data-player-view=lyrics] #app #player-page{display:flex}#lyric-view{max-height:none;height:42dvh;min-height:150px}}
+
+/* Mobile hierarchy: browse navigation, one player, one set of controls. */
+html[data-view=playing] #app>.topbar,html[data-view=playing] .native-set-control,html[data-view=playing] .liquid-metal-emblem,html[data-view=playing] .native-point-hero{display:none!important}
+html[data-view=playing] #app>.mobile-scroll{top:var(--safe-top,0px);bottom:var(--safe-bottom,0px);padding:0 22px;overflow:hidden}
+#app #player-page{height:100%;min-height:0;max-width:540px;display:flex;flex-direction:column;justify-content:flex-start;gap:0;padding:0 0 14px}
+.player-nav{display:flex;align-items:center;justify-content:space-between;min-height:62px;flex-shrink:0;font-size:13px;color:var(--muted)}
+#app .player-nav button{width:44px;height:44px;display:grid;place-items:center;border:0;background:transparent;border-radius:50%;font-size:24px;padding:0}
+#app #player-cover{width:min(78vw,39dvh,340px);margin:auto auto 22px;flex-shrink:0;border-radius:24px}
+#app .player-heading{flex-shrink:0;margin-bottom:12px}#app .player-heading h1{font-size:23px;line-height:1.35}#app .player-heading p{font-size:13px;margin:8px 0 0}
+#app .mobile-progress{flex-shrink:0;margin-top:auto;padding-top:18px}#app .player-controls{flex-shrink:0;margin:16px 0 10px}
+#lyric-view{min-height:0;height:auto;max-height:none;flex:1;overflow:hidden;margin-top:8px}
+.lyric-toolbar{flex-shrink:0;margin-bottom:8px}.all-lyrics{min-height:0}.lyric-entry{padding:16px 2px;font-size:25px}.lyric-entry small{font-size:14px;line-height:1.6}
+html[data-player-view=lyrics] #app .mobile-progress{margin-top:0;padding-top:12px}
+#player-status{margin:4px 0;font-size:12px}#app .transport{gap:5px;padding:8px 10px}#app .transport .dock-song img{width:40px;height:40px}
+#app .transport .dock-song strong{font-size:13px}.transport button svg{width:21px;height:21px}
+.mobile-setting-group{border-bottom:1px solid var(--border);padding:4px 0 20px;margin-bottom:16px}.mobile-setting-group h2{font-size:15px;font-weight:600;margin:8px 0 16px}.mobile-setting-group .native-choice-row{margin:18px 0}.mobile-setting-group summary{font-size:15px}.mobile-setting-group .palette-preview{height:64px}
+.setting-link{display:flex;justify-content:space-between;align-items:center;width:100%;padding:16px 0;border:0;background:none;text-align:left;font-size:15px}.setting-link span{color:var(--muted)}.page-header p:empty{display:none}.page-header h1{font-size:24px}.browse-sheet{padding:20px 18px}
+html[data-mobile=true] .native-set-control{display:none!important}
+@media(max-width:360px){#app #player-cover{width:min(76vw,34dvh)}#app .player-heading h1{font-size:21px}.lyric-entry{font-size:22px}}
+@media(orientation:landscape) and (max-height:600px){#app #player-page{display:grid;grid-template-columns:38% minmax(0,1fr);grid-template-rows:48px auto auto auto;column-gap:22px;max-width:820px}.player-nav{grid-column:1/-1;min-height:48px}#app #player-cover{grid-column:1;grid-row:2/5;width:min(28vw,56dvh);margin:auto}#app .player-heading{grid-column:2;align-self:end;margin:0}#app .mobile-progress{grid-column:2;padding-top:4px}#app .player-controls{grid-column:2;margin:4px 0}.player-controls .primary-play{width:48px!important;height:48px!important}html[data-player-view=lyrics] #app #player-page{display:flex}#lyric-view{height:auto;min-height:0}.lyric-entry{font-size:21px;padding:10px 0}html[data-player-view=lyrics] #app .player-controls{margin:4px 0}html[data-player-view=lyrics] .player-nav{min-height:44px}}

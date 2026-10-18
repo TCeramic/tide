@@ -557,3 +557,40 @@ html[data-emblem="liquid-metal"] .native-point-field[data-point-set="0"]{opacity
 /* Mask an isolated preview surface: clipping an iframe lets Chromium occlusion
    discard rectangular tiles of the live WebGL canvas underneath. */
 .theme-reveal-frame{isolation:isolate;will-change:mask-image;mask-repeat:no-repeat;mask-size:100% 100%;}
+
+.settings-tabs{display:flex;gap:5px;flex-wrap:wrap;border-bottom:1px solid var(--tide-line);padding-bottom:14px;margin-bottom:18px}.settings-tabs button{flex:1;min-width:58px;font-size:12px;padding:9px 6px;border-radius:16px}.settings-tabs [aria-selected=true]{font-weight:600;color:var(--tide-fg)}.settings-category{min-width:0}.settings-category>.key-panel{border:0;padding:0}.settings-category>.key-panel>summary{display:none}.settings-category .preset-kicker:first-child{display:none}.settings-category .native-choice-row{margin:18px 0}.settings-category .quality{margin:16px 0 24px}.about-page>img{display:block;margin:8px auto 12px;border-radius:18px}.about-page>h3,.about-page>h3+p{text-align:center}.about-page>h3{font-size:23px;margin:8px 0}.about-page .settings-actions{display:flex;gap:8px;margin:18px 0}.about-page details{border-top:1px solid var(--tide-line);padding:12px 0}.about-page details>summary{cursor:pointer;padding:8px 0;font-size:14px}.release-notes{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.7;max-height:280px;overflow:auto;padding:12px 0}.about-page .key-input{width:100%;box-sizing:border-box}.about-page .disclaimer{margin-top:20px}.about-page .disclaimer h2{font-size:15px}
+
+/* Keep settings navigation fixed while only the selected category scrolls. */
+.native-popup-layer .settings-pop{top:64px!important;bottom:72px!important;right:18px!important;width:min(430px,calc(100vw - 36px))!important;max-height:none!important;overflow:hidden!important;box-sizing:border-box}
+.settings-pop .settings-panel{display:flex;flex-direction:column;height:100%;min-height:0}
+.settings-pop .settings-panel>h2,.settings-pop .settings-tabs{flex-shrink:0}
+.settings-pop .settings-category{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:0 3px 16px;scrollbar-width:thin}
+html[data-shell=lens][data-color-mode=light] .native-popup-layer .settings-pop{background:rgba(224,235,245,.58)!important}
+html[data-shell=lens][data-color-mode=dark] .native-popup-layer .settings-pop{background:rgba(17,35,51,.68)!important}
+.about-page select{display:block;width:100%;padding:10px;border:1px solid var(--tide-line);border-radius:12px;background:var(--tide-panel);color:var(--tide-fg);font:inherit}
+
+body:has(.settings-pop:not([hidden])) #app :is(.home-grid,.topbar){filter:blur(10px);opacity:.2;pointer-events:none}
+
+/* Keep settings controls legible in both native design systems. */
+.settings-tabs button{display:flex!important;align-items:center!important;justify-content:center!important;text-align:center!important;white-space:nowrap;min-height:40px;line-height:1.3}
+.desk-form .library-note{font-size:12px;line-height:1.7;margin:0 0 18px;color:var(--tide-muted)}
+.desk-group{padding:0 0 18px;margin:0 0 18px;border-bottom:1px solid var(--tide-line)}
+.desk-group:last-child{border-bottom:0;margin-bottom:0}
+.desk-group h3{font-size:13px;letter-spacing:.08em;margin:0 0 12px;color:var(--tide-muted);font-weight:600}
+.desk-form .key-row{display:grid;grid-template-columns:100px minmax(0,1fr);gap:12px;min-height:44px;margin:4px 0;font-size:13px;align-items:center}
+.desk-form .key-row>span{white-space:nowrap;color:var(--tide-fg)}
+.desk-form .desk-range{grid-template-columns:100px minmax(0,1fr) 38px}
+.desk-range output{text-align:right;font-size:12px;font-variant-numeric:tabular-nums;color:var(--tide-muted)}
+.desk-form input[type=range]{width:100%;min-width:0;margin:0;accent-color:var(--tide-accent,#7dd6f4);height:24px}
+.desk-form .key-capture{justify-content:space-between;min-height:44px;margin:0;gap:12px;font-size:13px}
+.desk-form input[type=checkbox]{appearance:none;position:relative;width:36px;height:22px;flex:0 0 36px;border:1px solid var(--tide-line);border-radius:20px;background:color-mix(in srgb,var(--tide-muted) 25%,transparent);cursor:pointer;margin:0}
+.desk-form input[type=checkbox]::after{content:"";position:absolute;width:14px;height:14px;left:3px;top:3px;border-radius:50%;background:var(--tide-fg);transition:transform .16s}
+.desk-form input[type=checkbox]:checked{background:color-mix(in srgb,#7dd6f4 65%,transparent)}
+.desk-form input[type=checkbox]:checked::after{transform:translateX(14px)}
+.desk-form input[type=checkbox]:disabled{opacity:.4;cursor:default}
+.desk-form :is(input,select,button):focus-visible{outline:2px solid #7dd6f4;outline-offset:3px}
+.desk-form select{min-width:0;width:100%;height:36px;border:1px solid var(--tide-line);border-radius:10px;padding:0 10px;background:color-mix(in srgb,var(--tide-fg) 7%,transparent);color:var(--tide-fg);font:inherit}
+.desk-form select option{background:var(--tide-bg,#243746);color:var(--tide-fg)}
+.desk-form input[type=color]{width:60px;height:32px;padding:3px;border:1px solid var(--tide-line);border-radius:9px;background:transparent;cursor:pointer;justify-self:end}
+.desk-form .key-input{box-sizing:border-box;width:100%;min-height:36px}
+.desk-form .text-button{display:flex;justify-content:center;width:100%;margin-top:10px;min-height:36px}
