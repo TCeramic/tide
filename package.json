@@ -4,7 +4,7 @@
   "private": true,
   "description": "潮汐 Tide — a personal, unofficial desktop music player",
   "main": "dist/main.js",
-  "license": "MIT",
+  "license": "LicenseRef-Tide-Source-Available",
   "author": "TCeramic",
   "engines": {
     "node": ">=22"

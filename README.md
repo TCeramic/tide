@@ -222,3 +222,9 @@ The Lens and Lattice presets use the actual MIT upstream renderers and component
 不要接 Spotify、QQ，也不要把 Grok 嵌进窗口。透镜与点阵外壳继续直接复用上游。
 
 Spotify, QQ and an embedded Grok client stay out. Lens and Lattice remain original upstream systems.
+
+## 源码使用许可
+
+2026-10-18 起新的自有改动采用 [Tide Source-Available License](LICENSE)：允许学习思路并独立实现，禁止未经许可照搬适用代码、素材或改名再发布、商用。此为限制性源码许可，非宽松开源许可。历史 MIT 版本和第三方组件不受追溯限制，详见 LICENSE、licenses/ 和提交历史。
+
+更新检查使用公开 GitHub Release。可在设置 → 关于 → 更新下载源配置 HTTPS 国内镜像（`{version}`、`{asset}`），失败回退 GitHub，并校验发布包 SHA-256；未配置镜像时仅使用官方源。

@@ -1,21 +1,21 @@
-MIT License
+Tide Source-Available License 1.0
+Copyright (c) 2026 TCeramic. All rights reserved except as expressly granted below.
+Effective date: 2026-10-18
 
-Copyright (c) 2026 TCeramic
+1. Scope
+This license applies only to TCeramic-owned additions and changes first made available under this license. Third-party code, fonts, artwork and dependencies retain their respective licenses and copyright notices. Previously released Tide code under MIT remains available under that original grant; this document does not revoke, restrict or replace rights already granted for those versions. See licenses/Tide-MIT-historical.txt and repository history.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+2. Permitted use
+You may view, download and locally build the covered source solely for personal study, review and non-commercial evaluation. You may learn its ideas, visual concepts and interaction principles and independently implement similar functionality without copying covered source, artwork or other protected expression. Official unmodified Tide binaries may be used personally and non-commercially. Permissions necessary to view and fork the repository within GitHub under GitHub's terms are preserved.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+3. Restrictions
+Except as required by applicable law, the platform permissions above or a separate written permission from TCeramic, you may not incorporate covered code or assets into another project, redistribute covered source or modified builds outside the platform permissions above, sell or sublicense the covered work, use it commercially, or remove copyright and license notices. Rebranding a copied or substantially copied covered implementation is not an independent implementation. These restrictions do not apply to separately licensed third-party components or code previously granted under MIT.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+4. No additional rights
+No trademark, patent or ownership rights are granted. For permissions beyond this license, contact TCeramic through https://github.com/TCeramic/tide.
+
+5. Disclaimer
+THE COVERED WORK IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND. TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE COPYRIGHT HOLDER IS NOT LIABLE FOR CLAIMS OR DAMAGES ARISING FROM ITS USE.
+
+中文说明（以以上英文条款为准）
+允许学习设计与交互思路、个人研究和独立实现；未经作者书面许可，禁止把适用本许可的自有代码或素材照搬到其他项目、改名发布、再分发或商用。个人可以使用官方未修改安装包。公开可读不等于按宽松开源许可授权。第三方组件及历史 MIT 版本继续遵守原许可，既有权利不被追溯撤回。
