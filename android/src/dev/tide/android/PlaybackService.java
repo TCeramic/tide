@@ -31,6 +31,7 @@ public class PlaybackService extends Service {
   private boolean prepared, resumeFocus;
   private boolean foreground;
   private boolean playWhenReady;
+  private boolean inspirationLoading;
 
   public Song current() {
     return index >= 0 && index < queue.size() ? queue.get(index) : null;
@@ -290,6 +291,10 @@ public class PlaybackService extends Service {
 
   public void next(int direction) {
     if (queue.isEmpty()) return;
+    if(direction>0&&index==queue.size()-1&&getSharedPreferences("tide",0).getString("repeat","list").equals("inspiration")&&current()!=null&&current().uri.isEmpty()){
+      if(inspirationLoading)return;inspirationLoading=true;playWhenReady=true;final int token=generation;final Song seed=current();loading=true;changed();
+      worker.execute(()->{ArrayList<Song> additions=new ArrayList<>();try{additions=new Cloud(this).similar(seed.id);}catch(Exception ignored){}final ArrayList<Song> found=additions;handler.post(()->{inspirationLoading=false;if(token!=generation)return;loading=false;if(!getSharedPreferences("tide",0).getString("repeat","list").equals("inspiration")){changed();return;}Set<String> known=new HashSet<>();for(Song song:queue)known.add(song.id);int nextIndex=queue.size();for(Song song:found)if(known.add(song.id))queue.add(song);if(queue.size()>nextIndex){boolean resume=playWhenReady;play(nextIndex);if(!resume)pause();}else{error="暂无更多相似歌曲，保留当前播放列表";changed();}});});return;
+    }
     if (getSharedPreferences("tide", 0).getString("repeat", "list").equals("shuffle")
         && queue.size() > 1)
       play((index + 1 + new Random().nextInt(queue.size() - 1)) % queue.size());

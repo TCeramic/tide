@@ -7,6 +7,7 @@ import java.util.*;
 public final class Favorites {
   private static final Set<String> cloudIds=new HashSet<>();
   public static volatile boolean known=false;
+  public static synchronized void clear(){cloudIds.clear();known=false;}
   public static void refresh(Context c) throws Exception {
     Set<String> ids=new Cloud(c).likedIds(); synchronized(Favorites.class){cloudIds.clear();cloudIds.addAll(ids);known=true;}
   }

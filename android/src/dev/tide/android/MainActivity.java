@@ -942,6 +942,11 @@ public class MainActivity extends Activity {
     }
   }
 
+  @Override public void onConfigurationChanged(android.content.res.Configuration configuration){
+    super.onConfigurationChanged(configuration);
+    if(mobile!=null)mobile.requestApplyInsets();
+  }
+
   public void onBackPressed() {
     if (mobile != null && webReady) {
       mobile.evaluateJavascript(
@@ -1072,7 +1077,7 @@ public class MainActivity extends Activity {
     JSONArray out = new JSONArray();
     if (lists != null) for (int i=0;i<lists.length();i++) {
       JSONObject item=lists.getJSONObject(i);
-      item.put("cover",item.optString("coverImgUrl").replaceFirst("^http://","https://"));out.put(item);
+      item.put("cover",item.optString("coverImgUrl",item.optString("picUrl")).replaceFirst("^http://","https://"));out.put(item);
     }
     return out;
   }
@@ -1178,7 +1183,9 @@ public class MainActivity extends Activity {
               .put("index", p == null ? prefs.getInt("queueIndex", 0) : p.index)
               .put("appearance", appearanceJson())
               .put("loggedIn", cookie != null && cookie.contains("MUSIC_U="))
-              .put("nickname", prefs.getString("nickname", ""));
+              .put("nickname", prefs.getString("nickname", ""))
+              .put("avatar",prefs.getString("avatar",""))
+              .put("repeat",prefs.getString("repeat","list"));
       mobileMessage("setState", j.toString());
     } catch (Exception e) {
       toast("界面同步失败");
@@ -1215,10 +1222,18 @@ public class MainActivity extends Activity {
 
   private void handleMobile(String action, JSONObject data) throws Exception {
     switch (action) {
+      case "haptic":
+        if(mobile!=null)mobile.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
+        break;
+      case "logout":
+        CookieManager.getInstance().removeAllCookies(done->{CookieManager.getInstance().flush();prefs.edit().remove("nickname").remove("avatar").apply();Favorites.clear();cloudFavoriteRows.clear();pushMobileState();try{mobileMessage("result",new JSONObject().put("type","logout").put("message","已退出登录").toString());}catch(Exception ignored){}});
+        break;
       case "ready":
         webReady = true;
         pushMobileState();
         refreshCloudLikes();
+        String sessionCookie=CookieManager.getInstance().getCookie("https://music.163.com");
+        if(sessionCookie!=null&&sessionCookie.contains("MUSIC_U="))cloudAction("account",new JSONObject());
         break;
       case "import":
         importMusic();
@@ -1249,7 +1264,7 @@ public class MainActivity extends Activity {
       case "repeat":
         {
           String mode = data.optString("mode");
-          if (Arrays.asList("list", "one", "shuffle").contains(mode))
+          if (Arrays.asList("list", "one", "shuffle", "inspiration").contains(mode))
             prefs.edit().putString("repeat", mode).apply();
           break;
         }
@@ -1302,6 +1317,10 @@ public class MainActivity extends Activity {
           pushMobileState();
           break;
         }
+      case "account":
+      case "create-playlist":
+      case "album":
+      case "artist":
       case "liked-songs":
       case "collect":
       case "refresh-likes":
@@ -1353,19 +1372,22 @@ public class MainActivity extends Activity {
                 synchronized(cloudFavoriteRows){if(likeOffset==0)cloudFavoriteRows.clear();cloudFavoriteRows.addAll(songs);response.put("items",webSongs(cloudFavoriteRows)).put("total",Favorites.ids().length());}break;
               case "refresh-likes": Favorites.refresh(this);break;
               case "collect": cloud.collect(data.optString("playlist"),data.optString("id"));response.put("message","已收藏到网易云歌单");break;
-              case "search":
-                {
-                  String key = data.optString("key").trim();
-                  if (key.isEmpty() || key.length() > 100) throw new IOException("请输入有效关键词");
-                  int offset = Math.max(0, Math.min(1000, data.optInt("offset")));
-                  songs = cloud.search(key, offset);
-                  synchronized (results) {
-                    if (offset == 0) results.clear();
-                    results.addAll(songs);
-                  }
-                  response.put("items", webSongs(results));
-                  break;
-                }
+              case "search": {
+                String key=data.optString("key").trim(),kind=data.optString("kind","songs");int offset=Math.max(0,Math.min(1000,data.optInt("offset")));
+                if(key.isEmpty()||key.length()>100||!Arrays.asList("songs","artists","albums","playlists").contains(kind))throw new IOException("搜索参数无效");
+                response.put("kind",kind).put("offset",offset).put("key",key);
+                if(kind.equals("songs")){songs=cloud.search(key,offset);synchronized(results){if(offset==0)results.clear();results.addAll(songs);response.put("items",webSongs(results));}response.put("hasMore",songs.size()==20);}
+                else {JSONObject r=cloud.searchResult(key,offset,kind);JSONArray found=r.optJSONArray(kind),out=new JSONArray();if(found!=null)for(int i=0;i<found.length();i++){JSONObject item=found.getJSONObject(i);String subtitle=kind.equals("artists")?item.optInt("albumSize")+" 张专辑":kind.equals("playlists")?item.optInt("trackCount")+" 首音乐":item.optJSONObject("artist")==null?"专辑":item.getJSONObject("artist").optString("name");out.put(new JSONObject().put("id",item.optString("id")).put("title",item.optString("name")).put("subtitle",subtitle).put("cover",item.optString("picUrl",item.optString("coverImgUrl",item.optString("img1v1Url"))).replaceFirst("^http://","https://")));}response.put("catalog",out).put("hasMore",out.length()==20);}
+                break;
+              }
+              case "create-playlist":cloud.createPlaylist(data.optString("name"),data.optBoolean("privacy"));response.put("code",200).put("message","歌单已创建");break;
+              case "account":{
+                JSONObject profile=cloud.account().optJSONObject("profile");if(profile!=null)prefs.edit().putString("nickname",profile.optString("nickname")).putString("avatar",profile.optString("avatarUrl").replaceFirst("^http://","https://")).apply();break;
+              }
+              case "artist":
+              case "album":{
+                String id=data.optString("id");if(!id.matches("[0-9]+"))throw new IOException("编号无效");songs=action.equals("artist")?cloud.artist(id):cloud.album(id);collectionRows.clear();collectionRows.addAll(songs);response.put("items",webSongs(songs)).put("title",data.optString("title")).put("id",id);break;
+              }
               case "qr-key":
                 result = cloud.qrKey();
                 String key = result.optString("unikey");
@@ -1403,25 +1425,32 @@ public class MainActivity extends Activity {
                   prefs
                       .edit()
                       .putString("nickname", result.getJSONObject("profile").optString("nickname"))
+                      .putString("avatar",result.getJSONObject("profile").optString("avatarUrl").replaceFirst("^http://","https://"))
                       .apply();
                 break;
               case "playlists":
                 result = cloud.account();
                 JSONObject profile = result.optJSONObject("profile");
                 if (profile == null) throw new IOException("请先扫码或验证码登录网易云");
-                prefs.edit().putString("nickname", profile.optString("nickname")).apply();
+                prefs.edit().putString("nickname", profile.optString("nickname")).putString("avatar",profile.optString("avatarUrl").replaceFirst("^http://","https://")).apply();
                 response.put(
                     "playlists",
                     webPlaylists(cloud.playlists(profile.optLong("userId")).optJSONArray("playlist")));
+                try{response.put("recommended",webPlaylists(cloud.recommendedPlaylists()));}catch(Exception ignored){response.put("message","推荐歌单暂不可用，请稍后重试");}
                 break;
               case "collection":
                 songs = cloud.collection(data.optString("id"));
                 collectionRows.clear();
                 collectionRows.addAll(songs);
-                response.put("items", webSongs(songs));
+                response.put("items", webSongs(songs)).put("title",data.optString("title")).put("id",data.optString("id"));
                 break;
               case "daily":
-                songs = cloud.daily();
+                songs=new ArrayList<>();
+                PlaybackService currentService=service();List<Song> seedQueue=currentService==null?Song.read(this,"queue"):new ArrayList<>(currentService.queue);
+                ArrayList<Song> seeds=new ArrayList<>(seedQueue);Collections.shuffle(seeds);Set<String> seen=new HashSet<>();
+                for(int i=0;i<Math.min(3,seeds.size());i++){Song seed=seeds.get(i);if(seed.uri.isEmpty())try{for(Song candidate:cloud.similar(seed.id))if(seen.add(candidate.id))songs.add(candidate);}catch(Exception ignored){}}
+                if(songs.size()<20)for(Song candidate:cloud.daily())if(seen.add(candidate.id))songs.add(candidate);
+                Collections.shuffle(songs);if(songs.size()>40)songs=new ArrayList<>(songs.subList(0,40));
                 collectionRows.clear();
                 collectionRows.addAll(songs);
                 response.put("items", webSongs(songs));
@@ -1432,7 +1461,7 @@ public class MainActivity extends Activity {
                 () -> {
                   if (!alive) return;
                   mobileMessage("result", output.toString());
-                  if(action.equals("login")||action.equals("qr-check")&&output.optInt("code")==803)refreshCloudLikes();
+                  if(action.equals("login")&&output.optInt("code")==200||action.equals("qr-check")&&output.optInt("code")==803){Favorites.clear();cloudFavoriteRows.clear();refreshCloudLikes();try{cloudAction("account",new JSONObject());}catch(Exception ignored){}}
                   pushMobileState();
                 });
           } catch (Exception failure) {

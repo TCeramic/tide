@@ -252,7 +252,8 @@ function mountPointField(root, tier = "balanced") {
     renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: false, powerPreference: "high-performance" });
     stage.renderer = renderer;
     scene.background = new THREE.Color(WORLDS.night.bg);
-    field = new Field(stage, { size: tier === "vivid" ? 160 : tier === "smooth" ? 96 : 128 }); field.useSets(sets); field.setWorld(WORLDS.night);
+    const mobileViewport=document.documentElement.dataset.mobile==="true";
+    field = new Field(stage, { size: mobileViewport?(tier==="vivid"?96:tier==="smooth"?48:64):(tier === "vivid" ? 160 : tier === "smooth" ? 96 : 128) }); field.useSets(sets); field.setWorld(WORLDS.night);
     scene.add(field.object);
   } catch (error) {
     renderer?.dispose(); renderer?.forceContextLoss(); canvas.remove(); throw error;
@@ -271,9 +272,9 @@ function mountPointField(root, tier = "balanced") {
   hero.className = "native-point-hero";
   hero.setAttribute("role", "img"); hero.setAttribute("aria-label", "TIDE 点阵展示区");
   root.append(hero);
-  const alignHero=()=>{const cover=document.querySelector(document.documentElement.dataset.view==="playing"?".lyrics-cover":".home-cover"),box=cover?.getBoundingClientRect();if(box&&box.width>0){const width=Math.min(360,Math.max(240,box.width)),origin=root.getBoundingClientRect();hero.style.width=width+"px";hero.style.left=(box.left-origin.left+(box.width-width)/2)+"px";if(document.documentElement.dataset.view==="playing"){const h=Math.min(96,Math.max(40,box.top-52));hero.style.height=h+"px";hero.style.top=Math.max(36,Math.min(140,box.top-h-12))+"px";}else{const grid=document.querySelector(".home-grid")?.getBoundingClientRect();hero.style.height="96px";hero.style.top=Math.max(108,(grid?.top??240)-112)+"px";}}};
+  const alignHero=()=>{if(document.documentElement.dataset.mobile==="true"){const playing=document.documentElement.dataset.view==="playing",slot=document.querySelector(playing?".mobile-emblem-slot":".brand-space"),box=slot?.getBoundingClientRect(),origin=root.getBoundingClientRect();if(box&&box.width>0){const width=Math.min(playing?148:300,box.width),height=Math.min(playing?42:92,box.height);hero.style.width=width+"px";hero.style.height=height+"px";hero.style.left=(box.left-origin.left+(box.width-width)/2)+"px";hero.style.top=(box.top-origin.top+(box.height-height)/2)+"px";}return;}const cover=document.querySelector(document.documentElement.dataset.view==="playing"?".lyrics-cover":".home-cover"),box=cover?.getBoundingClientRect();if(box&&box.width>0){const width=Math.min(360,Math.max(240,box.width)),origin=root.getBoundingClientRect();hero.style.width=width+"px";hero.style.left=(box.left-origin.left+(box.width-width)/2)+"px";if(document.documentElement.dataset.view==="playing"){const h=Math.min(96,Math.max(40,box.top-52));hero.style.height=h+"px";hero.style.top=Math.max(36,Math.min(140,box.top-h-12))+"px";}else{const grid=document.querySelector(".home-grid")?.getBoundingClientRect();hero.style.height="96px";hero.style.top=Math.max(108,(grid?.top??240)-112)+"px";}}};
   let layoutFrame=0;
-  const layoutChange=new MutationObserver(()=>{cancelAnimationFrame(layoutFrame);layoutFrame=requestAnimationFrame(()=>{layoutFrame=0;if(dead)return;alignHero();if(setIndex===0)showSet(0);});});layoutChange.observe(document.documentElement,{attributes:true,attributeFilter:["data-view"]});
+  const layoutChange=new MutationObserver(()=>{cancelAnimationFrame(layoutFrame);layoutFrame=requestAnimationFrame(()=>{layoutFrame=0;if(dead)return;alignHero();if(setIndex===0)showSet(0);});});layoutChange.observe(document.documentElement,{attributes:true,attributeFilter:["data-view","data-player-view"]});
   const coverResize=new ResizeObserver(()=>{if(dead)return;alignHero();if(setIndex===0)showSet(0);});for(const el of document.querySelectorAll('.lyrics-cover,.home-cover'))coverResize.observe(el);
   const formations = [
     { caption: "POINT SETS", build: lattice => {
@@ -302,7 +303,7 @@ function mountPointField(root, tier = "balanced") {
       ["KLEIN BOTTLE", n => sets.klein(n, 2.05)],
     ].map(([caption, make]) => {
       let cache;
-      return { caption, build: lattice => lattice.shape(cache ||= make(field.N)),
+      return { caption, build: lattice => {const data=cache ||= make(field.N);if(document.documentElement.dataset.mobile!=="true")return lattice.shape(data);const size=stage.frustumAt(field.distance),scale=Math.min(1,Math.min(size.w,size.h)/5*.84),fit=data.slice();for(let i=0;i<fit.length;i+=3){fit[i]*=scale;fit[i+1]*=scale;fit[i+2]*=scale;}return lattice.shape(fit);},
         options: { is3d: true, sweep: [0, -1, 0], span: 5, dur: 1.7, lit: 1, flow: 3.2, alpha: 0.22 } };
     }),
   ];
@@ -332,12 +333,12 @@ function mountPointField(root, tier = "balanced") {
   function resize() {
     alignHero();
     stage.w = Math.max(2, root.clientWidth); stage.h = Math.max(2, root.clientHeight);
-    stage.mobile = stage.w <= 760;
+    stage.mobile = document.documentElement.dataset.mobile==="true" || stage.w <= 760;
     camera.aspect = stage.w / stage.h; camera.updateProjectionMatrix();
     const maxPixels = tier === "vivid" ? 1800000 : tier === "smooth" ? 700000 : 1100000;
     renderer.setPixelRatio(Math.min(stage.dpr, Math.sqrt(maxPixels / (stage.w * stage.h)))); renderer.setSize(stage.w, stage.h, false);
     field.setOffset = new THREE.Vector3(stage.mobile ? 0 : 1.35, 0.25, 0.7);
-    field.onResize(stage); if (paused) snapStill(); wake();
+    field.onResize(stage);if(document.documentElement.dataset.mobile==="true")field.du.uSize.value=1.35; if (paused) snapStill(); wake();
   }
   function updateRay() {
     camera.updateMatrixWorld(); raycaster.setFromCamera(pointer.ndc, camera);

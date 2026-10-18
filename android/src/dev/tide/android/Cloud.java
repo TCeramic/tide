@@ -234,41 +234,25 @@ public class Cloud {
     return result;
   }
 
-  public ArrayList<Song> search(String key, int offset) throws Exception {
-    JSONObject r =
-        call(
-            "/api/cloudsearch/pc",
-            new JSONObject()
-                .put("s", key)
-                .put("type", 1)
-                .put("limit", 20)
-                .put("offset", offset)
-                .put("total", true));
-    if (r.optInt("code") != 200) throw new IOException(r.optString("message", "搜索暂不可用"));
-    JSONArray rows =
-        r.optJSONObject("result") == null ? null : r.getJSONObject("result").optJSONArray("songs");
-    ArrayList<Song> out = new ArrayList<>();
-    if (rows != null)
-      for (int i = 0; i < rows.length(); i++) {
-        JSONObject j = rows.getJSONObject(i), al = j.optJSONObject("al");
-        JSONArray ar = j.optJSONArray("ar");
-        StringBuilder artists = new StringBuilder();
-        if (ar != null)
-          for (int k = 0; k < ar.length(); k++) {
-            if (k > 0) artists.append(" / ");
-            artists.append(ar.getJSONObject(k).optString("name"));
-          }
-        out.add(
-            new Song(
-                j.optString("id"),
-                j.optString("name"),
-                artists.toString(),
-                "",
-                al == null ? "" : al.optString("picUrl"),
-                j.optLong("dt")));
-      }
-    return out;
+  public JSONObject searchResult(String key, int offset, String kind) throws Exception {
+    int type=kind.equals("artists")?100:kind.equals("albums")?10:kind.equals("playlists")?1000:1;
+    JSONObject response=call("/api/cloudsearch/pc",new JSONObject().put("s",key).put("type",type).put("limit",20).put("offset",offset).put("total",true));
+    if(response.optInt("code")!=200)throw new IOException(response.optString("message","搜索暂不可用"));
+    JSONObject result=response.optJSONObject("result");return result==null?new JSONObject():result;
   }
+  public ArrayList<Song> search(String key,int offset) throws Exception {JSONArray rows=searchResult(key,offset,"songs").optJSONArray("songs");return rows==null?new ArrayList<>():songs(rows);}
+  public ArrayList<Song> similar(String id) throws Exception {
+    JSONObject response=weapi("/api/v1/discovery/simiSong",new JSONObject().put("songid",id).put("limit",30).put("offset",0));
+    JSONArray rows=response.optJSONArray("songs");if(rows==null)throw new IOException(response.optString("message","暂无相似歌曲"));return songs(rows);
+  }
+  public JSONArray recommendedPlaylists() throws Exception {JSONObject r=weapi("/api/v1/discovery/recommend/resource",new JSONObject());if(r.optInt("code")!=200)throw new IOException(r.optString("message","推荐歌单暂不可用"));return r.optJSONArray("recommend");}
+  public void createPlaylist(String name,boolean privacy) throws Exception {
+    if(name.trim().isEmpty()||name.length()>40)throw new IOException("请输入 1–40 字的歌单名");
+    JSONObject r=weapi("/api/playlist/create",new JSONObject().put("name",name.trim()).put("privacy",privacy?"10":"0").put("type","NORMAL"));
+    if(r.optInt("code")!=200)throw new IOException(r.optString("message","创建歌单失败"));
+  }
+  public ArrayList<Song> album(String id) throws Exception {JSONObject r=weapi("/api/v1/album/"+id,new JSONObject());JSONArray a=r.optJSONArray("songs");if(a==null)throw new IOException("专辑暂不可用");return songs(a);}
+  public ArrayList<Song> artist(String id) throws Exception {JSONObject r=weapi("/api/v1/artist/"+id,new JSONObject());JSONArray a=r.optJSONArray("hotSongs");if(a==null)throw new IOException("歌手歌曲暂不可用");return songs(a);}
 
   public String stream(Song s) throws Exception {
     if (!s.uri.isEmpty()) return s.uri;
