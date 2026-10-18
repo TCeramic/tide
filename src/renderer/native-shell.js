@@ -1,5 +1,5 @@
 import { bindChoiceGroup } from "./vendor/design-systems/lens/lab/design-system/components.js";
-import { tideShape } from "./point-formations.ts";
+import { tideShape, TIDE_SHAPES } from "./point-formations.ts";
 import { mountLiquidMetal } from "./liquid-metal.ts";
 import { isRenderingActive } from "./render-activity.ts";
 // Tide lifecycle and business bindings. The two renderers and controls are upstream code,
@@ -295,7 +295,7 @@ function mountPointField(root, tier = "balanced") {
       return data;
     }, options: { sweep: [1, 0, 0], span: 9, dur: 1.5, lit: 1.6, flow: 2.4, alpha: 0.42 } },
     ...[
-      ...[...["saturn","helix","shell","heart","orbit"].map(kind=>[kind.toUpperCase(),n=>tideShape(n,kind)])],
+      ...TIDE_SHAPES.map(([kind,caption])=>[caption,n=>tideShape(n,kind)]),
       ["LORENZ ATTRACTOR", n => sets.lorenz(n, 1.95)],
       ["TREFOIL KNOT", n => sets.torusKnot(n, 2, 3, 1.95)],
       ["FCC CRYSTAL", n => sets.crystal(n, 1.95)],
