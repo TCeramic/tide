@@ -1,0 +1,9 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {newerVersion,releaseFromJson,downloadSources,validateMirror,localDay,REPOSITORY} from './update-feed';
+const fixture=()=>({tag_name:'v1.2.0',draft:false,prerelease:false,body:'变化\n第二行',assets:[{name:'Tide-1.2.0-win.zip',size:123,digest:'sha256:'+'a'.repeat(64),browser_download_url:REPOSITORY+'/releases/download/v1.2.0/Tide-1.2.0-win.zip'}]});
+test('update versions use numeric stable semver',()=>{assert.equal(newerVersion('v1.10.0','1.9.8'),true);assert.equal(newerVersion('1.0.0','1.0.1'),false);assert.equal(newerVersion('1.0.1','1.0.1'),false);assert.equal(newerVersion('2.0.0-beta','1.0.0'),false);});
+test('release selects Windows versioned zip and trusted digest',()=>{const release=releaseFromJson(fixture());assert.equal(release.sha256,'a'.repeat(64));assert.equal(release.notes,'变化\n第二行');assert.equal(release.version,'1.2.0');});
+test('ignore draft, prerelease, foreign download and missing asset',()=>{for(const patch of [{draft:true},{prerelease:true},{tag_name:'v1.2.0-rc'},{assets:[]},{assets:[{...fixture().assets[0],browser_download_url:'https://evil.invalid/Tide.zip'}]}])assert.throws(()=>releaseFromJson({...fixture(),...patch}));});
+test('mirror precedes official fallback and enforces HTTPS',()=>{const release=releaseFromJson(fixture());assert.deepEqual(downloadSources(release,''),[release.url]);assert.deepEqual(downloadSources(release,'https://cdn.example/tide/{version}/{asset}'),['https://cdn.example/tide/1.2.0/Tide-1.2.0-win.zip',release.url]);for(const bad of ['http://cdn.example/{asset}','https://user:pass@cdn.example/{asset}','https://cdn.example/plain.zip'])assert.throws(()=>validateMirror(bad));});
+test('mute expires at local calendar-day boundary',()=>{assert.notEqual(localDay(new Date(2026,9,18,23,59)),localDay(new Date(2026,9,19,0,0)));assert.equal(localDay(new Date(2026,9,18,0,1)),localDay(new Date(2026,9,18,23,59)));});

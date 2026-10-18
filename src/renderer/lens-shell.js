@@ -59,7 +59,14 @@ export function mountLensShell(root, portals, artwork) {
       if (width === renderer.width && height === renderer.height) return;
       renderer.width = width; renderer.height = height; renderer.canvas.width = width; renderer.canvas.height = height;
       const gl = renderer.gl;
-      for (const target of renderer.targets) { gl.bindTexture(gl.TEXTURE_2D, target.texture); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null); }
+      for (const target of renderer.targets) {
+        gl.bindTexture(gl.TEXTURE_2D, target.texture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+        // Adreno WebView can retain an incomplete attachment when storage is
+        // allocated after framebufferTexture2D. Reattach after allocation.
+        gl.bindFramebuffer(gl.FRAMEBUFFER, target.framebuffer);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, target.texture, 0);
+      }
       gl.bindFramebuffer(gl.FRAMEBUFFER, null); renderer.setScene(renderer.settings.scene); renderer.rectDirty = true;
     };
     renderer.resize();

@@ -27,7 +27,7 @@ public class MainActivity extends Activity {
   private WebView mobile;
   private boolean webReady;
   private long smsAfter;
-  private final ArrayList<Song> collectionRows = new ArrayList<>();
+  private final ArrayList<Song> collectionRows = new ArrayList<>(), cloudFavoriteRows = new ArrayList<>();
   private LinearLayout shell, body, dock;
   private Backdrop backdrop;
   private TextView dockTitle, dockPlay, lyric, following, timer;
@@ -50,6 +50,7 @@ public class MainActivity extends Activity {
   private final BroadcastReceiver receiver =
       new BroadcastReceiver() {
         public void onReceive(Context c, Intent i) {
+          favorites=Song.read(MainActivity.this,"favorites");
           refresh();
         }
       };
@@ -80,6 +81,18 @@ public class MainActivity extends Activity {
         && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
             != PackageManager.PERMISSION_GRANTED)
       requestPermissions(new String[] {Manifest.permission.POST_NOTIFICATIONS}, 22);
+  }
+
+  protected void onNewIntent(Intent intent) {
+    super.onNewIntent(intent);
+    if (intent.getBooleanExtra("qa", false)) {
+      setIntent(intent);
+      WebView.setWebContentsDebuggingEnabled(true);
+    }
+    if (mobile != null) {
+      mobile.getRootView().requestApplyInsets();
+      pushMobileState();
+    }
   }
 
   protected void onSaveInstanceState(Bundle b) {
@@ -358,56 +371,35 @@ public class MainActivity extends Activity {
   }
 
   private void songOptions(Song s) {
-    boolean liked = isLiked(s);
-    ArrayList<String> actions = new ArrayList<>(Arrays.asList(liked ? "取消喜欢" : "喜欢这首", "下一首播放"));
-    if (!s.uri.isEmpty()) {
-      actions.add("导入此曲 LRC 歌词");
-      actions.add("从曲库移除（保留文件）");
-    }
-    new AlertDialog.Builder(this)
-        .setTitle(s.title)
-        .setItems(
-            actions.toArray(new String[0]),
-            (d, i) -> {
-              if (i == 0) {
-                favorite(s);
-                render();
-              } else if (i == 1) {
-                PlaybackService p = service();
-                if (p == null) {
-                  ArrayList<Song> a = new ArrayList<>();
-                  a.add(s);
-                  start(a, 0);
-                } else {
-                  p.queue.add(Math.min(p.queue.size(), p.index + 1), s);
-                  Song.save(this, "queue", p.queue);
-                  toast("已加入下一首");
-                }
-              } else if (i == 2) {
-                prefs.edit().putString("lrcSong", s.id).apply();
-                Intent f =
-                    new Intent(Intent.ACTION_OPEN_DOCUMENT)
-                        .setType("*/*")
-                        .addCategory(Intent.CATEGORY_OPENABLE);
-                startActivityForResult(f, 73);
-              } else {
-                library.removeIf(x -> x.id.equals(s.id));
-                Song.save(this, "library", library);
-                render();
-              }
-            })
-        .show();
+    if(s.uri.isEmpty()&&!Favorites.known){toast("正在读取网易云喜欢状态…");jobs.execute(()->{try{Favorites.refresh(this);ui.post(()->{pushMobileState();songOptions(s);});}catch(Exception e){ui.post(()->toast(e.getMessage()));}});return;}
+    ArrayList<String> actions=new ArrayList<>(Arrays.asList("播放","下一首播放",isLiked(s)?"取消喜欢":"喜欢这首"));
+    if(s.uri.isEmpty()){actions.add("收藏到网易云歌单");actions.add("分享链接");}
+    else {actions.add("导入此曲 LRC 歌词");actions.add("从曲库移除（保留文件）");}
+    new AlertDialog.Builder(this).setTitle(s.title).setItems(actions.toArray(new String[0]),(d,i)->{
+      if(i==0)start(Arrays.asList(s),0);
+      else if(i==1){PlaybackService p=service();if(p==null)start(Arrays.asList(s),0);else{p.queue.add(Math.min(p.queue.size(),p.index+1),s);Song.save(this,"queue",p.queue);pushMobileState();toast("已加入下一首");}}
+      else if(i==2)favorite(s);
+      else if(s.uri.isEmpty()&&i==3)chooseCloudPlaylist(s);
+      else if(s.uri.isEmpty()&&i==4){android.content.ClipboardManager clipboard=(android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);clipboard.setPrimaryClip(android.content.ClipData.newPlainText(s.title,"https://music.163.com/song?id="+s.id));toast("歌曲链接已复制");}
+      else if(i==3){prefs.edit().putString("lrcSong",s.id).apply();startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE),73);}
+      else{library.removeIf(x->x.id.equals(s.id));Song.save(this,"library",library);pushMobileState();}
+    }).show();
+  }
+  private void chooseCloudPlaylist(Song song){
+    jobs.execute(()->{try{Cloud cloud=new Cloud(this);org.json.JSONObject profile=cloud.account().optJSONObject("profile");if(profile==null)throw new IOException("请先登录网易云");long uid=profile.optLong("userId");JSONArray lists=cloud.playlists(uid).optJSONArray("playlist");ArrayList<String> ids=new ArrayList<>(),names=new ArrayList<>();
+      if(lists!=null)for(int i=0;i<lists.length();i++){JSONObject item=lists.getJSONObject(i);if(item.optLong("userId")==uid){ids.add(item.optString("id"));names.add(item.optString("name"));}}
+      ui.post(()->{if(ids.isEmpty()){toast("没有可收藏的自建歌单");return;}new AlertDialog.Builder(this).setTitle("收藏到网易云歌单").setItems(names.toArray(new String[0]),(dialog,index)->{try{cloudAction("collect",new JSONObject().put("id",song.id).put("playlist",ids.get(index)));}catch(Exception e){toast(e.getMessage());}}).show();});
+    }catch(Exception e){ui.post(()->toast(e.getMessage()));}});
   }
 
-  private boolean isLiked(Song s) {
-    for (Song x : favorites) if (x.id.equals(s.id)) return true;
-    return false;
-  }
-
+  private boolean isLiked(Song s) {return Favorites.liked(this,s);}
   private void favorite(Song s) {
-    if (isLiked(s)) favorites.removeIf(x -> x.id.equals(s.id));
-    else favorites.add(s);
-    Song.save(this, "favorites", favorites);
+    jobs.execute(()->{try{boolean liked=Favorites.toggle(this,s);ui.post(()->{favorites=Song.read(this,"favorites");if(service()!=null)service().refreshFavorite();pushMobileState();toast(liked?"已喜欢":"已取消喜欢");});}
+      catch(Exception e){ui.post(()->toast(e.getMessage()));}});
+  }
+  private void refreshCloudLikes(){
+    jobs.execute(()->{try{Favorites.refresh(this);ui.post(()->{pushMobileState();if(service()!=null)service().refreshFavorite();});}
+      catch(Exception e){ui.post(()->toast("网易云喜欢状态未同步："+e.getMessage()));}});
   }
 
   private void searchPage() {
@@ -475,7 +467,9 @@ public class MainActivity extends Activity {
   private void toggle() {
     PlaybackService p = service();
     if (p == null) {
-      if (!library.isEmpty()) start(library, 0);
+      ArrayList<Song> saved=Song.read(this,"queue");
+      if(!saved.isEmpty())start(saved,Math.max(0,Math.min(saved.size()-1,prefs.getInt("queueIndex",0))));
+      else if (!library.isEmpty()) start(library, 0);
       else toast("请先选择音乐");
     } else if (p.playing) p.pause();
     else p.resume();
@@ -778,6 +772,7 @@ public class MainActivity extends Activity {
     CookieManager.getInstance().setAcceptCookie(true);
     web.setWebViewClient(
         new WebViewClient() {
+          public void onPageFinished(WebView view,String url){view.getRootView().requestApplyInsets();}
           public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
             Uri u = r.getUrl();
             String h = u.getHost();
@@ -968,10 +963,13 @@ public class MainActivity extends Activity {
             "window.TideMobile&&TideMobile.go(" + JSONObject.quote(page) + ")", null);
       return;
     }
+    WebView.setWebContentsDebuggingEnabled(getIntent().getBooleanExtra("qa", false));
     mobile = new WebView(this);
     mobile.setBackgroundColor(Color.TRANSPARENT);
     WebSettings settings = mobile.getSettings();
     settings.setJavaScriptEnabled(true);
+    if (Build.VERSION.SDK_INT >= 33) settings.setAlgorithmicDarkeningAllowed(false);
+    if (Build.VERSION.SDK_INT >= 29) settings.setForceDark(WebSettings.FORCE_DARK_OFF);
     settings.setDomStorageEnabled(true);
     settings.setAllowFileAccess(false);
     settings.setAllowContentAccess(false);
@@ -980,6 +978,7 @@ public class MainActivity extends Activity {
     mobile.addJavascriptInterface(new MobileBridge(), "TideNative");
     mobile.setWebViewClient(
         new WebViewClient() {
+          public void onPageFinished(WebView view,String url){view.getRootView().requestApplyInsets();}
           public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
             return !"tide.local".equals(request.getUrl().getHost());
           }
@@ -1024,23 +1023,22 @@ public class MainActivity extends Activity {
         });
     FrameLayout safe = new FrameLayout(this);
     safe.addView(mobile, new FrameLayout.LayoutParams(-1, -1));
-    safe.setOnApplyWindowInsetsListener(
-        (v, insets) -> {
-          if (Build.VERSION.SDK_INT >= 30) {
-            android.graphics.Insets padding =
-                insets.getInsets(
-                    WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
-            safe.setPadding(padding.left, padding.top, padding.right, padding.bottom);
-          } else
-            safe.setPadding(
-                insets.getSystemWindowInsetLeft(),
-                insets.getSystemWindowInsetTop(),
-                insets.getSystemWindowInsetRight(),
-                insets.getSystemWindowInsetBottom());
-          return insets;
-        });
-    getWindow().setStatusBarColor(0xff142536);
-    getWindow().setNavigationBarColor(0xff142536);
+    safe.setBackgroundColor(0xff142536);
+    if (Build.VERSION.SDK_INT >= 30) getWindow().setDecorFitsSystemWindows(false);
+    getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
+    safe.setOnApplyWindowInsetsListener((v, insets) -> {
+      int top, bottom, left, right;
+      if (Build.VERSION.SDK_INT >= 30) {
+        android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+        top=bars.top;bottom=bars.bottom;left=bars.left;right=bars.right;
+      } else {top=insets.getSystemWindowInsetTop();bottom=insets.getSystemWindowInsetBottom();left=insets.getSystemWindowInsetLeft();right=insets.getSystemWindowInsetRight();}
+      final float density=getResources().getDisplayMetrics().density;
+      mobile.evaluateJavascript("(function(){var s=document.documentElement.style;s.setProperty('--safe-top','"+(top/density)+"px');s.setProperty('--safe-bottom','"+(bottom/density)+"px');s.setProperty('--safe-left','"+(left/density)+"px');s.setProperty('--safe-right','"+(right/density)+"px');})()",null);
+      return insets;
+    });
+    getWindow().setStatusBarColor(Color.TRANSPARENT);
+    getWindow().setNavigationBarColor(Color.TRANSPARENT);
+    if (Build.VERSION.SDK_INT >= 29) {getWindow().setStatusBarContrastEnforced(false);getWindow().setNavigationBarContrastEnforced(false);}
     getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
     setContentView(safe);
     safe.requestApplyInsets();
@@ -1068,6 +1066,15 @@ public class MainActivity extends Activity {
   private void mobileMessage(String method, String json) {
     if (mobile != null && alive)
       mobile.evaluateJavascript("window.TideMobile&&TideMobile." + method + "(" + json + ")", null);
+  }
+
+  private JSONArray webPlaylists(JSONArray lists) throws JSONException {
+    JSONArray out = new JSONArray();
+    if (lists != null) for (int i=0;i<lists.length();i++) {
+      JSONObject item=lists.getJSONObject(i);
+      item.put("cover",item.optString("coverImgUrl").replaceFirst("^http://","https://"));out.put(item);
+    }
+    return out;
   }
 
   private JSONObject webSong(Song song) throws JSONException {
@@ -1143,13 +1150,16 @@ public class MainActivity extends Activity {
     if (p != null)
       for (Lyrics.Line line : p.lyrics)
         lyrics.put(new JSONObject().put("time", line.time).put("text", line.text));
-    return j.put("lyrics", lyrics);
+    JSONArray translated=new JSONArray(),romanized=new JSONArray();
+    if(p!=null){for(Lyrics.Line line:p.translations)translated.put(new JSONObject().put("time",line.time).put("text",line.text));for(Lyrics.Line line:p.romaji)romanized.put(new JSONObject().put("time",line.time).put("text",line.text));}
+    return j.put("lyrics", lyrics).put("translations",translated).put("romaji",romanized).put("likedIds",Favorites.ids()).put("likesKnown",Favorites.known);
   }
 
   private void pushPosition() {
     if (!webReady) return;
     try {
-      mobileMessage("progress", playbackJson().toString());
+      PlaybackService p=service();
+      mobileMessage("progress",new JSONObject().put("position",p==null?0:p.position()).put("duration",p==null?0:p.duration()).put("playing",p!=null&&p.playing).put("loading",p!=null&&p.loading).put("error",p==null?"":p.error).toString());
     } catch (Exception ignored) {
     }
   }
@@ -1178,7 +1188,7 @@ public class MainActivity extends Activity {
   private List<Song> sourceRows(String source) {
     switch (source) {
       case "favorites":
-        return favorites;
+        ArrayList<Song> all=new ArrayList<>(favorites);all.addAll(cloudFavoriteRows);return all;
       case "search":
         return results;
       case "collection":
@@ -1197,6 +1207,7 @@ public class MainActivity extends Activity {
             favorites,
             results,
             collectionRows,
+            cloudFavoriteRows,
             service() == null ? Collections.<Song>emptyList() : service().queue))
       for (Song s : songs) if (s.id.equals(id)) return s;
     return null;
@@ -1207,6 +1218,7 @@ public class MainActivity extends Activity {
       case "ready":
         webReady = true;
         pushMobileState();
+        refreshCloudLikes();
         break;
       case "import":
         importMusic();
@@ -1290,6 +1302,9 @@ public class MainActivity extends Activity {
           pushMobileState();
           break;
         }
+      case "liked-songs":
+      case "collect":
+      case "refresh-likes":
       case "search":
       case "qr-key":
       case "qr-check":
@@ -1318,7 +1333,7 @@ public class MainActivity extends Activity {
         throw new IllegalArgumentException("验证码发送过于频繁，请稍候");
       if (!data.optString("phone").matches("[0-9]{5,16}"))
         throw new IllegalArgumentException("请输入有效手机号");
-      smsAfter = SystemClock.elapsedRealtime() + 60000;
+      // Cooldown starts only after a successful server response.
     }
     if (action.equals("login")
         && (!data.optString("phone").matches("[0-9]{5,16}")
@@ -1332,6 +1347,12 @@ public class MainActivity extends Activity {
             ArrayList<Song> songs = null;
             JSONObject result = null;
             switch (action) {
+              case "liked-songs":
+                if(!Favorites.known)Favorites.refresh(this);
+                int likeOffset=Math.max(0,data.optInt("offset"));songs=cloud.likedSongs(likeOffset);
+                synchronized(cloudFavoriteRows){if(likeOffset==0)cloudFavoriteRows.clear();cloudFavoriteRows.addAll(songs);response.put("items",webSongs(cloudFavoriteRows)).put("total",Favorites.ids().length());}break;
+              case "refresh-likes": Favorites.refresh(this);break;
+              case "collect": cloud.collect(data.optString("playlist"),data.optString("id"));response.put("message","已收藏到网易云歌单");break;
               case "search":
                 {
                   String key = data.optString("key").trim();
@@ -1361,6 +1382,8 @@ public class MainActivity extends Activity {
                 }
               case "captcha":
                 result = cloud.captcha(data.optString("phone"));
+                if (result.optInt("code") == 200) smsAfter = SystemClock.elapsedRealtime() + 60000;
+                response.put("code",result.optInt("code"));
                 response.put(
                     "message",
                     result.optInt("code") == 200
@@ -1389,7 +1412,7 @@ public class MainActivity extends Activity {
                 prefs.edit().putString("nickname", profile.optString("nickname")).apply();
                 response.put(
                     "playlists",
-                    cloud.playlists(profile.optLong("userId")).optJSONArray("playlist"));
+                    webPlaylists(cloud.playlists(profile.optLong("userId")).optJSONArray("playlist")));
                 break;
               case "collection":
                 songs = cloud.collection(data.optString("id"));
@@ -1409,6 +1432,7 @@ public class MainActivity extends Activity {
                 () -> {
                   if (!alive) return;
                   mobileMessage("result", output.toString());
+                  if(action.equals("login")||action.equals("qr-check")&&output.optInt("code")==803)refreshCloudLikes();
                   pushMobileState();
                 });
           } catch (Exception failure) {

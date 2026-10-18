@@ -155,11 +155,11 @@ public class Cloud {
   }
 
   public JSONObject qrKey() throws Exception {
-    return call("/api/login/qrcode/unikey", new JSONObject().put("type", 3));
+    return weapi("/api/login/qrcode/unikey", new JSONObject().put("type", 3));
   }
 
   public JSONObject qrCheck(String key) throws Exception {
-    return call("/api/login/qrcode/client/login", new JSONObject().put("type", 3).put("key", key));
+    return weapi("/api/login/qrcode/client/login", new JSONObject().put("type", 3).put("key", key));
   }
 
   public JSONObject captcha(String phone) throws Exception {
@@ -285,6 +285,37 @@ public class Cloud {
     if (url.startsWith("http://")) url = "https://" + url.substring(7);
     if (!url.startsWith("https://")) throw new IOException("不支持的音频地址");
     return url;
+  }
+
+  public JSONObject lyricBundle(Song s) throws Exception {
+    return call("/api/song/lyric",new JSONObject().put("id",s.id).put("lv",-1).put("tv",-1).put("rv",-1));
+  }
+
+  public java.util.Set<String> likedIds() throws Exception {
+    JSONObject profile=account().optJSONObject("profile");
+    if(profile==null) throw new IOException("请先登录网易云");
+    JSONObject response=weapi("/api/song/like/get",new JSONObject().put("uid",profile.optLong("userId")));
+    if(response.optInt("code")!=200 || !response.has("ids")) throw new IOException("网易云喜欢状态读取失败");
+    java.util.Set<String> ids=new java.util.HashSet<>(); JSONArray rows=response.getJSONArray("ids");
+    for(int i=0;i<rows.length();i++)ids.add(rows.getString(i));
+    return ids;
+  }
+
+  public ArrayList<Song> likedSongs(int offset) throws Exception {
+    ArrayList<String> ids=new ArrayList<>();JSONArray all=Favorites.ids();for(int i=0;i<all.length();i++)ids.add(all.getString(i));Collections.sort(ids);
+    JSONArray wanted=new JSONArray();for(int i=Math.max(0,offset);i<Math.min(ids.size(),offset+100);i++)wanted.put(new JSONObject().put("id",ids.get(i)));
+    if(wanted.length()==0)return new ArrayList<>();JSONObject response=weapi("/api/v3/song/detail",new JSONObject().put("c",wanted.toString()));
+    if(response.optInt("code")!=200)throw new IOException("喜欢的音乐详情读取失败");return songs(response.getJSONArray("songs"));
+  }
+
+  public void like(String id,boolean liked) throws Exception {
+    JSONObject response=weapi("/api/radio/like",new JSONObject().put("alg","itembased").put("trackId",id).put("like",liked).put("time",3));
+    if(response.optInt("code")!=200)throw new IOException(response.optString("message","网易云喜欢操作失败"));
+  }
+
+  public void collect(String playlist,String id) throws Exception {
+    JSONObject response=weapi("/api/playlist/manipulate/tracks",new JSONObject().put("op","add").put("pid",playlist).put("trackIds",new JSONArray().put(id).toString()).put("imme",true));
+    if(response.optInt("code")!=200)throw new IOException(response.optString("message","收藏到歌单失败"));
   }
 
   public String lyrics(Song s) throws Exception {

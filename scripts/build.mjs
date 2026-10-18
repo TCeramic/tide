@@ -105,3 +105,5 @@ await cp(path.join(root,"src/renderer/assets"),path.join(dist,"assets"),{recursi
 await build({entryPoints:[path.join(root,"src/renderer/mini.ts")],bundle:true,platform:"browser",format:"iife",target:"es2022",sourcemap:true,outfile:path.join(dist,"mini.js"),logLevel:"info"});
 await cp(path.join(root,"src/renderer/mini.html"),path.join(dist,"mini.html"));
 await cp(path.join(root,"src/renderer/mini.css"),path.join(dist,"mini.css"));
+
+await cp(path.join(root,"NOTICE"),path.join(dist,"licenses/Tide-NOTICE.txt"));

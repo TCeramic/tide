@@ -413,10 +413,44 @@ export function mountLyrics(root: HTMLElement): {
 }
 
 let wordCanvas: CanvasRenderingContext2D | null = null;
+const sweepLayouts = new WeakMap<HTMLElement, {key:string; rows:{width:number;top:number;bottom:number}[]}>();
 
 /** One compositor sweep. The mask and the fill counter-scale so the edge can stop inside a glyph. */
 function writeLyricSweep(mask: HTMLElement, hot: HTMLElement, progress: number): void {
   const amount = Math.min(1, Math.max(0, progress));
+  const parent = mask.parentElement;
+  const base = parent?.querySelector<HTMLElement>(".word-base,.lyric-run");
+  if (parent && base) {
+    const key = `${parent.clientWidth}:${parent.clientHeight}:${getComputedStyle(parent).font}`;
+    let layout = sweepLayouts.get(mask);
+    if (!layout || layout.key !== key) {
+      const bounds = parent.getBoundingClientRect();
+      const range = document.createRange(); range.selectNodeContents(base);
+      const rows: {width:number;top:number;bottom:number}[] = [];
+      for (const rect of Array.from(range.getClientRects())) {
+        if (!rect.width || !rect.height) continue;
+        const last = rows[rows.length - 1];
+        if (last && Math.abs(last.top - (rect.top - bounds.top)) < 2) last.width += rect.width;
+        else rows.push({width:rect.width,top:rect.top-bounds.top,bottom:rect.bottom-bounds.top});
+      }
+      layout = {key,rows}; sweepLayouts.set(mask,layout);
+    }
+    if (layout.rows.length > 1) {
+      // A horizontal scale reveals the same x-coordinate on every wrapped row.
+      // Consume visual row widths in reading order, revealing only completed rows.
+      let remaining = amount * layout.rows.reduce((sum,row)=>sum+row.width,0);
+      let row = layout.rows[0]!;
+      for (const candidate of layout.rows) { row=candidate; if (remaining <= row.width) break; remaining-=row.width; }
+      const x = Math.max(0,Math.min(row.width,remaining));
+      const height = parent.getBoundingClientRect().height;
+      const top = Math.max(0,row.top - 2), bottom = Math.min(height,row.bottom + 2);
+      mask.style.opacity = amount <= .001 ? "0" : "1";
+      mask.style.transform = "none"; hot.style.transform = "none";
+      mask.style.clipPath = amount >= .999 ? "none" : `polygon(0 0,100% 0,100% ${top}px,${x}px ${top}px,${x}px ${bottom}px,0 ${bottom}px)`;
+      return;
+    }
+  }
+  mask.style.clipPath = "none";
   if (amount <= 0.001) {
     mask.style.opacity = "0";
     return;

@@ -1,10 +1,10 @@
 {
   "name": "tide",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "private": true,
   "description": "潮汐 Tide — a personal, unofficial desktop music player",
   "main": "dist/main.js",
-  "license": "LicenseRef-Tide-Source-Available",
+  "license": "GPL-3.0-only",
   "author": "TCeramic",
   "engines": {
     "node": ">=22"

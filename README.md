@@ -223,8 +223,10 @@ The Lens and Lattice presets use the actual MIT upstream renderers and component
 
 Spotify, QQ and an embedded Grok client stay out. Lens and Lattice remain original upstream systems.
 
-## 源码使用许可
+## 许可证
 
-2026-10-18 起新的自有改动采用 [Tide Source-Available License](LICENSE)：允许学习思路并独立实现，禁止未经许可照搬适用代码、素材或改名再发布、商用。此为限制性源码许可，非宽松开源许可。历史 MIT 版本和第三方组件不受追溯限制，详见 LICENSE、licenses/ 和提交历史。
+Tide 新的自有代码采用 [GNU GPL v3.0（GPL-3.0-only）](LICENSE)。允许使用、复制、修改和再分发；分发衍生作品时需遵守GPL并提供相应源码。此前MIT版本的既有授权及第三方组件原许可不变，见 NOTICE、licenses/ 和提交历史。
 
-更新检查使用公开 GitHub Release。可在设置 → 关于 → 更新下载源配置 HTTPS 国内镜像（`{version}`、`{asset}`），失败回退 GitHub，并校验发布包 SHA-256；未配置镜像时仅使用官方源。
+## 在线更新
+
+设置 → 关于可手动检查版本、查看更新日志。启动自动检查稳定版，提供“今天不再提示”。下载源可选自动（第三方 GH-Proxy 加速优先）、GitHub 官方、自定义 HTTPS 镜像；失败回退官方源，并核对官方发布记录的 SHA-256。首次需手动下载带更新功能的新版本。

@@ -19,6 +19,7 @@ public class PlaybackService extends Service {
   public boolean playing, loading;
   public String error = "", lyricRaw = "";
   public List<Lyrics.Line> lyrics = Collections.emptyList();
+  public List<Lyrics.Line> translations=Collections.emptyList(),romaji=Collections.emptyList();
   private MediaPlayer player;
   private Bitmap songArt;
   private MediaSession session;
@@ -86,6 +87,8 @@ public class PlaybackService extends Service {
                 })
             .build();
     session = new MediaSession(this, "Tide");
+    session.setRatingType(Rating.RATING_HEART);
+    Bundle mediaExtras=new Bundle();mediaExtras.putBoolean("android.media.playback.ALWAYS_RESERVE_SPACE_FOR.ACTION_SKIP_TO_PREVIOUS",true);mediaExtras.putBoolean("android.media.playback.ALWAYS_RESERVE_SPACE_FOR.ACTION_SKIP_TO_NEXT",true);session.setExtras(mediaExtras);
     session.setFlags(
         MediaSession.FLAG_HANDLES_MEDIA_BUTTONS | MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS);
     session.setCallback(
@@ -109,6 +112,9 @@ public class PlaybackService extends Service {
           public void onSeekTo(long p) {
             seek(p);
           }
+
+          public void onCustomAction(String action,Bundle extras){if("favorite".equals(action)||"like".equals(action)) toggleFavorite();else if("previous".equals(action))next(-1);}
+          public void onSetRating(Rating rating){if(rating!=null&&rating.hasHeart()!=isFavorite())toggleFavorite();}
 
           public void onStop() {
             stopSelf();
@@ -153,6 +159,7 @@ public class PlaybackService extends Service {
       else resume();
     } else if ("next".equals(action)) next(1);
     else if ("previous".equals(action)) next(-1);
+    else if ("favorite".equals(action)) toggleFavorite();
     else if ("stop".equals(action)) stopSelf();
     return START_NOT_STICKY;
   }
@@ -177,7 +184,7 @@ public class PlaybackService extends Service {
     error = "";
     lyricRaw = "";
     songArt = null;
-    lyrics = Collections.emptyList();
+    lyrics = Collections.emptyList(); translations=Collections.emptyList();romaji=Collections.emptyList();
     loading = true;
     playing = false;
     playWhenReady = true;
@@ -229,25 +236,34 @@ public class PlaybackService extends Service {
                           if (token == generation) fail("无法解码此音频 (" + w + "/" + e + ")");
                           return true;
                         });
-                    player.setDataSource(this, Uri.parse(uri));
+                    if (song.uri.isEmpty()) {
+                      Map<String,String> headers=new HashMap<>();headers.put("Referer","https://music.163.com/");headers.put("User-Agent","Mozilla/5.0 TideAndroid");
+                      player.setDataSource(PlaybackService.this,Uri.parse(uri),headers);
+                    } else player.setDataSource(this, Uri.parse(uri));
                     player.prepareAsync();
                   } catch (Exception e) {
                     fail("无法打开音频：" + e.getMessage());
                   }
                 });
             String loaded;
+            String translated="", romanized="";
             try {
-              loaded = song.uri.isEmpty() ? new Cloud(this).lyrics(song) : localLyrics(song);
+              if(song.uri.isEmpty()) {
+                org.json.JSONObject bundle=new Cloud(this).lyricBundle(song);
+                loaded=bundle.optJSONObject("lrc")==null?"":bundle.getJSONObject("lrc").optString("lyric");
+                translated=bundle.optJSONObject("tlyric")==null?"":bundle.getJSONObject("tlyric").optString("lyric");
+                romanized=bundle.optJSONObject("romalrc")==null?"":bundle.getJSONObject("romalrc").optString("lyric");
+              }else loaded=localLyrics(song);
             } catch (Exception ignored) {
               loaded = "";
             }
-            final String text = loaded;
+            final String text = loaded, translation=translated, roman=romanized;
             Bitmap art = Artwork.load(this, song.cover, 256);
             handler.post(
                 () -> {
                   if (token == generation) {
                     lyricRaw = text;
-                    lyrics = Lyrics.parse(text);
+                    lyrics = Lyrics.parse(text); translations=Lyrics.parse(translation);romaji=Lyrics.parse(roman);
                     metadata(art);
                     changed();
                   }
@@ -361,6 +377,15 @@ public class PlaybackService extends Service {
       b.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, songArt)
           .putBitmap(MediaMetadata.METADATA_KEY_ART, songArt)
           .putBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON, songArt);
+    String art=s.cover;
+    if (!art.isEmpty()) {
+      if (!art.startsWith("https://")) {
+        art="content://dev.tide.android.artwork/"+new java.io.File(art).getName();
+        for(String target:new String[]{"com.android.systemui","com.oplus.systemui","android"})try{grantUriPermission(target,Uri.parse(art),Intent.FLAG_GRANT_READ_URI_PERMISSION);}catch(Exception ignored){}
+      }
+      b.putString(MediaMetadata.METADATA_KEY_ALBUM_ART_URI,art).putString(MediaMetadata.METADATA_KEY_ART_URI,art).putString(MediaMetadata.METADATA_KEY_DISPLAY_ICON_URI,art);
+    }
+    b.putString(MediaMetadata.METADATA_KEY_MEDIA_ID,s.id).putRating(MediaMetadata.METADATA_KEY_USER_RATING,(!s.uri.isEmpty()||Favorites.known?Rating.newHeartRating(isFavorite()):Rating.newUnratedRating(Rating.RATING_HEART))).putRating(MediaMetadata.METADATA_KEY_RATING,Rating.newUnratedRating(Rating.RATING_HEART));
     session.setMetadata(b.build());
   }
 
@@ -370,6 +395,14 @@ public class PlaybackService extends Service {
         id,
         new Intent(this, PlaybackService.class).setAction(action),
         PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+  }
+
+  private boolean isFavorite(){Song song=current();return song!=null&&Favorites.liked(this,song);}
+  public void refreshFavorite(){metadata(null);changed();}
+  private void toggleFavorite(){
+    Song song=current();if(song==null)return;
+    worker.execute(()->{try{Favorites.toggle(this,song);handler.post(()->refreshFavorite());}
+      catch(Exception e){handler.post(()->android.widget.Toast.makeText(this,e.getMessage(),android.widget.Toast.LENGTH_LONG).show());}});
   }
 
   private Notification notification() {
@@ -384,6 +417,7 @@ public class PlaybackService extends Service {
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setOngoing(playing || loading)
             .setCategory(Notification.CATEGORY_TRANSPORT)
+            .addAction(new Notification.Action.Builder(isFavorite()?R.drawable.heart_filled:R.drawable.heart_outline,isFavorite()?"取消喜欢":"喜欢",command("favorite",5)).build())
             .addAction(
                 new Notification.Action.Builder(
                         android.R.drawable.ic_media_previous, "上一首", command("previous", 1))
@@ -407,7 +441,7 @@ public class PlaybackService extends Service {
             .setStyle(
                 new Notification.MediaStyle()
                     .setMediaSession(session.getSessionToken())
-                    .setShowActionsInCompactView(0, 1, 2));
+                    .setShowActionsInCompactView(0, 2, 3));
     MediaMetadata m = session.getController().getMetadata();
     if (m != null && m.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART) != null)
       b.setLargeIcon(m.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART));
@@ -433,11 +467,13 @@ public class PlaybackService extends Service {
                     | PlaybackState.ACTION_PLAY_PAUSE
                     | PlaybackState.ACTION_SKIP_TO_NEXT
                     | PlaybackState.ACTION_SKIP_TO_PREVIOUS
+                    | PlaybackState.ACTION_SET_RATING
                     | PlaybackState.ACTION_SEEK_TO
                     | PlaybackState.ACTION_STOP)
             .setState(
                 error.isEmpty() ? state : PlaybackState.STATE_ERROR, position(), playing ? 1 : 0);
     if (!error.isEmpty()) p.setErrorMessage(error);
+    p.addCustomAction(new PlaybackState.CustomAction.Builder("like","like",isFavorite()?R.drawable.heart_filled:R.drawable.heart_outline).build());
     session.setPlaybackState(p.build());
     getSystemService(NotificationManager.class).notify(11, notification());
     sendBroadcast(new Intent(UPDATE).setPackage(getPackageName()));

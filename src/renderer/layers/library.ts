@@ -1,5 +1,4 @@
-import { mountAiAssist } from "../ai-assist";
-import { aiContext,aiCover } from "../ai-context";
+import { mountAbout } from "./about";
 import { editTidePlaylist } from "./playlist-editor";
 import { AUDIO_LEVELS, AUDIO_LEVEL_LABEL, type AudioLevel } from "../../core/audio-level";
 import { MEDIA_ACTION_LABEL, MEDIA_CUSTOM_ACTIONS, type MediaShortcutMap } from "../../core/media-keys";
@@ -163,7 +162,7 @@ export function mountLibrary(root: HTMLElement): {
   prependIcon(keySummary, "Keyboard", Keyboard, ICON_SIZE.row);
   const keyHelp = document.createElement("p");
   keyHelp.className = "library-note";
-  keyHelp.textContent = "罗技 G HUB / Options+ 若只能发普通组合键，填成 Ctrl+Alt+Right 这种形式。系统媒体键不用填。";
+  keyHelp.textContent = "系统媒体键可直接使用；下方可设置自定义组合键。";
   const captureRow = document.createElement("label");
   captureRow.className = "key-capture";
   const captureBox = document.createElement("input");
@@ -291,9 +290,17 @@ export function mountLibrary(root: HTMLElement): {
   const deskForm = mountDeskForm();
   const presets = mountPresetForm();
   const paletteMenu = mountPaletteMenu();
-  const aiAssist=mountAiAssist(aiContext,aiCover,result=>window.dispatchEvent(new CustomEvent("tide:segments",{detail:result})));
+  const about=mountAbout();
   const miniOpen=button("打开小窗播放器");miniOpen.onclick=()=>void window.tide.setMiniPlayer({open:true});
-  settingsPanel.append(settingsSummary,miniOpen, riskNotice(), presets.element,paletteMenu.button,aiAssist.element, latticeRow, qualityLabel, keyPanel, deskForm.element, bus);
+  const navigation=document.createElement("nav");navigation.className="settings-tabs";navigation.setAttribute("aria-label","设置分类");
+  const appearance=document.createElement("section");appearance.append(presets.element,paletteMenu.button);
+  const playback=document.createElement("section");playback.append(qualityLabel,miniOpen);
+  const shortcuts=document.createElement("section");keyPanel.open=true;shortcuts.append(keyPanel);
+  const desktop=document.createElement("section");if(deskForm.element instanceof HTMLDetailsElement)deskForm.element.open=true;desktop.append(deskForm.element);
+  about.element.append(riskNotice());
+  const categories=[["外观",appearance],["播放",playback],["快捷键",shortcuts],["桌面歌词",desktop],["关于",about.element]] as const;
+  for(const [index,[label,panel]]of categories.entries()){panel.classList.add("settings-category");panel.hidden=index!==0;const tab=button(label);tab.setAttribute("role","tab");tab.setAttribute("aria-selected",String(index===0));tab.onclick=()=>{for(const other of Array.from(navigation.children))other.setAttribute("aria-selected",String(other===tab));for(const [,other]of categories)other.hidden=other!==panel;};navigation.append(tab);}
+  navigation.setAttribute("role","tablist");settingsPanel.append(settingsSummary,navigation,...categories.map(([,panel])=>panel));
 
   const topbar = document.createElement("div");
   topbar.className = "topbar";
@@ -1036,7 +1043,7 @@ export function mountLibrary(root: HTMLElement): {
     },
     destroy() {
       paletteMenu.destroy();
-      window.removeEventListener("tide:artist-search",artistSearch);aiAssist.destroy();disposed = true;
+      window.removeEventListener("tide:artist-search",artistSearch);about.destroy();disposed = true;
       clearTimeout(queueTimer);
       stopPoll();
       stopLiked();

@@ -14,7 +14,7 @@ public class Song {
     this.title = title;
     this.artist = artist;
     this.uri = uri;
-    this.cover = cover;
+    this.cover = cover == null ? "" : cover.replaceFirst("^http://", "https://");
     this.duration = duration;
   }
 
