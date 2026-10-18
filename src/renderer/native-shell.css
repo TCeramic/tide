@@ -553,3 +553,7 @@ html[data-shell] #app .home-grid{top:calc(50% + 88px);left:50%;right:auto;}@medi
 html[data-theme-preview] *,html[data-theme-transition] :not(.theme-reveal-frame){transition-duration:0s!important;}html[data-theme-preview] .module-motion{animation:none!important;}
 
 html[data-emblem="liquid-metal"] .native-point-field[data-point-set="0"]{opacity:0!important;}
+
+/* Mask an isolated preview surface: clipping an iframe lets Chromium occlusion
+   discard rectangular tiles of the live WebGL canvas underneath. */
+.theme-reveal-frame{isolation:isolate;will-change:mask-image;mask-repeat:no-repeat;mask-size:100% 100%;}
