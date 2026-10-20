@@ -673,7 +673,17 @@ export function mountLibrary(root: HTMLElement): {
     const label = document.createElement("span");
     label.className = "playlist-separator-label";
     label.textContent = "更多推荐";
-    separator.append(label);
+    // 换一批：重新拉 /personalized，让推荐歌单本身也能刷新。
+    const swap = button("换一批");
+    swap.className = "playlist-separator-action";
+    swap.title = "刷新推荐歌单";
+    swap.addEventListener("click", async () => {
+      swap.disabled = true;
+      recommendedPlaylists = null;
+      const ok = await loadRecommendedLists(true);
+      if (!ok && swap.isConnected) swap.disabled = false;
+    });
+    separator.append(label, swap);
     list.append(separator);
     for (const playlist of recommendedPlaylists) {
       const item = document.createElement("li");
@@ -691,20 +701,22 @@ export function mountLibrary(root: HTMLElement): {
       count.className = "count";
       count.textContent = `${playlist.trackCount} 首`;
       row.append(art, name, count);
-      row.addEventListener("click", () => { void showPlaylist(playlist.id, playlist.name); });
+      row.addEventListener("click", () => { void showPlaylist(playlist.id, playlist.name, playlist.cover); });
       item.append(row);
       list.append(item);
     }
   };
-  const loadRecommendedLists = () => {
-    if (recommendedPlaylists || recommendedPending || !apiReady) return;
+  const loadRecommendedLists = (force = false): Promise<boolean> => {
+    if (recommendedPending || !apiReady) return Promise.resolve(false);
+    if (!force && recommendedPlaylists) return Promise.resolve(true);
     recommendedPending = true;
-    void window.tide.recommendPlaylists().then((result) => {
+    return window.tide.recommendPlaylists().then((result) => {
       recommendedPending = false;
-      if (disposed || !result.ok) return;
+      if (disposed || !result.ok) return false;
       recommendedPlaylists = result.playlists;
       renderRecommendedLists();
-    }).catch(() => { recommendedPending = false; });
+      return true;
+    }).catch(() => { recommendedPending = false; return false; });
   };
   const render = (session: SessionSnapshot) => {
     currentSession=session;refreshLiked();
@@ -727,7 +739,7 @@ export function mountLibrary(root: HTMLElement): {
       count.textContent = `${playlist.trackCount} 首`;
       row.append(art,name, count);
       row.addEventListener("click", () => {
-        if(playlist.id==="tide-today")void refreshToday(false);else if(playlist.id==="tide-daily")void openHits(()=>window.tide.dailyRecommend(),"每日推荐");else if(playlist.id.startsWith("tide-list-"))showTidePlaylist(playlist.id);else void showPlaylist(playlist.id, playlist.name);
+        if(playlist.id==="tide-today")void refreshToday(false);else if(playlist.id==="tide-daily")void openHits(()=>window.tide.dailyRecommend(),"每日推荐");else if(playlist.id.startsWith("tide-list-"))showTidePlaylist(playlist.id);else void showPlaylist(playlist.id, playlist.name, playlist.cover);
       });
       item.append(row);
       list.append(item);
@@ -847,7 +859,7 @@ export function mountLibrary(root: HTMLElement): {
 
   const showCatalog = (rows: SearchHit[], label: string, cover?:string) => {
     const fromExplore = shellPage() === "explore";
-    showSheet("detail");sheet.dataset.section="playlist";const title=document.createElement("h2");title.textContent=label;const art=document.createElement("span");art.className="playlist-detail-art";paintPlaylistArt(art,label==="今日潮汐"?"./assets/today-tide.png":label==="每日推荐"?"./assets/daily-recommend.png":cover??playlists.find(p=>p.name===label)?.cover);playlistHero.replaceChildren(art,title);
+    showSheet("detail");sheet.scrollTop=0;sheet.dataset.section="playlist";const title=document.createElement("h2");title.textContent=label;const art=document.createElement("span");art.className="playlist-detail-art";paintPlaylistArt(art,label==="今日潮汐"?"./assets/today-tide.png":label==="每日推荐"?"./assets/daily-recommend.png":cover??playlists.find(p=>p.name===label)?.cover);playlistHero.replaceChildren(art,title);
     if (detailFromSearch) { setShellPage("search"); markPage("search"); }
     else if (fromExplore) {
       setShellPage("explore"); markPage("explore");
@@ -886,7 +898,7 @@ export function mountLibrary(root: HTMLElement): {
     const remove=button("删除Tide歌单");let confirming=false;remove.onclick=async()=>{if(!confirming){confirming=true;remove.textContent="再次点击确认删除";return;}const result=await window.tide.deleteTidePlaylist(id);if(!result.ok){showSearchNote(result.message??"删除失败",true);return;}await refreshTideLists();showSheet();};actions.append(edit,sync,remove);playlistHero.append(description,actions);
   };
 
-  const showPlaylist = async (id: string, name: string) => {
+  const showPlaylist = async (id: string, name: string, cover?: string) => {
     detailFromSearch=false;
     if (opening || !apiReady || disposed) return;
     opening = true;
@@ -899,7 +911,14 @@ export function mountLibrary(root: HTMLElement): {
       showSearchNote(result.message, true);
       return;
     }
-    showCatalog(result.hits, name);
+    showCatalog(result.hits, name, cover);
+    // 歌单详情自带刷新：重新拉这一张歌单，封面与列表一起更新。
+    const refresh = button("刷新歌单");
+    refresh.addEventListener("click", () => {
+      refresh.disabled = true;
+      void showPlaylist(id, name, cover);
+    });
+    playlistHero.append(refresh);
     renderHits(result.hits, result.source);
     appendMore(result, name);
   };
@@ -933,7 +952,7 @@ export function mountLibrary(root: HTMLElement): {
       return;
     }
     const cloudList = playlists.find(playlist => playlist.id === playlistId);
-    if (cloudList) await showPlaylist(cloudList.id, cloudList.name);
+    if (cloudList) await showPlaylist(cloudList.id, cloudList.name, cloudList.cover);
   };
 
   playlistsTab.addEventListener("click", () => {
@@ -1412,5 +1431,11 @@ function paintAvatar(button: HTMLButtonElement, avatar: string | undefined): voi
 }
 
 function paintPlaylistArt(host:HTMLElement,url?:string){
- if(url?.startsWith("./assets/")||url?.startsWith("data:image/")){const image=document.createElement("img");image.src=url;image.alt="";image.decoding="async";host.replaceChildren(image);}else {paintCover(host,url,{lazy:true});const fallback=()=>{const image=document.createElement("img");image.src="./assets/today-tide.png";image.alt="";host.replaceChildren(image);};const img=host.querySelector("img");if(img)img.addEventListener("error",()=>requestAnimationFrame(fallback),{once:true});else fallback();}
+ // 本地占位图（今日潮汐/每日推荐）直接显示；网络封面交给 paintCover，加载失败时退回潮汐波纹标记，
+ // 不能再统一退回 today-tide.png，否则任何缺封面的歌单都会显示成今日潮汐。
+ if(url?.startsWith("./assets/")||url?.startsWith("data:image/")){
+   const image=document.createElement("img");image.src=url;image.alt="";image.decoding="async";
+   image.addEventListener("error",()=>{if(host.contains(image))paintCover(host,undefined,{lazy:true});},{once:true});
+   host.replaceChildren(image);
+ }else paintCover(host,url,{lazy:true});
 }
