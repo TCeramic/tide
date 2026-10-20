@@ -20,4 +20,8 @@
 
 ## 本次构建产物
 
-（打包完成后补充大小与 SHA256。）
+- `Tide-Setup-1.1.3-x64.exe`：151,115,179 B
+  SHA256 `d6fc842f8eea4dda1d774ccf2adddf428b8d7adc2d568a50c3a27f4179b13b8a`
+- `Tide-1.1.3-win.zip`：207,310,741 B
+  SHA256 `03c4d2f9354cb3b256525cb6408b5b8a229a715b2bca5116223655f0e27ec3d3`
+- `SHA256SUMS.txt`：两行（setup 在前、zip 在后）。
