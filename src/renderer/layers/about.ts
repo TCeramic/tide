@@ -9,8 +9,8 @@ export function mountAbout(){
   const repository=document.createElement('button');repository.type='button';repository.className='text-button';repository.textContent='GitHub 仓库';repository.onclick=()=>void window.tide.openProject();
   const actions=document.createElement('div');actions.className='settings-actions';
   const check=document.createElement('button');check.type='button';check.className='text-button';check.textContent='检查更新';
-  const download=document.createElement('button');download.type='button';download.className='text-button';download.textContent='下载更新';download.hidden=true;
-  const status=document.createElement('p');status.className='library-note';status.setAttribute('role','status');status.textContent='启动时自动检查，下载前会询问。';
+  const download=document.createElement('button');download.type='button';download.className='text-button';download.textContent='下载并安装';download.hidden=true;
+  const status=document.createElement('p');status.className='library-note';status.setAttribute('role','status');status.textContent='启动时自动检查；下载完成后会打开安装向导，可选择安装位置。';
   const history=document.createElement('details');history.className='update-history';
   const summary=document.createElement('summary');summary.textContent='更新日志';
   const notes=document.createElement('div');notes.className='release-notes';notes.textContent='检查更新后查看最新版本日志。';history.append(summary,notes);

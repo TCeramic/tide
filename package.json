@@ -1,6 +1,6 @@
 {
   "name": "tide",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "description": "潮汐 Tide — a personal, unofficial desktop music player",
   "main": "dist/main.js",
@@ -82,7 +82,10 @@
         "en_US"
       ],
       "language": "2052",
-      "runAfterFinish": false
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Tide",
+      "runAfterFinish": true
     }
   }
 }
