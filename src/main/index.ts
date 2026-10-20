@@ -2,7 +2,7 @@ import { attachUpdates } from "./update-host";
 import { attachMiniPlayer } from "./mini-host";
 import { TidePlaylistStore } from "./tide-playlists";
 import { attachTidePlaylists } from "./tide-playlist-host";
-import { app, BrowserWindow, dialog, Menu, Tray, globalShortcut, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, Menu, Tray, globalShortcut, ipcMain, nativeImage } from "electron";
 import { TodayStore } from "./today-store";
 import { titleBarChrome, windowBackground } from "../core/titlebar";
 import fs from "node:fs";
@@ -279,6 +279,29 @@ app.whenReady().then(async () => {
     if (picked.canceled) return library.list();
     return library.add(picked.filePaths);
   });
+  // 相机原图动辄 5–20 MB，直接转 base64 会撞上 1.8 MB 上限并被静默丢弃（表现为「选了图但背景没变」）。
+  // 统一缩到 2560 长边再按质量降到上限以内。
+  const shrinkBackdrop = (file: string) => {
+    try {
+      const image = nativeImage.createFromPath(file);
+      if (image.isEmpty()) return;
+      const size = image.getSize();
+      const maxSide = 2560;
+      let target = image;
+      if (Math.max(size.width, size.height) > maxSide) {
+        target = size.width >= size.height ? image.resize({ width: maxSide, quality: "good" }) : image.resize({ height: maxSide, quality: "good" });
+      }
+      let quality = 90;
+      let bytes = target.toJPEG(quality);
+      while (bytes.length > 1_700_000 && quality > 48) {
+        quality -= 8;
+        bytes = target.toJPEG(quality);
+      }
+      if (bytes.length > 0) fs.writeFileSync(backdropFile, bytes);
+    } catch {
+      // 保留原文件；readBackdrop 会在超限时返回 null。
+    }
+  };
   const readBackdrop = (): string | null => {
     try {
       const bytes = fs.readFileSync(backdropFile);
@@ -334,6 +357,7 @@ app.whenReady().then(async () => {
     const file = picked.filePaths[0];
     if (picked.canceled || !file) return null;
     fs.copyFileSync(file, backdropFile);
+    shrinkBackdrop(file);
     return readBackdrop();
   });
   ipcMain.handle(Ipc.appearanceSet, (_event, patch: unknown) => {

@@ -4,7 +4,7 @@ import { createGlassSystem } from "./vendor/design-systems/lens/lab/design-syste
 /** One upstream optical stage. Scrollable portals and text stay in ordinary DOM. */
 export function mountLensShell(root, portals, artwork) {
   const surfaces = new Set();
-  const selector = ".home-card,.browse-sheet,.search-page,.transport,.topbar,.risk,.corner-panel,.queue-col,.proof-host,.playlist-editor,.window-close-menu,.track-context-menu";
+  const selector = ".home-card,.home-section,.browse-sheet,.search-page,.transport,.topbar,.risk,.corner-panel,.queue-col,.proof-host,.playlist-editor,.window-close-menu,.track-context-menu";
   let dead = false, frame = 0, appearance;
   const system = createGlassSystem(root, { material:"thick", scene:"aurora", artwork, motion:false, audio:{},
     onFallback: () => { root.dataset.nativeFallback = "lens"; },
@@ -77,7 +77,7 @@ export function mountLensShell(root, portals, artwork) {
     for (const el of surfaces) if (!el.isConnected) surfaces.delete(el);
     for (const el of root.querySelectorAll(selector)) {
       if (surfaces.has(el)) continue;
-      surfaces.add(el); el.classList.add("lg-surface");
+      surfaces.add(el); el.classList.add("lg-surface", "lens-webgl-ready");
       el.dataset.glass = el.matches(".transport") ? "dock" : "panel";
     }
     system.mount();
@@ -115,7 +115,7 @@ export function mountLensShell(root, portals, artwork) {
       dead = true; clearTimeout(renderTimer); for (const event of ["pointermove", "pointerdown", "wheel", "focusin"]) root.removeEventListener(event, interactive); document.removeEventListener("visibilitychange", activity); cancelAnimationFrame(frame); observer.disconnect(); system.destroy();
       root.classList.remove("lg-stage","fallback","webgl-ready");
       delete portals.dataset.lens; delete portals.dataset.scene;
-      for (const el of surfaces) { el.classList.remove("lg-surface"); delete el.dataset.glass; }
+      for (const el of surfaces) { el.classList.remove("lg-surface", "lens-webgl-ready"); delete el.dataset.glass; }
       surfaces.clear();artCanvas.width=artCanvas.height=1;
     },
   };

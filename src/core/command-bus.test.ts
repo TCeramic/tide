@@ -190,7 +190,7 @@ describe("command bus", () => {
 
     const themed = await dispatchCommand({
       command: "appearance.write",
-      args: { shell: "lattice", preset: "flow", performance: "smooth", background: "cover" },
+      args: { shell: "lattice", preset: "flow", performance: "smooth", background: "image" },
       allow: true,
     }, api, []);
     assert.equal(themed.ok, true);
@@ -198,7 +198,7 @@ describe("command bus", () => {
     assert.equal(disk.shell, "lattice");
     assert.equal(disk.preset, "flow");
     assert.equal(disk.performance, "smooth");
-    assert.equal(disk.background, "cover");
+    assert.equal(disk.background, "image");
     const after = await dispatchCommand({ command: "appearance.read" }, api, []);
     assert.equal(after.ok, true);
     if (after.ok) {

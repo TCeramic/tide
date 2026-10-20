@@ -1,0 +1,58 @@
+/* Stage mode owns the complete playing view; normal lyrics retain their existing layout. */
+html:not([data-mobile="true"])[data-view="playing"][data-lyric-stage] #lyrics {
+  padding: 0 !important;
+  overflow: hidden;
+}
+html:not([data-mobile="true"])[data-view="playing"][data-lyric-stage] #lyrics .lyrics-block {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: auto;
+  max-height: none;
+  display: block;
+  padding: 0;
+  transform: none;
+}
+html:not([data-mobile="true"])[data-view="playing"][data-lyric-stage] #lyrics .lyrics-art {
+  display: none !important;
+}
+html:not([data-mobile="true"])[data-view="playing"][data-lyric-stage] #lyrics .lyrics-reading {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  padding: 0 !important;
+  overflow: hidden;
+}
+html:not([data-mobile="true"])[data-view="playing"][data-lyric-stage] :is(.native-point-field,.native-point-hero,.native-set-control,.liquid-metal-emblem) {
+  visibility: hidden !important;
+}
+html:not([data-mobile="true"])[data-view="playing"][data-lyric-stage] #lyrics .lyric-options-trigger {
+  top: 44px;
+  right: 84px;
+  opacity: .8;
+  z-index: 12;
+  background: color-mix(in srgb,var(--tide-bg) 65%,transparent);
+  backdrop-filter: blur(12px);
+}
+html:not([data-mobile="true"])[data-view="playing"][data-lyric-stage] #lyrics .lyric-options-panel {
+  top: 92px;
+  right: 84px;
+  z-index: 13;
+}
+html:not([data-mobile="true"])[data-view="playing"][data-lyric-stage] #lyrics .tide-lyric-stage-host {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+}
+html:not([data-mobile="true"]) .tide-bit-stage-canvas { image-rendering: pixelated; }
+html:not([data-mobile="true"])[data-view="playing"][data-lyric-stage] #lyrics .tide-bit-stage-canvas { image-rendering: pixelated; }
+
+/* #lyrics now lives inside #app, so the stage canvas and chrome share one
+   stacking context: keep chrome above the opaque scene or the auto-hiding dock
+   would be buried while still receiving clicks. */
+html:not([data-mobile="true"])[data-lyric-stage] #app > #chrome { z-index: 6; }

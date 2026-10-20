@@ -39,6 +39,18 @@ describe("lyric contrast under the brightest wash", () => {
   });
 });
 
+describe("font preset binding", () => {
+  it("lets the shell font follow --tide-font instead of the vendor family", () => {
+    const css = fs.readFileSync("src/renderer/native-shell.css", "utf8");
+    for (const shell of ["lens", "lattice"]) {
+      const binding = new RegExp(
+        `html\\[data-shell="${shell}"\\][^{]*\\{[^}]*font-family:\\s*var\\(--tide-font\\)`,
+      );
+      assert.match(css, binding, `${shell} never rebinds the vendored font family`);
+    }
+  });
+});
+
 function readVar(css: string, name: string, from = ""): string {
   const slice = from.length === 0 ? css : css.slice(css.indexOf(from));
   const match = slice.match(new RegExp(`${name}:\\s*([^;]+);`));

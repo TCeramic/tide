@@ -1,0 +1,160 @@
+{
+  "title": "Quick start wizard",
+  "heading": "Make a lyric video",
+  "close": "Close wizard",
+  "steps": {
+    "label": "Steps",
+    "song": "Song",
+    "style": "Style",
+    "assets": "Images",
+    "theme": "Colors",
+    "done": "Done"
+  },
+  "stepTitles": {
+    "song": "Add your song",
+    "style": "Pick a style",
+    "assets": "Add images (optional)",
+    "theme": "Choose colors",
+    "done": "All set"
+  },
+  "back": "Back",
+  "next": "Next",
+  "needSong": "Add at least the audio or the lyrics",
+  "previewHint": "Every step shows up right away in the preview on the left",
+  "themeName": "{{name}} · {{mode}}",
+  "coverThemeName": "Cover",
+  "random": {
+    "label": "Random · {{hue}} {{harmony}}",
+    "harmonies": {
+      "analogous": "analogous",
+      "complementary": "complementary",
+      "split": "split complementary",
+      "triad": "triad"
+    },
+    "hues": {
+      "vermilion": "vermilion",
+      "orange": "orange",
+      "amber": "amber",
+      "gold": "gold",
+      "lime": "lime",
+      "green": "green",
+      "emerald": "emerald",
+      "cyan": "cyan",
+      "sky": "sky",
+      "blue": "blue",
+      "indigo": "indigo",
+      "purple": "purple",
+      "magenta": "magenta",
+      "rose": "rose"
+    }
+  },
+  "song": {
+    "intro": "Just drag in the song and its lyrics — you can drop both files anywhere in the window at once. Lyrics alone are enough to start; add the audio later.",
+    "audio": "Audio",
+    "lyrics": "Lyrics",
+    "cover": "Cover",
+    "replace": "Replace",
+    "choose": "Choose",
+    "fiaLossless": "Folia lossless",
+    "lyricsFormats": ".fia / lrc / word-timed lrc / ttml / srt…",
+    "fiaTip": "Listened to this song in folia? Export it from folia's Import / Export Lyrics (or \"Export current lyrics as .fia\" in its command palette) as <file>.fia</file> and drag it in: it is folia's lossless format, so word timing, translations and the segmentation you saved in folia come along unchanged.",
+    "optional": "optional",
+    "coverDone": "Used for theme colors and backgrounds",
+    "coverHint": "A cover embedded in the audio is used automatically",
+    "title": "Title",
+    "artist": "Artist",
+    "titlePlaceholder": "Shown in the opening and credits"
+  },
+  "style": {
+    "aiDone_one": "The AI arranged {{count}} section from the lyrics",
+    "aiDone_other": "The AI arranged {{count}} sections from the lyrics",
+    "title": "Visual style",
+    "cardLabel": "Style: {{name}}",
+    "mixHint": "Big compositions for choruses and breaks, kinetic type for verses, a new style for each section.",
+    "aiDirected": "Styles were picked for each section by the AI.",
+    "aiHint": "Let the AI read the lyrics and pick a style and transition for every section.",
+    "aiAgain": "Direct again",
+    "aiRun": "AI direction",
+    "aspect": "Aspect ratio",
+    "aspects": {
+      "landscape": {
+        "label": "Landscape 16:9",
+        "hint": "YouTube"
+      },
+      "portrait": {
+        "label": "Portrait 9:16",
+        "hint": "TikTok / Shorts"
+      },
+      "square": {
+        "label": "Square 1:1",
+        "hint": "Animated cover"
+      },
+      "classic": {
+        "label": "4:3",
+        "hint": "Retro screen"
+      }
+    }
+  },
+  "assets": {
+    "intro": "Have character art, illustrations or a logo? Add them and they are placed on the frame shot by shot. Transparent PNGs work best. If you have none, just go on.",
+    "drop": "Drag images here",
+    "choose": "Choose (multiple allowed)",
+    "placed_one": "Placed in {{count}} shot. ",
+    "placed_other": "Placed in {{count}} shots. ",
+    "explain": "Images take turns shot by shot and change with the shot: character art alternates left and right, sliding in from its side; wide images go in the middle. You can adjust each one later on the timeline or in the inspector."
+  },
+  "theme": {
+    "sample1": "Ly",
+    "sample2": "ric",
+    "default": "Default",
+    "defaultHint": "Black, white and orange — fits any song",
+    "cover": "From the cover",
+    "coverHint": "Colors follow the album cover",
+    "coverMissing": "Add a cover in the first step",
+    "random": "Random colors",
+    "randomAgain": "{{name}} · click again for another",
+    "randomHint": "Roll the dice for a random, harmonious palette",
+    "ai": "AI from the lyrics",
+    "aiMissing": "Set up a provider in the AI side bar first",
+    "aiBack": "{{name}} · click to switch back to it",
+    "aiHint": "Colors from the mood of the lyrics, with keyword colors too",
+    "base": "Base",
+    "cardLabel": "Colors: {{title}}",
+    "aiAgain": "Let the AI make another",
+    "openEditor": "Want to fine-tune every color, keyword and icon? Open the theme editor"
+  },
+  "done": {
+    "song": "Song",
+    "untitled": "(untitled)",
+    "audio": "Audio",
+    "decoding": "Decoding…",
+    "noAudio": "None (previewed by lyric length)",
+    "lyrics": "Lyrics",
+    "style": "Style",
+    "aspect": "Aspect",
+    "images": "Images",
+    "none": "None",
+    "imageCount_one": "{{count}} image",
+    "imageCount_other": "{{count}} images",
+    "imagesPlaced_one": "{{images}} · placed in {{count}} shot",
+    "imagesPlaced_other": "{{images}} · placed in {{count}} shots",
+    "imagesNotPlaced": "{{images}} (not auto-arranged)",
+    "colors": "Colors",
+    "colorsValue": "{{name}} ({{mode}})",
+    "duration": "Duration",
+    "play": "Play from the start",
+    "export": "Export video…",
+    "refine": "Keep refining",
+    "tip1": "Right-click a section or shot on the timeline to change its style or transition, or to split and merge sections.",
+    "tip2": "The same lyrics and seed always produce the same video; try another seed in Look & Arrangement for a different arrangement.",
+    "tip3": "Every change can be undone (Ctrl+Z), and the project saves automatically."
+  },
+  "empty": {
+    "close": "Close guide",
+    "closeHint": "Close (you can open the wizard later from Quick Start in the title bar)",
+    "title": "Make a lyric video",
+    "body": "Add a song and its lyrics, pick a style and colors — a finished video in a few steps.",
+    "start": "Get started",
+    "drop": "Or just drag audio and lyrics files into the window"
+  }
+}

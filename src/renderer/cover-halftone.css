@@ -1,0 +1,20 @@
+/* Lattice artwork is a two-ink print, not a translucent dot overlay on a photograph. */
+html:not([data-mobile="true"])[data-shell="lattice"] .cover-style-pending > img { visibility: hidden; }
+html:not([data-mobile="true"])[data-shell="lattice"] .cover-style-pending { background: var(--tide-bg); }
+html:not([data-mobile="true"])[data-shell="lattice"] .has-cover-halftone {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+html:not([data-mobile="true"])[data-shell="lattice"] :is(#lyrics, #app) .cover-halftone {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+  opacity: 1;
+  mix-blend-mode: normal;
+  border-radius: inherit;
+}

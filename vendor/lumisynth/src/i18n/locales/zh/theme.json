@@ -1,0 +1,98 @@
+{
+  "colors": {
+    "backgroundColor": {
+      "label": "背景",
+      "description": "整个画面的底色"
+    },
+    "primaryColor": {
+      "label": "主色",
+      "description": "歌词正文与主要图形"
+    },
+    "accentColor": {
+      "label": "强调",
+      "description": "高亮、点亮的字与光"
+    },
+    "secondaryColor": {
+      "label": "次要",
+      "description": "辅助图形、未唱到的字"
+    }
+  },
+  "modes": {
+    "dark": "深色",
+    "light": "浅色"
+  },
+  "customLight": "自定义浅色",
+  "customDark": "自定义深色",
+  "colorSlots": "颜色位",
+  "recommended": "推荐色（封面与主题）",
+  "recommendedColor": "推荐色 {{color}}",
+  "details": {
+    "name": "名字",
+    "nameLabel": "{{mode}}主题名字",
+    "description": "氛围描述",
+    "descriptionLabel": "{{mode}}主题描述",
+    "descriptionPlaceholder": "一句话描述这首歌给人的感觉",
+    "hint": "名字会显示在侧栏的主题分组里；两边的名字都不能为空才能应用。"
+  },
+  "content": {
+    "unknownIcon": "没有这个图标名（用 lucide 的图标名，例如 Moon、Flame、Umbrella）",
+    "wordColors": "关键字颜色",
+    "wordColorsHint": "唱到这些词时字变成对应的颜色（凝彩、绘光会用到；绘光可以在设置里关掉「关键字着色」）。",
+    "add": "添加",
+    "noWords": "还没有关键字",
+    "wordColor": "关键字颜色 {{n}}",
+    "word": "关键字 {{n}}",
+    "wordPlaceholder": "歌词里的词",
+    "deleteWord": "删除关键字 {{n}}",
+    "icons": "歌词图标",
+    "iconsHint": "lucide 图标名，最多 {{count}} 个。绘光把它们画成线稿，商籁用作装饰。",
+    "deleteIcon": "删除图标 {{name}}",
+    "iconName": "图标名",
+    "iconPlaceholder": "例如 Moon"
+  },
+  "view": {
+    "applied": "已应用主题：{{dark}} / {{light}}",
+    "title": "主题编辑器",
+    "dirty": "有未应用的修改 · 预览显示的是草稿（{{mode}}）",
+    "current": "工程主题：{{name}}（{{source}}，{{mode}}）",
+    "sources": {
+      "preset": "预设",
+      "ai": "AI 生成",
+      "custom": "自定义"
+    },
+    "randomHint": "随机抽一组配色（深色、浅色一起换，名字跟着换；关键字与图标保留）。点「应用」才写进工程",
+    "random": "随机配色",
+    "defaultsHint": "四个颜色换回默认主题的（名字、描述、关键字与图标保留）",
+    "defaults": "默认配色",
+    "discard": "放弃修改",
+    "applyHint": "写进工程（可以撤销）",
+    "nameRequired": "深色、浅色主题都需要名字",
+    "apply": "应用",
+    "tabs": {
+      "colors": "颜色",
+      "details": "详情",
+      "content": "内容",
+      "ai": "AI"
+    }
+  },
+  "ai": {
+    "generated": "AI 主题已放进草稿：{{dark}} / {{light}}（还没有应用）",
+    "copyFailed": "复制失败：{{message}}",
+    "invalidJson": "不是有效的主题 JSON（需要包含 light 与 dark 两个对象）",
+    "generate": "用 AI 生成到草稿",
+    "generateHint": "按整首歌词生成一对深色 / 浅色主题，放进草稿，预览里看过再应用。",
+    "noProvider": "还没有配置 AI：在主侧栏「AI」里选择提供方并填写密钥。",
+    "busy": "生成中…",
+    "run": "生成",
+    "copyPrompt": "复制提示词",
+    "copyPromptHint": "贴到任意 AI 对话里，让它按同样的格式输出主题 JSON。",
+    "copied": "已复制",
+    "import": "导入 JSON 到草稿",
+    "importHint": "支持纯 JSON、```json 代码块，或夹在说明文字里的输出。",
+    "json": "主题 JSON",
+    "jsonPlaceholder": "把 AI 返回的 JSON 贴在这里",
+    "importButton": "导入到草稿",
+    "export": "导出当前草稿",
+    "copyJson": "复制主题 JSON"
+  }
+}

@@ -67,6 +67,7 @@ export const Ipc = {
   playlistTracks: "tide:playlist:tracks",
   daily: "tide:recommend:daily",
   radar: "tide:recommend:radar",
+  recommendPlaylists: "tide:recommend:playlists",
   playHits: "tide:cmd:play-hits",
   progress: "tide:cmd:progress",
   duration: "tide:cmd:duration",
@@ -123,7 +124,7 @@ export function isFontPresetId(value: unknown): value is FontPresetId {
   return typeof value === "string" && (FONT_PRESETS as readonly string[]).includes(value);
 }
 
-export const STAGE_BACKGROUNDS = ["solid", "cover", "image", "paper", "pixel-cover"] as const;
+export const STAGE_BACKGROUNDS = ["solid", "image", "paper"] as const;
 export type StageBackground = (typeof STAGE_BACKGROUNDS)[number];
 
 export function isStageBackground(value: unknown): value is StageBackground {
@@ -436,6 +437,8 @@ export interface TideBridge {
   playlistTracks(id: string, offset?: number): Promise<SearchResult | ApiFailure>;
   dailyRecommend(): Promise<SearchResult | ApiFailure>;
   radar(): Promise<SearchResult | ApiFailure>;
+  /** `/personalized` — recommended playlists for the playlist page; login optional. */
+  recommendPlaylists(): Promise<ApiFailure | { ok: true; playlists: PlaylistSummary[] }>;
   tideToday(refresh?: boolean): Promise<TideToday | ApiFailure>;
   playHits(hits: SearchHit[], index: number, source?: PlaylistCursor): Promise<PlaybackSnapshot>;
   onMedia(listener: (cue: MediaCue) => void): () => void;

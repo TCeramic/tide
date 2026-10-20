@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { it } from "node:test";
-import { showHome, openNowPlaying, toggleNowPlaying, shellView, onShellView } from "./view";
+import { showHome, openNowPlaying, toggleNowPlaying, shellView, shellPage, setShellPage, onShellView } from "./view";
 
 it("cover navigation restores the mounted page's scroll rather than invoking homepage navigation", () => {
   const previous = globalThis.document;
@@ -16,5 +16,30 @@ it("cover navigation restores the mounted page's scroll rather than invoking hom
     stop(); showHome();
     if (previous) Object.defineProperty(globalThis,"document",{configurable:true,value:previous});
     else Reflect.deleteProperty(globalThis,"document");
+  }
+});
+
+it("keeps the active content route separate from the now-playing shell view", () => {
+  const previous = globalThis.document;
+  const dataset: Record<string, string> = {};
+  Object.defineProperty(globalThis, "document", {
+    configurable: true,
+    value: { documentElement: { dataset }, querySelectorAll: () => [] },
+  });
+  try {
+    setShellPage("library");
+    openNowPlaying();
+    assert.equal(shellView(), "playing");
+    assert.equal(shellPage(), "library");
+    assert.equal(dataset.view, "playing");
+    assert.equal(dataset.page, "library");
+    toggleNowPlaying();
+    assert.equal(shellView(), "home");
+    assert.equal(shellPage(), "library");
+    assert.equal(dataset.page, "library");
+  } finally {
+    showHome();
+    if (previous) Object.defineProperty(globalThis, "document", { configurable: true, value: previous });
+    else Reflect.deleteProperty(globalThis, "document");
   }
 });

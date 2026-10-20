@@ -1,0 +1,21 @@
+{
+  "paragraphKinds": {
+    "breath": "换气",
+    "verse": "主歌",
+    "lift": "上扬",
+    "chorus": "副歌",
+    "break": "间奏",
+    "outro": "尾声"
+  },
+  "retry": "重试",
+  "play": "播放",
+  "pause": "暂停",
+  "auto": "自动",
+  "autoValue": "自动（{{value}}）",
+  "clearSelection": "取消选择",
+  "startSeconds": "开始（秒）",
+  "endSeconds": "结束（秒）",
+  "cancel": "取消",
+  "close": "关闭",
+  "quoted": "「{{text}}」"
+}

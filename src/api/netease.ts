@@ -52,6 +52,7 @@ interface NcmModule {
   playlist_track_all(query: { id: string; limit?: number; offset?: number; cookie?: string }): Promise<unknown>;
   recommend_songs(query: { cookie?: string }): Promise<unknown>;
   recommend_resource(query: { cookie?: string }): Promise<unknown>;
+  personalized(query: { limit?: number; cookie?: string }): Promise<unknown>;
   simi_song(query: { id: string; limit?: number; cookie?: string }): Promise<unknown>;
   lyric(query: { id: string; cookie?: string }): Promise<unknown>;
   lyric_new?(query: { id: string; cookie?: string }): Promise<unknown>;
@@ -108,6 +109,8 @@ export interface NeteaseClient {
   playlistTracks(id: string, cookie: string, offset?: number): Promise<SearchHit[]>;
   dailySongs(cookie: string): Promise<SearchHit[]>;
   radarId(cookie: string): Promise<string>;
+  /** `personalized` recommended playlists. Login optional; personalises when present. */
+  recommendedPlaylists(cookie: string | null, limit?: number): Promise<PlaylistSummary[]>;
   /** Similar songs via `simi_song`. Not daily recommend and not 私人雷达. */
   similarSongs(id: string, cookie: string | null): Promise<SearchHit[]>;
   searchKind(keywords: string, type: number, cookie: string | null, offset?: number): Promise<CatalogPage>;
@@ -298,6 +301,13 @@ export function createNeteaseClient(module: NcmModule = loadNeteaseModule()): Ne
         rethrowSignedOut(error);
       }
     },
+    async recommendedPlaylists(cookie, limit = 8) {
+      try {
+        return readRecommendedPlaylists(await module.personalized(withCookie({ limit }, cookie)));
+      } catch (error) {
+        rethrowSignedOut(error);
+      }
+    },
   };
 }
 
@@ -435,6 +445,24 @@ export function readLoginRefresh(result: unknown): LoginRefresh {
   const fromList = Array.isArray(record?.cookie) ? (record.cookie as unknown[]).filter((item) => typeof item === "string").join(";") : "";
   const cookie = (fromBody || fromList).trim();
   return { cookie: cookie.length > 0 ? cookie : null, expired: false };
+}
+
+export function readRecommendedPlaylists(result: unknown): PlaylistSummary[] {
+  const body = bodyOf(result);
+  const rows = body && Array.isArray(body.result) ? body.result : [];
+  const playlists: PlaylistSummary[] = [];
+  for (const row of rows) {
+    const item = asRecord(row);
+    const id = String(item?.id ?? "");
+    if (!/^\d{1,20}$/.test(id)) continue;
+    playlists.push({
+      id,
+      name: typeof item?.name === "string" && item.name ? item.name : "推荐歌单",
+      cover: normalizeArtworkUrl(typeof item?.picUrl === "string" ? item.picUrl : "") ?? undefined,
+      trackCount: asNumber(item?.trackCount) ?? 0,
+    });
+  }
+  return playlists;
 }
 
 export function readCatalog(result: unknown, type: number): CatalogPage {

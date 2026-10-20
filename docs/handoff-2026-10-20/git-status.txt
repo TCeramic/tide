@@ -1,0 +1,44 @@
+ M package-lock.json
+ M package.json
+ M scripts/build.mjs
+ M scripts/test.mjs
+ M src/renderer/index.html
+ M src/renderer/layers/home.ts
+ M src/renderer/layers/library.ts
+ M src/renderer/layers/lyrics.ts
+ M src/renderer/lens-shell.js
+ M src/renderer/liquid-metal.ts
+ M src/renderer/lucide.d.ts
+ M src/renderer/main.ts
+ M src/renderer/native-shell.js
+ M src/renderer/paper-background.ts
+ M src/renderer/theme-preview.html
+ M src/renderer/theme-preview.ts
+ M src/renderer/theme-scene.ts
+ M src/renderer/track-row.ts
+ M src/renderer/view.test.ts
+ M src/renderer/view.ts
+?? build/lumisynth/
+?? docs/DESKTOP-UI-FOLLOWUP-REVIEW.md
+?? docs/DESKTOP-UI-REDESIGN-QA.md
+?? docs/HANDOFF-2026-10-20.md
+?? scripts/cover-halftone-smoke.cjs
+?? scripts/desktop-redesign-smoke.cjs
+?? scripts/lumisynth-stage-smoke.cjs
+?? scripts/lyric-stage-soak.cjs
+?? scripts/package-desktop-preview.mjs
+?? scripts/theme-stage-preview-smoke.cjs
+?? src/renderer/assets/theme-lattice-default.png
+?? src/renderer/assets/theme-lens-default.png
+?? src/renderer/cover-halftone.css
+?? src/renderer/cover-halftone.ts
+?? src/renderer/desktop-lyric-stage.css
+?? src/renderer/desktop-redesign.css
+?? src/renderer/lyric-stage/
+?? src/renderer/play-recent.test.ts
+?? src/renderer/play-recent.ts
+?? src/renderer/session-history.test.ts
+?? src/renderer/session-history.ts
+?? src/renderer/theme-defaults.css
+?? src/renderer/theme-stage-preview.ts
+?? vendor/

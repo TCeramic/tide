@@ -1,0 +1,80 @@
+{
+  "name": "LumiSynth lyric stage engine",
+  "upstream": "https://github.com/chthollyphile/lumisynth",
+  "upstream_commit": "a936c4e866387088b13ca819358d307d269be799",
+  "spdx_license": "AGPL-3.0-only",
+  "included_source": "src/**",
+  "runtime_packs": [
+    "sonnet",
+    "tempera",
+    "lumiere",
+    "hanabi"
+  ],
+  "modified_files": [
+    {
+      "path": "src/packs/sonnet/sonnetPrintFilters.ts",
+      "changes": [
+        "Preserve input alpha in the shared vignette shader while darkening premultiplied RGB; opaque output stays equivalent and transparent stages no longer acquire a rectangular black backdrop."
+      ]
+    },
+    {
+      "path": "src/kernel/runtime.ts",
+      "changes": [
+        "Added manualRender so Tide can own the frame clock without a second ticker.",
+        "Added omitBackground to keep the stage transparent over Tide's existing lyric UI.",
+        "In manualRender mode, setLook, setProgram, setAudio, resize and background callbacks do not draw; Tide calls renderAt at the current audio-clock position.",
+        "Added on-demand captureFrame using Pixi's renderer.extract API."
+      ]
+    },
+    {
+      "path": "src/packs/sonnet/pack.ts",
+      "changes": [
+        "Removed the optional React SettingsPanel registration from the runtime pack; the original pack renderer and algorithms remain included."
+      ]
+    },
+    {
+      "path": "src/packs/tempera/pack.ts",
+      "changes": [
+        "Removed the optional React SettingsPanel registration from the runtime pack; the original pack renderer and algorithms remain included."
+      ]
+    },
+    {
+      "path": "src/packs/lumiere/pack.ts",
+      "changes": [
+        "Removed the optional React SettingsPanel registration from the runtime pack; the original pack renderer and algorithms remain included."
+      ]
+    },
+    {
+      "path": "src/packs/hanabi/pack.ts",
+      "changes": [
+        "Removed the optional React SettingsPanel registration from the runtime pack; the original pack renderer and algorithms remain included."
+      ]
+    },
+    {
+      "path": "src/packs/sonnet/sonnetTexturePool.ts",
+      "changes": [
+        "Decode bundled, locally generated Lucide SVG data URLs through Image and Canvas, avoiding fetch and retaining strict connect-src none CSP. Destroy locally owned textures through the existing reference-counted pool."
+      ]
+    }
+  ],
+  "integration": {
+    "entry": "build/lumisynth/entry.ts",
+    "bundled_runtime": "dist/lyric-stage-engine.js",
+    "pixi_js": "8.21.0",
+    "csp_compatibility": {
+      "module": "pixi.js/unsafe-eval",
+      "reason": "Pixi's official eval-free implementations are needed by LumiSynth runtime capabilities under Tide's strict renderer CSP.",
+      "csp_changed": false,
+      "scope": "Lazy lyric-stage engine bundle only."
+    },
+    "runtime_dependencies": {
+      "react": "19.3.0",
+      "react-dom": "19.3.0",
+      "lucide-react": "1.48.0"
+    },
+    "external_optional_dependencies": {
+      "mediabunny": "Exact-video export path is not included in Tide's stage integration."
+    },
+    "frame_driver": "Tide renderer update calls LumiKernel.renderAt; LumiSynth ticker is disabled for the embedded stage."
+  }
+}

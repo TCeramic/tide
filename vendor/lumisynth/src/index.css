@@ -1,0 +1,151 @@
+@import "tailwindcss";
+
+/*
+ * 桌面版（Electron）把页面的菜单栏当窗口标题栏用（系统标题栏隐藏了，见 electron/main.cjs）：
+ * .titlebar 的空白处拖动窗口、双击最大化，按钮与输入框照常点击；左右留出系统窗口按钮的位置
+ * （Windows / Linux 的最小化、最大化、关闭在右边，macOS 的红黄绿在左边），env() 只在桌面版有值，网页里等于 0。
+ * 拖动区域不看层叠顺序：盖在菜单栏上的浮层（命令面板、对话框、菜单的全屏接点层）要标 .no-drag，
+ * 否则点到菜单栏那一条会变成拖窗口。网页里 app-region 不起作用。
+ */
+@layer components {
+  .titlebar {
+    -webkit-app-region: drag;
+    app-region: drag;
+    padding-left: calc(env(titlebar-area-x, 0px) + 0.5rem);
+    padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 0.5rem);
+  }
+
+  .titlebar :where(button, a, input, select), .no-drag {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+    font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  }
+
+  html, body, #root {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    @apply bg-zinc-950 text-sm text-zinc-200;
+    /* 与 VS Code 一样，界面文字不可选中；可编辑内容与标了 data-selectable 的区域除外。 */
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  input, textarea, [contenteditable='true'], [data-selectable] {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
+  /* 细滚动条：圆角滑块，透明轨道；悬停时变亮。 */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(82 82 91 / 0.45);
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover { background-color: rgb(113 113 122 / 0.7); }
+  ::-webkit-scrollbar-corner { background: transparent; }
+
+  ::selection { background: rgb(251 191 36 / 0.3); }
+
+  /* 键盘焦点：统一的琥珀色描边（鼠标点击不显示）。 */
+  :focus-visible {
+    outline: 2px solid rgb(251 191 36 / 0.7);
+    outline-offset: 1px;
+  }
+
+  /*
+   * 原生控件统一成界面的样子（Windows 下默认是浅色系统控件）。
+   * 滑块：细轨道 + 圆形滑钮；已走过的部分由组件通过 --fill（0%–100%）告诉样式，没给时只画轨道。
+   */
+  input[type='range'] {
+    appearance: none;
+    height: 16px;
+    background: transparent;
+    cursor: pointer;
+  }
+  input[type='range']::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 999px;
+    background: linear-gradient(to right, rgb(251 191 36) var(--fill, 0%), rgb(63 63 70) var(--fill, 0%));
+  }
+  input[type='range']::-webkit-slider-thumb {
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    margin-top: -4px;
+    border-radius: 999px;
+    background: rgb(250 250 250);
+    box-shadow: 0 0 0 1px rgb(0 0 0 / 0.35), 0 1px 3px rgb(0 0 0 / 0.5);
+    transition: transform 120ms ease;
+  }
+  input[type='range']:hover::-webkit-slider-thumb,
+  input[type='range']:active::-webkit-slider-thumb { transform: scale(1.2); }
+  input[type='range']::-moz-range-track { height: 4px; border-radius: 999px; background: rgb(63 63 70); }
+  input[type='range']::-moz-range-progress { height: 4px; border-radius: 999px; background: rgb(251 191 36); }
+  input[type='range']::-moz-range-thumb { width: 12px; height: 12px; border: none; border-radius: 999px; background: rgb(250 250 250); }
+  input[type='range']:disabled { opacity: 0.4; cursor: default; }
+
+  /* 复选框：圆角方块，勾选后琥珀底 + 深色对勾。 */
+  input[type='checkbox'] {
+    appearance: none;
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    border: 1px solid rgb(82 82 91);
+    border-radius: 4px;
+    background: rgb(24 24 27);
+    cursor: pointer;
+    transition: background-color 120ms ease, border-color 120ms ease;
+  }
+  input[type='checkbox']:hover { border-color: rgb(113 113 122); }
+  input[type='checkbox']:checked {
+    border-color: rgb(251 191 36);
+    background: rgb(251 191 36) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%2318181b' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E") center / 12px no-repeat;
+  }
+
+  /* 开关（Toggle）：胶囊形，滑钮用背景里的圆点画，勾选时移到右边。 */
+  input[type='checkbox'].switch {
+    width: 28px;
+    height: 16px;
+    border: none;
+    border-radius: 999px;
+    background: rgb(63 63 70) radial-gradient(circle, rgb(212 212 216) 0 5px, transparent 5.5px) no-repeat 2px center / 12px 12px;
+    transition: background-color 150ms ease, background-position 150ms ease;
+  }
+  input[type='checkbox'].switch:checked {
+    background: rgb(251 191 36) radial-gradient(circle, rgb(24 24 27) 0 5px, transparent 5.5px) no-repeat calc(100% - 2px) center / 12px 12px;
+  }
+
+  /* 下拉框：去掉系统箭头，换成细的 chevron。 */
+  select {
+    appearance: none;
+    padding-right: 28px !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23a1a1aa' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 14px;
+    cursor: pointer;
+  }
+  select option { background: rgb(24 24 27); color: rgb(228 228 231); }
+
+  /* 颜色输入：整块就是色块，圆角，不要系统的灰边框。 */
+  input[type='color'] {
+    appearance: none;
+    padding: 2px;
+    cursor: pointer;
+  }
+  input[type='color']::-webkit-color-swatch-wrapper { padding: 0; }
+  input[type='color']::-webkit-color-swatch { border: none; border-radius: 3px; }
+  input[type='color']::-moz-color-swatch { border: none; border-radius: 3px; }
+}

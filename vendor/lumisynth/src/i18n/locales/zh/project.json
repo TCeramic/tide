@@ -1,0 +1,47 @@
+{
+  "untitled": "未命名工程",
+  "errorWithReason": "{{prefix}}：{{message}}",
+  "status": {
+    "decoding": "解码音频…",
+    "analyzing": "分析音频…",
+    "reading": "读取音频…"
+  },
+  "analyzed": "音频分析完成：{{duration}}s，{{count}} 声道",
+  "opened": "打开工程「{{name}}」",
+  "notLumi": "不是 lumisynth 工程文件：缺少 project.json",
+  "errors": {
+    "decode": "音频解码失败",
+    "save": "保存失败",
+    "importProject": "导入工程失败",
+    "importAudio": "导入音频失败",
+    "readLyrics": "读取字幕失败",
+    "importCover": "导入封面失败"
+  },
+  "fonts": {
+    "uploaded": "上传的字体",
+    "unreadable": "读不了这个字体文件：{{name}}",
+    "noLocalFonts": "这个浏览器不能列出本机字体，请直接输入字体名。"
+  },
+  "assets": {
+    "unreadableImage": "读不了这张图片",
+    "unplayableVideo": "这个浏览器播放不了这个视频（换成 H.264 的 mp4 或 VP9 的 webm 试试）"
+  },
+  "structure": {
+    "parts": {
+      "direction": "编排",
+      "transition": "转场",
+      "kind": "性质"
+    },
+    "listSeparator": "、",
+    "split": "第 {{n}} 段在第 {{line}} 行拆开，后半段沿用原来的编排",
+    "merged": "第 {{n}} 段并进了第 {{into}} 段",
+    "droppedOwn": "被并入的那一段的手动{{parts}}已丢弃",
+    "droppedBetween": "两段之间的手动转场已丢弃",
+    "moved": "第 {{n}} 段的开头移到了第 {{line}} 行",
+    "isolated": "第 {{lines}} 行切成了独立的一段",
+    "isolatedAs": "第 {{lines}} 行切成了独立的一段（第 {{n}} 段）",
+    "reset": "第 {{n}} 段交回自动分段",
+    "kindAuto": "第 {{n}} 段的性质交回自动判断",
+    "kind": "第 {{n}} 段的性质改为{{kind}}"
+  }
+}

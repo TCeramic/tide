@@ -1,0 +1,50 @@
+{
+  "untitled": "Untitled project",
+  "errorWithReason": "{{prefix}}: {{message}}",
+  "status": {
+    "decoding": "Decoding audio…",
+    "analyzing": "Analyzing audio…",
+    "reading": "Reading audio…"
+  },
+  "analyzed_one": "Audio analyzed: {{duration}}s, {{count}} channel",
+  "analyzed_other": "Audio analyzed: {{duration}}s, {{count}} channels",
+  "opened": "Opened project \"{{name}}\"",
+  "notLumi": "Not a lumisynth project file: project.json is missing",
+  "errors": {
+    "decode": "Could not decode the audio",
+    "save": "Could not save",
+    "importProject": "Could not import the project",
+    "importAudio": "Could not import the audio",
+    "readLyrics": "Could not read the lyrics",
+    "importCover": "Could not import the cover"
+  },
+  "fonts": {
+    "uploaded": "Uploaded font",
+    "unreadable": "Cannot read this font file: {{name}}",
+    "noLocalFonts": "This browser cannot list installed fonts; type the font name instead."
+  },
+  "assets": {
+    "unreadableImage": "Cannot read this image",
+    "unplayableVideo": "This browser cannot play this video (try an H.264 mp4 or a VP9 webm)"
+  },
+  "structure": {
+    "parts": {
+      "direction": "arrangement",
+      "transition": "transition",
+      "kind": "type"
+    },
+    "listSeparator": ", ",
+    "split": "Split section {{n}} at line {{line}}; the second half keeps the original arrangement",
+    "merged": "Merged section {{n}} into section {{into}}",
+    "droppedOwn": "The merged section's manual {{parts}} was dropped",
+    "droppedBetween": "The manual transition between the two sections was dropped",
+    "moved": "Section {{n}} now starts at line {{line}}",
+    "isolated_one": "Line {{lines}} is now a section of its own",
+    "isolated_other": "Lines {{lines}} are now a section of their own",
+    "isolatedAs_one": "Line {{lines}} is now a section of its own (section {{n}})",
+    "isolatedAs_other": "Lines {{lines}} are now a section of their own (section {{n}})",
+    "reset": "Section {{n}} is back to automatic sections",
+    "kindAuto": "The type of section {{n}} is detected automatically again",
+    "kind": "Section {{n}} is now a {{kind}}"
+  }
+}

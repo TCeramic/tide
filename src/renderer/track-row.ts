@@ -1,4 +1,4 @@
-import { Heart, MoreHorizontal, Play } from "lucide";
+import { BookmarkPlus, Heart, MoreHorizontal, Play, Share2 } from "lucide";
 import type { PlaylistCursor, PlaylistSummary, SearchHit } from "../shared/contract";
 import { paintCover } from "./cover";
 import { ICON_SIZE, iconButton, setIcon } from "./icons";
@@ -118,35 +118,55 @@ export function fillTrackList(
       );
     });
 
-    const collect = document.createElement("label");
-    collect.className = "collect";
-    collect.textContent = "收藏到…";
-    const picker = document.createElement("select");
-    picker.setAttribute("aria-label", "收藏到歌单");
-    const empty = document.createElement("option");
-    empty.value = "";
-    empty.textContent = playlists.length === 0 ? "请先登录" : "选择歌单";
-    picker.append(empty);
-    for (const playlist of playlists) {
-      const option = document.createElement("option");
-      option.value = playlist.id;
-      option.textContent = playlist.name;
-      picker.append(option);
-    }
-    const save = menuButton("收藏", () => {
-      if (picker.value.length === 0) {
-        note(playlists.length === 0 ? "请先登录后再收藏" : "先选一个歌单", true);
-        return;
+    // 收藏控件在「更多」菜单和收藏快捷按钮里各有一份，但快捷按钮只弹收藏菜单。
+    const collectControls = () => {
+      const collect = document.createElement("label");
+      collect.className = "collect";
+      collect.textContent = "收藏到…";
+      const picker = document.createElement("select");
+      picker.setAttribute("aria-label", "收藏到歌单");
+      const empty = document.createElement("option");
+      empty.value = "";
+      empty.textContent = playlists.length === 0 ? "请先登录" : "选择歌单";
+      picker.append(empty);
+      for (const playlist of playlists) {
+        const option = document.createElement("option");
+        option.value = playlist.id;
+        option.textContent = playlist.name;
+        picker.append(option);
       }
-      void (picker.value.startsWith("tide-list-")?window.tide.addToTidePlaylist(picker.value,hit):window.tide.collectSong(picker.value, hit.id)).then((result) => {
-        note(result.message??(result.ok?"已收藏":"收藏失败"), !result.ok);
+      const save = menuButton("收藏", () => {
+        if (picker.value.length === 0) {
+          note(playlists.length === 0 ? "请先登录后再收藏" : "先选一个歌单", true);
+          return;
+        }
+        void (picker.value.startsWith("tide-list-")?window.tide.addToTidePlaylist(picker.value,hit):window.tide.collectSong(picker.value, hit.id)).then((result) => {
+          note(result.message??(result.ok?"已收藏":"收藏失败"), !result.ok);
+        });
       });
-    });
-    collect.append(picker, save);
-    menu.append(playItem, nextItem, likeItem, collect, shareItem);
+      collect.append(picker, save);
+      return { element: collect, picker };
+    };
+    const inlineCollect = collectControls();
+    menu.append(playItem, nextItem, likeItem, inlineCollect.element, shareItem);
     if(onRemove)menu.append(menuButton("从此歌单移除",()=>onRemove(hit.id)));
 
-    item.append(art, play, main, like, more);
+    const quickMenu = document.createElement("div");
+    quickMenu.className = "track-menu track-collect-menu";
+    quickMenu.hidden = true;
+    const quickCollect = collectControls();
+    quickMenu.append(quickCollect.element);
+    item.append(quickMenu);
+
+    const collectShortcut = iconButton("收藏到歌单", "BookmarkPlus", BookmarkPlus, ICON_SIZE.row);
+    collectShortcut.classList.add("track-quick-collect");
+    collectShortcut.setAttribute("aria-haspopup", "dialog"); collectShortcut.setAttribute("aria-expanded", "false");
+    collectShortcut.onclick = () => { openTrackMenu(quickMenu, collectShortcut); quickCollect.picker.focus({ preventScroll: true }); };
+    const shareShortcut = iconButton("分享歌曲链接", "Share2", Share2, ICON_SIZE.row);
+    shareShortcut.classList.add("track-quick-share");
+    shareShortcut.onclick = () => { void navigator.clipboard.writeText(songPageUrl(hit.id)).then(() => note("链接已复制", false), () => note("复制失败，请重试", true)); };
+
+    item.append(art, play, main, like, collectShortcut, shareShortcut, more);
     list.append(item);
   });
 }

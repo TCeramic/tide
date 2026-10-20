@@ -7,20 +7,16 @@ export function mountDeskForm(): { element: HTMLElement; destroy: () => void } {
   const summary = document.createElement("summary");
   summary.textContent = "桌面歌词";
 
-  const help = document.createElement("p");
-  help.className = "library-note";
-  help.textContent = "歌词置顶显示；锁定后可点击下层窗口。右键歌词可快捷调整。";
-
   const center=document.createElement("button");center.type="button";center.className="text-button";center.textContent="居中桌面歌词";center.onclick=()=>void window.tide.centerDeskLyrics();
   const openRow = checkRow("桌面歌词");
-  const lockRow = checkRow("锁定（点击穿透）");
+  const lockRow = checkRow("锁定");
   const sweepRow = checkRow("字内扫过");
   const motionRow = checkRow("动效");
   const pairRow = checkRow("显示小字翻译");
   const waveRow = checkRow("字后波形");
   const columnRow = checkRow("竖列");
   const lineRow=document.createElement("label");lineRow.className="key-row";const lineLabel=document.createElement("span");lineLabel.textContent="原文行数";const lines=document.createElement("select");lines.setAttribute("aria-label","原文行数");for(const [value,label]of [["single","单行"],["double","双行"]]){const option=document.createElement("option");option.value=value!;option.textContent=label!;lines.append(option);}lineRow.append(lineLabel,lines);
-  const shortcutRow=document.createElement("label");shortcutRow.className="key-row";const shortcutLabel=document.createElement("span");shortcutLabel.textContent="显隐热键";const shortcut=document.createElement("input");shortcut.className="key-input";shortcut.placeholder="Ctrl+Alt+D（留空关闭）";shortcut.setAttribute("aria-label","桌面歌词显隐热键");shortcutRow.append(shortcutLabel,shortcut);
+  const shortcutRow=document.createElement("label");shortcutRow.className="key-row";const shortcutLabel=document.createElement("span");shortcutLabel.textContent="显隐热键";const shortcut=document.createElement("input");shortcut.className="key-input";shortcut.placeholder="Ctrl+Alt+D";shortcut.setAttribute("aria-label","桌面歌词显隐热键");shortcutRow.append(shortcutLabel,shortcut);
   const sizeRow = rangeRow("字号", 18, 64, 32);
   const colorRow = colorRowOf("未唱歌词颜色");
   const highlightRow = colorRowOf("已唱歌词颜色");
@@ -40,7 +36,7 @@ export function mountDeskForm(): { element: HTMLElement; destroy: () => void } {
     const heading = document.createElement("h3"); heading.textContent = title;
     section.append(heading, ...rows); return section;
   };
-  panel.append(summary, help,
+  panel.append(summary,
     group("显示", openRow.row, lockRow.row, lineRow, pairRow.row, columnRow.row, shortcutRow, center),
     group("文字", fontRow, family, sizeRow.row, colorRow.row, highlightRow.row, opacityRow.row),
     group("效果", sweepRow.row, motionRow.row, waveRow.row, glowRow.row, motionLevelRow.row, backdropRow.row));

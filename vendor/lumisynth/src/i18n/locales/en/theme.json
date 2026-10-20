@@ -1,0 +1,98 @@
+{
+  "colors": {
+    "backgroundColor": {
+      "label": "Background",
+      "description": "Base color of the whole frame"
+    },
+    "primaryColor": {
+      "label": "Primary",
+      "description": "Lyric text and main graphics"
+    },
+    "accentColor": {
+      "label": "Accent",
+      "description": "Highlights, lit-up characters and light"
+    },
+    "secondaryColor": {
+      "label": "Secondary",
+      "description": "Supporting graphics, characters not yet sung"
+    }
+  },
+  "modes": {
+    "dark": "Dark",
+    "light": "Light"
+  },
+  "customLight": "Custom light",
+  "customDark": "Custom dark",
+  "colorSlots": "Color slots",
+  "recommended": "Suggested (cover & theme)",
+  "recommendedColor": "Suggested color {{color}}",
+  "details": {
+    "name": "Name",
+    "nameLabel": "{{mode}} theme name",
+    "description": "Mood description",
+    "descriptionLabel": "{{mode}} theme description",
+    "descriptionPlaceholder": "One sentence about how this song feels",
+    "hint": "The name appears in the theme group of the side bar; both names must be filled in before you can apply."
+  },
+  "content": {
+    "unknownIcon": "No icon with that name (use a lucide icon name, e.g. Moon, Flame, Umbrella)",
+    "wordColors": "Keyword colors",
+    "wordColorsHint": "When these words are sung, the text turns their color (used by Tempera and Lumiere; Lumiere can turn keyword coloring off in its settings).",
+    "add": "Add",
+    "noWords": "No keywords yet",
+    "wordColor": "Keyword color {{n}}",
+    "word": "Keyword {{n}}",
+    "wordPlaceholder": "A word from the lyrics",
+    "deleteWord": "Delete keyword {{n}}",
+    "icons": "Lyric icons",
+    "iconsHint": "lucide icon names, up to {{count}}. Lumiere draws them as line art; Sonnet uses them as decoration.",
+    "deleteIcon": "Delete icon {{name}}",
+    "iconName": "Icon name",
+    "iconPlaceholder": "e.g. Moon"
+  },
+  "view": {
+    "applied": "Theme applied: {{dark}} / {{light}}",
+    "title": "Theme editor",
+    "dirty": "Unapplied changes · the preview shows the draft ({{mode}})",
+    "current": "Project theme: {{name}} ({{source}}, {{mode}})",
+    "sources": {
+      "preset": "preset",
+      "ai": "AI generated",
+      "custom": "custom"
+    },
+    "randomHint": "Draw a random palette (dark and light change together, names too; keywords and icons stay). Nothing is written to the project until you click Apply",
+    "random": "Random colors",
+    "defaultsHint": "Reset the four colors to the default theme (name, description, keywords and icons stay)",
+    "defaults": "Default colors",
+    "discard": "Discard changes",
+    "applyHint": "Write to the project (undoable)",
+    "nameRequired": "Both the dark and the light theme need a name",
+    "apply": "Apply",
+    "tabs": {
+      "colors": "Colors",
+      "details": "Details",
+      "content": "Content",
+      "ai": "AI"
+    }
+  },
+  "ai": {
+    "generated": "AI theme added to the draft: {{dark}} / {{light}} (not applied yet)",
+    "copyFailed": "Copy failed: {{message}}",
+    "invalidJson": "Not a valid theme JSON (it needs both a light and a dark object)",
+    "generate": "Generate into the draft with AI",
+    "generateHint": "Generates a dark / light theme pair from the whole lyrics into the draft; check it in the preview before applying.",
+    "noProvider": "AI is not set up yet: choose a provider and enter a key in the AI side bar.",
+    "busy": "Generating…",
+    "run": "Generate",
+    "copyPrompt": "Copy prompt",
+    "copyPromptHint": "Paste it into any AI chat to get a theme JSON in the same format.",
+    "copied": "Copied",
+    "import": "Import JSON into the draft",
+    "importHint": "Plain JSON, a ```json code block, or output with explanations around it all work.",
+    "json": "Theme JSON",
+    "jsonPlaceholder": "Paste the JSON returned by the AI here",
+    "importButton": "Import into draft",
+    "export": "Export the current draft",
+    "copyJson": "Copy theme JSON"
+  }
+}

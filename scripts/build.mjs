@@ -1,4 +1,5 @@
 import { build } from "esbuild";
+import { existsSync } from "node:fs";
 import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -37,6 +38,37 @@ await build({
   external: [...nodeBundle.external, "NeteaseCloudMusicApi"],
 });
 
+const lumiSynthAlias = {
+  name: "lumisynth-source-alias",
+  setup(buildApi) {
+    buildApi.onResolve({ filter: /^@\// }, (args) => {
+      const basePath = path.resolve(root, "vendor/lumisynth/src", args.path.slice(2));
+      const candidates = [
+        basePath,
+        ...[".ts", ".tsx", ".js", ".mjs"].map(extension => `${basePath}${extension}`),
+        ...["index.ts", "index.tsx", "index.js"].map(file => path.join(basePath, file)),
+      ];
+      const resolved = candidates.find(candidate => existsSync(candidate));
+      return resolved ? { path: resolved } : null;
+    });
+  },
+};
+
+await build({
+  entryPoints: [path.join(root, "build/lumisynth/entry.ts")],
+  outfile: path.join(dist, "lyric-stage-engine.js"),
+  bundle: true,
+  platform: "browser",
+  format: "iife",
+  globalName: "TideLumiStageEngine",
+  target: "es2022",
+  // The stage always uses realtime playback; exact video decode is an unused
+  // export path that optionally imports mediabunny.
+  external: ["mediabunny"],
+  plugins: [lumiSynthAlias],
+  logLevel: "info",
+});
+
 await build({
   entryPoints: [path.join(root, "src/renderer/main.ts")],
   bundle: true,
@@ -64,6 +96,10 @@ await cp(path.join(root,"src/renderer/theme-preview.html"),path.join(dist,"theme
 await cp(path.join(root, "src/renderer/index.html"), path.join(dist, "index.html"));
 await cp(path.join(root, "src/renderer/styles.css"), path.join(dist, "styles.css"));
 await cp(path.join(root, "src/renderer/native-shell.css"), path.join(dist, "native-shell.css"));
+await cp(path.join(root, "src/renderer/desktop-redesign.css"), path.join(dist, "desktop-redesign.css"));
+await cp(path.join(root, "src/renderer/theme-defaults.css"), path.join(dist, "theme-defaults.css"));
+await cp(path.join(root, "src/renderer/desktop-lyric-stage.css"), path.join(dist, "desktop-lyric-stage.css"));
+await cp(path.join(root, "src/renderer/cover-halftone.css"), path.join(dist, "cover-halftone.css"));
 const systems = path.join(root, "src/renderer/vendor/design-systems");
 const cssFiles = {
   lens: ["lens/lab/design-system/tokens.css", "lens/lab/design-system/components.css"],
@@ -107,3 +143,10 @@ await cp(path.join(root,"src/renderer/mini.html"),path.join(dist,"mini.html"));
 await cp(path.join(root,"src/renderer/mini.css"),path.join(dist,"mini.css"));
 
 await cp(path.join(root,"NOTICE"),path.join(dist,"licenses/Tide-NOTICE.txt"));
+
+const lumiSynthLicenseDir = path.join(dist, "licenses/lumisynth");
+await mkdir(lumiSynthLicenseDir, { recursive: true });
+await cp(path.join(root, "vendor/lumisynth/LICENSE"), path.join(lumiSynthLicenseDir, "LICENSE"));
+await cp(path.join(root, "vendor/lumisynth/NOTICE.md"), path.join(lumiSynthLicenseDir, "NOTICE.md"));
+await cp(path.join(root, "vendor/lumisynth/manifest.json"), path.join(lumiSynthLicenseDir, "manifest.json"));
+await cp(path.join(root, "vendor/lumisynth/third-party"), path.join(lumiSynthLicenseDir, "third-party"), { recursive: true });

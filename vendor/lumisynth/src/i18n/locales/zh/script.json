@@ -1,0 +1,31 @@
+{
+  "labels": {
+    "script": "剧本",
+    "settings": "设置"
+  },
+  "names": {
+    "script": "剧本",
+    "settings": "设置"
+  },
+  "notApplied": "{{label}}没有应用：{{count}} 处错误",
+  "unchanged": "{{label}}没有修改",
+  "unchangedWithHints": "{{label}}没有修改（{{count}} 处提示）",
+  "applied": "{{label}}已应用：{{changes}}",
+  "appliedWithHints": "{{label}}已应用：{{changes}}（{{count}} 处提示，见「问题」面板）",
+  "changeSeparator": "；",
+  "imported": "已导入 {{file}} 到「{{target}}」：检查无误后按 Ctrl+S 或「应用」",
+  "applyHint": "应用{{name}}（Ctrl+S）",
+  "apply": "应用",
+  "reloadHint": "丢掉改动，载入当前工程的{{name}}",
+  "reload": "重新载入",
+  "dirtyStale": "已改动 · {{label}}已过期",
+  "dirty": "已改动",
+  "includeNative": "含各包原生数据",
+  "importHint": "导入剧本（.lumiscript）或设置（.json）",
+  "import": "导入",
+  "copy": "复制",
+  "copied": "已复制到剪贴板",
+  "download": "下载",
+  "staleWarning": "{{name}}载入之后工程在别处改过。仍然应用的话，{{name}}里写到的部分会盖掉那些改动。",
+  "applyAnyway": "仍然应用"
+}

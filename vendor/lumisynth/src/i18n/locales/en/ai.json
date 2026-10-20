@@ -1,0 +1,110 @@
+{
+  "providers": {
+    "gemini": "Google Gemini",
+    "openai": "OpenAI-compatible",
+    "anthropic": "Anthropic Claude"
+  },
+  "copiedLog": "Copied instruction for the agent: {{instruction}}",
+  "copyFailed": "Copy failed: the browser did not allow writing to the clipboard.",
+  "copied": "Copied — paste it to the agent",
+  "copy": "Copy instruction",
+  "errorLog": "AI: {{message}}",
+  "bridged": "An agent is connected (MCP). The buttons below now copy an instruction: paste it to the connected model and it fetches the same prompt the built-in AI uses, generates the result and writes it back to the project (undoable). No AI key needed.",
+  "noProvider": "Choose an AI provider and enter a key to use the features below; or connect your own agent in the Agent panel.",
+  "usingProvider": "Using {{provider}}: requests go straight from this browser, not through lumisynth's servers.",
+  "theme": {
+    "title": "Theme colors",
+    "hint": "Generates a dark + light theme from the mood of the lyrics and replaces the current theme (undoable).",
+    "done": "AI theme: {{dark}} / {{light}}",
+    "busy": "Generating…",
+    "run": "Generate theme"
+  },
+  "segment": {
+    "title": "Word segmentation",
+    "hint": "Let the AI split words by meaning (affects type hierarchy and how shots are cut). Each line must join back to the original text, otherwise that line keeps automatic segmentation.",
+    "keepManual": "Keep lines edited by hand",
+    "done_one": "AI segmentation: updated {{count}} line",
+    "done_other": "AI segmentation: updated {{count}} lines",
+    "busy": "Segmenting…",
+    "run": "AI segmentation"
+  },
+  "direct": {
+    "title": "Scene direction",
+    "clear": "Clear AI direction",
+    "hint": "The AI picks a style pack, energy, families and exit transition for every section. Sections and transitions you set by hand are kept; you can adjust the result section by section in the inspector.",
+    "done_one": "AI direction: {{count}} section. {{summary}}",
+    "done_other": "AI direction: {{count}} sections. {{summary}}",
+    "busy": "Directing…",
+    "run": "Direct the whole song",
+    "reapply": "Re-apply this direction"
+  },
+  "provider": {
+    "title": "AI provider",
+    "testing": "Testing…",
+    "ok": "{{name}} is reachable",
+    "none": "No AI",
+    "hints": {
+      "gemini": "Create a key in Google AI Studio.",
+      "openai": "OpenAI, DeepSeek, OpenRouter or a local Ollama / LM Studio. The service must allow cross-origin requests from the browser (for Ollama, set OLLAMA_ORIGINS).",
+      "anthropic": "Create a key in the Anthropic Console."
+    },
+    "key": "API key",
+    "keyRemembered": "Stored in this browser; never written to project files.",
+    "keySession": "Kept for this session only; forgotten when the tab closes.",
+    "keyOptional": "May be empty for local services",
+    "baseUrl": "Endpoint",
+    "baseUrlOptional": "Endpoint (optional)",
+    "model": "Model",
+    "temperature": "Temperature",
+    "default": "Default",
+    "remember": "Remember keys in this browser",
+    "test": "Test connection",
+    "forget": "Clear all keys"
+  },
+  "agent": {
+    "downloadDir": "<download folder>",
+    "copied": "Copied to the clipboard",
+    "connection": "Connection",
+    "status": {
+      "disconnected": "Not connected",
+      "connecting": "Connecting…",
+      "connected": "Connected",
+      "error": "Connection failed"
+    },
+    "connectedHint": "The agent can now read and change this project. Every change it makes is listed below and in Output, and can be undone.",
+    "disconnect": "Disconnect",
+    "port": "Port",
+    "code": "Pairing code",
+    "codePlaceholder": "6 characters, the agent tells you",
+    "connect": "Connect",
+    "firstTime": "First time",
+    "step1": "Download the local bridge <dl>{{file}}</dl> (needs Node.js 18 or newer, no other dependencies).",
+    "step2": "Add it to your agent as an MCP server, e.g. in Claude Code:",
+    "copyCommand": "Copy command",
+    "step3": "Ask the agent to call <code>lumisynth_connect</code>; it gives you a pairing code.",
+    "step4": "Enter the port and pairing code above and click Connect. The browser may ask whether to allow access to the local network.",
+    "afterConnect": "Once connected, the three buttons in the AI panel ({{buttons}}) turn into \"Copy instruction\": paste it to the agent and it generates the result with the same prompt as the built-in AI and writes it back, no separate AI key needed.",
+    "listSeparator": ", ",
+    "skill": "Script-writing skill",
+    "skillHint": "Teaches an agent to write LumiScript scripts (scene arrangement) and settings: syntax reference + workflow. Unzip it into the agent's skills folder (Claude Code: <code>~/.claude/skills/</code>). Agents not connected to this page can use it to write .lumiscript files that you import in the Script tab.",
+    "download": "Download {{file}}",
+    "tools": "Tools ({{count}})",
+    "writes": "writes",
+    "activity": "Recent activity"
+  },
+  "errors": {
+    "timeout": "{{label}} request timed out",
+    "unreachable": "Cannot reach {{label}} ({{host}}): the network is down, the address is wrong, or the service does not allow direct browser access (CORS).",
+    "openaiLabel": "OpenAI-compatible API",
+    "api": "{{label}} API error ({{status}})",
+    "apiDetail": "{{label}} API error ({{status}}): {{detail}}",
+    "empty": "The model returned nothing",
+    "emptyWithReason": "The model returned nothing ({{reason}})",
+    "failed": "AI request failed",
+    "invalidJson": "The model did not return valid JSON",
+    "notConfigured": "AI is not set up yet: choose a provider and enter a key in the AI side bar.",
+    "noParagraphs": "There are no sections to direct",
+    "tooManyParagraphs": "Too many sections",
+    "notJson": "The model answered, but not with the requested JSON"
+  }
+}

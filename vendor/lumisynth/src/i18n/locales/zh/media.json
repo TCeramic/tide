@@ -1,0 +1,226 @@
+{
+  "slots": {
+    "back": "场景之下",
+    "mid": "场景之上、歌词之下",
+    "front": "歌词之上",
+    "overlay": "最上层"
+  },
+  "timings": {
+    "song": "全曲",
+    "absolute": "绝对时间",
+    "lines": "歌词行",
+    "paragraph": "段落",
+    "shot": "镜头"
+  },
+  "sources": {
+    "theme": "主题色",
+    "gradient": "渐变",
+    "cover": "封面",
+    "image": "图片",
+    "video": "视频"
+  },
+  "menu": {
+    "slot": "层级：{{slot}}",
+    "followShot": "跟随播放头所在的镜头",
+    "followParagraph": "跟随播放头所在的段落",
+    "detach": "改为绝对时间",
+    "jumpToStart": "跳到开头",
+    "duplicate": "复制",
+    "delete": "删除",
+    "raise": "上移一层（盖住后面的）",
+    "lower": "下移一层"
+  },
+  "assetDeleted": "（素材已删除）",
+  "backgroundFile": "{{name}}（{{source}}）",
+  "follows": "跟随：{{timing}}",
+  "clip": {
+    "deleted": "这个素材片段已经删除了。",
+    "title": "素材片段",
+    "assetMissing": "（素材库里已没有这个素材）",
+    "hidden": "没有显示：挂载点已不存在",
+    "timing": "时间",
+    "followParagraph": "跟随所在段落",
+    "lead": "提前出现（秒）",
+    "tail": "延后消失（秒）",
+    "look": "画面",
+    "slot": "层级",
+    "slotBackHint": "凝彩的大色块、封面背景等不透明的场景会把它盖住。",
+    "slotMidHint": "盖在场景的图形上、被歌词盖住（凝彩的歌词反色会读到它）；镜头之间和段落转场的那一瞬间会先放到场景之上，不会闪。",
+    "position": "位置（也可以在预览上拖动）",
+    "size": "大小（高度占画面）",
+    "rotation": "旋转",
+    "opacity": "不透明度",
+    "flip": "水平翻转",
+    "blend": "混合",
+    "follow": "跟随运镜",
+    "followMode": "方式",
+    "followAmount": "跟随程度",
+    "followAmountHint": "1 表示和歌词一起动；小一些像是离得更远的背景。",
+    "animation": "动画",
+    "enter": "入场",
+    "exit": "退场",
+    "enterDuration": "入场时长",
+    "exitDuration": "退场时长"
+  },
+  "blends": {
+    "normal": "正常",
+    "add": "相加",
+    "multiply": "正片叠底",
+    "screen": "滤色"
+  },
+  "animations": {
+    "none": "无",
+    "fade": "淡入淡出",
+    "slide-up": "从下方",
+    "slide-down": "从上方",
+    "slide-left": "从右侧",
+    "slide-right": "从左侧",
+    "zoom": "缩放",
+    "rush-left": "从右侧冲入",
+    "rush-right": "从左侧冲入",
+    "pop": "弹出"
+  },
+  "motions": {
+    "none": "不动",
+    "float": "漂浮",
+    "drift": "横移",
+    "push": "推近",
+    "sway": "摇摆"
+  },
+  "motionHints": {
+    "none": "显示期间一直在动的路径动画（带缓动的贝塞尔曲线）。镜头不怎么动的场景（比如绘光）里很有用。",
+    "float": "沿一段弧线上下往返，两端自然停顿。",
+    "drift": "整段时间沿平缓的 S 形曲线往画面中间滑过去，起停都放缓。",
+    "push": "缓慢放大、微微上移，像镜头往前推。",
+    "sway": "带一点旋转的来回摆动。"
+  },
+  "motion": {
+    "title": "持续运动",
+    "amount": "幅度"
+  },
+  "effects": {
+    "none": "无",
+    "echo": "重影扩张",
+    "glow": "外发光",
+    "shadow": "投影剪影"
+  },
+  "effectHints": {
+    "echo": "和图片同形状的剪影一圈圈向外扩张、淡出，循环（ADV 立绘 PV 常见的效果）。",
+    "glow": "图片轮廓外的一圈柔光。",
+    "shadow": "同形状的纯色剪影偏在右下，像贴纸的投影。"
+  },
+  "effectSizes": {
+    "echo": "扩张幅度",
+    "glow": "光晕半径",
+    "shadow": "偏移"
+  },
+  "effect": {
+    "title": "效果",
+    "type": "类型",
+    "color": "颜色",
+    "colorLabel": "效果颜色",
+    "strength": "强度",
+    "period": "节奏（一轮的秒数）"
+  },
+  "followModes": {
+    "off": "不跟随",
+    "scene": "贴在场景上",
+    "motion": "只跟随运动"
+  },
+  "followHints": {
+    "off": "固定在画面上，不随镜头移动。",
+    "scene": "和场景里的东西一样随镜头推拉、平移、旋转；切镜头时跟着跳。位置、大小是没有运镜时的值。",
+    "motion": "只跟随镜头内的推拉、漂移、呼吸，每个镜头从原位重新开始，不会跳。"
+  },
+  "background": {
+    "deleted": "这个背景片段已经删除了。",
+    "title": "背景片段",
+    "hidden": "没有显示：挂载点或素材已不存在",
+    "raise": "上移一层",
+    "stacking": "片段叠在「默认背景」之上，片段之间的空档露出默认背景；后面的片段盖住前面的。",
+    "source": "来源",
+    "sourceLabel": "背景来源",
+    "noImages": "（素材库里没有图片）",
+    "noVideos": "（素材库里没有视频）",
+    "gradientFrom": "渐变起点",
+    "gradientTo": "渐变终点",
+    "asset": "素材",
+    "videoOffset": "从视频的第几秒开始",
+    "loop": "循环播放",
+    "videoNote": "视频的声音不会进成片。导出时逐帧解码，画面与时间严格对应。",
+    "fadeIn": "淡入（秒）",
+    "fadeOut": "淡出（秒）",
+    "fit": "铺满方式",
+    "fitCover": "铺满（裁切）",
+    "fitContain": "完整显示",
+    "kenBurns": "缓慢推近",
+    "blur": "模糊",
+    "dim": "压暗"
+  },
+  "backgroundTrack": {
+    "title": "背景轨",
+    "empty": "还没有背景片段：整首歌都用上面的默认背景。可以按段落换成渐变、图片或视频。",
+    "addParagraph": "当前段落换背景",
+    "hint": "图片、视频先放进「素材库」，也可以在素材库的卡片上右键「设为背景」。"
+  },
+  "handles": {
+    "scale": "缩放"
+  },
+  "autoArrange": {
+    "coverage": "放在哪些镜头",
+    "coverageAll": "每个镜头",
+    "coverageHighlights": "副歌、上扬与间奏",
+    "probability": "放图的概率",
+    "probabilityHint": "每个镜头放图的机会；同一份编排重新编排结果不变，调低只会去掉一些。",
+    "variety": "构图变化",
+    "varietyHint": "0 = 固定位置；越高越常换远近、偏移与倾斜不同的构图。按镜头抽签，重新编排结果不变。",
+    "slotLabel": "自动编排的层级",
+    "motionHint": "带缓动的路径动画；镜头不怎么动的场景（比如绘光）里图不会完全静止。",
+    "effectLabel": "自动编排的效果",
+    "arrange": "自动编排（{{images}}）",
+    "rearrange": "重新编排（{{images}}）",
+    "selectedImages": "选中的 {{count}} 张",
+    "allImages": "全部 {{count}} 张",
+    "clear": "删掉自动编排的 {{count}} 个片段（自己摆的不动）",
+    "explain": "以镜头为单位轮流放图，切镜头时图跟着换：立绘大体左右交替、从所在的一侧滑入，横图多放中间；构图按变化度在远近、偏移、倾斜之间变换。",
+    "existing": "现在有 {{count}} 个自动编排的片段；重新编排只替换它们，自己摆的不动。",
+    "afterwards": "放好之后每个片段都可以单独调整。",
+    "placed": "自动编排：{{images}}放进了 {{count}} 个镜头",
+    "imageCount": "{{count}} 张图",
+    "noImages": "自动编排：素材库里还没有图片",
+    "noShots": "自动编排：没有合适的镜头（先放歌词）"
+  },
+  "library": {
+    "placed": "已把「{{name}}」放到画面上",
+    "placedFollowing": "已把「{{name}}」放到画面上（跟随当前镜头）",
+    "importFailed": "「{{name}}」没有导入：{{message}}",
+    "imported": "已加入素材库：{{name}}",
+    "importedMany": "已加入素材库：{{count}} 个文件",
+    "importedSomeFailed": "已加入素材库：{{count}} 个文件（{{failed}} 个失败）",
+    "place": "放到画面上（播放头处）",
+    "placeNamed": "放到画面上：{{name}}",
+    "temperaAuto": "允许{{pack}}自动取用",
+    "temperaAutoHint": "允许{{pack}}按镜头自动取用这张图",
+    "setBackgroundParagraph": "设为背景：播放头所在的段落",
+    "setBackgroundSong": "设为背景：全曲",
+    "setBackgroundNamed": "设为背景：{{name}}",
+    "setBackgroundHint": "设为播放头所在段落的背景",
+    "rename": "重命名",
+    "delete": "从素材库删除",
+    "deleteWithClips": "从素材库删除（连同画面上的片段）",
+    "deleteNamed": "删除：{{name}}",
+    "drop": "松开以加入素材库",
+    "add": "添加图片或视频（可多选）",
+    "autoArrange": "自动编排到画面上",
+    "placedCount": "已放 {{count}} 处",
+    "selected": "已选 {{count}} 个",
+    "selectAll": "全选",
+    "selectNone": "取消",
+    "deleteSelected": "删除选中",
+    "hint": "图片可以摆到画面上：在背景之上、场景之下 / 场景之上 / 最上层三种层级，时间可以跟着镜头、段落或歌词行走。带透明的 png 效果最好。视频只能用作背景（右键「设为背景」）。",
+    "empty": "素材库是空的",
+    "select": "选择：{{name}}",
+    "videoBadge": "视频 · 背景",
+    "usedCount": "画面上 {{count}} 处"
+  }
+}

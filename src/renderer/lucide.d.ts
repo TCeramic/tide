@@ -9,6 +9,9 @@ declare module "lucide" {
 
   export const ChevronDown: IconNode;
   export const ChevronLeft: IconNode;
+  export const ChevronRight: IconNode;
+  export const BookmarkPlus: IconNode;
+  export const Share2: IconNode;
   export const ChevronUp: IconNode;
   export const Compass: IconNode;
   export const Grid3x3: IconNode;

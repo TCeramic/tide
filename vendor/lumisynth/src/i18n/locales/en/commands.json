@@ -1,0 +1,120 @@
+{
+  "categories": {
+    "project": "Project",
+    "file": "File",
+    "song": "Song",
+    "script": "Script",
+    "edit": "Edit",
+    "arrange": "Arrange",
+    "look": "Look",
+    "view": "View",
+    "playback": "Playback"
+  },
+  "menus": {
+    "file": "File",
+    "edit": "Edit",
+    "arrange": "Arrange",
+    "view": "View",
+    "playback": "Playback"
+  },
+  "groups": {
+    "song": "Song",
+    "script": "Script",
+    "project": "Project",
+    "wholeSong": "Whole song",
+    "look": "Look",
+    "sideBar": "Side bar",
+    "editor": "Editor",
+    "panel": "Bottom panel",
+    "layout": "Layout"
+  },
+  "titles": {
+    "project": {
+      "wizard": "Quick Start Wizard…",
+      "new": "New Blank Project",
+      "open": "Open Project…",
+      "save": "Save to This Device",
+      "import": "Open Project File (.lumi)…",
+      "export": "Export Project File (.lumi)…"
+    },
+    "export": {
+      "video": "Export Video…"
+    },
+    "input": {
+      "audio": "Import Audio…",
+      "lyrics": "Import Lyrics File…",
+      "translation": "Import Translation File…",
+      "cover": "Import Cover Image…"
+    },
+    "script": {
+      "import": "Import Script or Settings (.lumiscript / .json)…",
+      "export": "Export Script (.lumiscript)…"
+    },
+    "edit": {
+      "undo": "Undo",
+      "redo": "Redo",
+      "redoAlt": "Redo (Ctrl+Y)"
+    },
+    "arrange": {
+      "reseed": "Re-roll Arrangement (New Seed)",
+      "mix": "Mix Style Packs by Section Type",
+      "packUse": "Use {{pack}} for the Whole Song",
+      "shotStyle": "Selected Shot: Change Style…",
+      "shotTypography": "Selected Shot: Change Typography…",
+      "shotAccent": "Selected Shot: Change Accent…",
+      "paragraphPack": "Selected Section: Change Style Pack…",
+      "paragraphTransition": "Selected Section: Change Exit Transition…"
+    },
+    "selection": {
+      "clear": "Clear Selection"
+    },
+    "clip": {
+      "delete": "Delete Selected Clip"
+    },
+    "look": {
+      "toggleVariant": "Toggle Dark / Light Colors"
+    },
+    "workbench": {
+      "commandPalette": "Command Palette (Search All Commands)…",
+      "commandPaletteF1": "Command Palette (F1)",
+      "toggleSideBar": "Show / Hide Side Bar",
+      "togglePanel": "Show / Hide Bottom Panel",
+      "toggleAuxBar": "Show / Hide Inspector",
+      "language": "Display Language…"
+    },
+    "view": {
+      "assets": "Song: Audio, Lyrics, Cover",
+      "look": "Look & Arrangement Settings",
+      "assetLibrary": "Media Library: Images & Videos",
+      "library": "Style Library",
+      "ai": "AI Assistant",
+      "libraryEditor": "Style Library (Large)",
+      "libraryEditorSplit": "Style Library Beside Preview",
+      "script": "Script: Edit the Arrangement as Text",
+      "lyrics": "Lyrics: Text & Word Timing",
+      "themePark": "Theme Editor: Colors, Keywords, Icons",
+      "settings": "Settings…",
+      "storyboard": "Storyboard: Sections, Types & Packs",
+      "outline": "Outline: Sections & Shots",
+      "agent": "Connect an Agent (MCP)",
+      "layoutMobile": "Switch to Phone Layout",
+      "layoutDesktop": "Switch to Desktop Layout",
+      "layoutAuto": "Layout Follows Device",
+      "timeline": "Timeline",
+      "problems": "Problems",
+      "output": "Output",
+      "previewFullscreen": "Fullscreen Preview"
+    },
+    "playback": {
+      "toggle": "Play / Pause",
+      "start": "Go to Start",
+      "back": "Back 5 Seconds",
+      "forward": "Forward 5 Seconds",
+      "backFine": "Back 1 Frame",
+      "forwardFine": "Forward 1 Frame",
+      "toggleMute": "Mute / Unmute Preview"
+    }
+  },
+  "saved": "Project saved to this device",
+  "languagePlaceholder": "Choose display language"
+}

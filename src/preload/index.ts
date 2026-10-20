@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 import type { AudioLevel } from "../core/audio-level";
+import type { PlaylistSummary } from "../shared/contract";
 import type { DeskLyricsSettings } from "../core/desk-lyrics";
 import { mediaKeyMode, type MediaShortcutMap } from "../core/media-keys";
 import { Ipc, type ApiFailure, type Appearance, type DeskCue, type HealthStatus, type LyricLine, type LyricPayload, type MediaCue, type PlaybackBusEvent, type PlaybackSnapshot, type QrCheck, type QrTicket, type QueueRequest, type SearchHit, type SearchResult, type SessionSnapshot, type TideBridge, type TideToday, type Track, type YrcLine } from "../shared/contract";
@@ -93,6 +94,7 @@ const tide: TideBridge = {
   onNotice: (listener) => listen<string>(Ipc.notice, listener),
   playlistTracks: (id, offset) => ipcRenderer.invoke(Ipc.playlistTracks, id, offset) as Promise<SearchResult | ApiFailure>,
   dailyRecommend: () => ipcRenderer.invoke(Ipc.daily) as Promise<SearchResult | ApiFailure>,
+  recommendPlaylists: () => ipcRenderer.invoke(Ipc.recommendPlaylists) as Promise<ApiFailure | { ok: true; playlists: PlaylistSummary[] }>,
   radar: () => ipcRenderer.invoke(Ipc.radar) as Promise<SearchResult | ApiFailure>,
   tideToday: (refresh) => ipcRenderer.invoke(Ipc.tideToday, refresh) as Promise<TideToday | ApiFailure>,
   playHits: (hits, index, source) => ipcRenderer.invoke(Ipc.playHits, hits, index, source) as Promise<PlaybackSnapshot>,

@@ -1,0 +1,47 @@
+{
+  "lyricReasons": {
+    "line-missing": "The line no longer exists",
+    "text-changed": "The original text of this line changed in the lyrics file (the file was replaced)",
+    "invalid-segmentation": "The word segmentation does not spell the original text"
+  },
+  "opReasons": {
+    "anchor-missing": "The shot or section it was attached to no longer exists (lyrics, sections or seed changed)",
+    "style-unknown": "The style does not exist",
+    "transition-unknown": "The transition does not exist",
+    "pack-mismatch": "The style belongs to another pack and shot mixing is off for this section",
+    "component-unknown": "This shot's pack has no such component or option (the pack or style may have changed)"
+  },
+  "shotStyle": "The style lock of the shot at line {{n}} ({{style}}) no longer applies",
+  "shotComponent": "The component setting of the shot at line {{n}} ({{slot}} = {{value}}) no longer applies",
+  "transition": "The transition setting of the section starting at line {{n}} no longer applies",
+  "direction": "The arrangement setting of the section starting at line {{n}} no longer applies",
+  "directionDetail": "The line no longer exists, its text changed, or it no longer starts a section",
+  "kind": "The type setting of the section starting at line {{n}} no longer applies",
+  "split": "The manual split at line {{n}} no longer applies",
+  "merge": "The manual merge at line {{n}} no longer applies",
+  "structureReasons": {
+    "lineMissing": "The line no longer exists or its text changed",
+    "firstLine": "The first line always starts a section",
+    "notStart": "This line no longer starts a section"
+  },
+  "clip": "Clip \"{{name}}\" is not shown",
+  "clipAssetMissing": "The media is no longer in the library",
+  "clipAnchorMissing": "The lyric lines / section / shot it was attached to no longer exist (you can switch it to a fixed time)",
+  "background": "A background clip is not shown",
+  "backgroundAssetMissing": "Its image or video is no longer in the library",
+  "backgroundAnchorMissing": "The section it follows no longer exists (you can switch it to the whole song or a fixed time)",
+  "scriptDiagnostic": "Script line {{line}} {{code}}: {{message}}",
+  "settingsDiagnostic": "Settings line {{line}} {{code}}: {{message}}",
+  "notApplied": "not applied",
+  "hint": "hint",
+  "detailSeparator": "; ",
+  "ignore": "Ignore",
+  "lyricEdit": "The lyric edit of line {{n}} no longer applies",
+  "segmentation": "The manual segmentation of line {{n}} no longer applies",
+  "segmentationStale": "After the text edit the segmentation no longer spells the new text (automatic segmentation is used for now)",
+  "useAutoSegmentation": "Use automatic segmentation",
+  "autoRepair": "Repair automatically",
+  "editManually": "Edit manually",
+  "none": "No problems.",
+  "remove": "Remove this edit"
+}

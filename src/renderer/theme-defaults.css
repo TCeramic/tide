@@ -1,0 +1,7 @@
+/* Default artwork is also sampled by the native glass scene painter. */
+html:not([data-mobile="true"])[data-background="paper"][data-shell="lens"] #stage{background:url("./assets/theme-lens-default.png") center/cover no-repeat;}
+html:not([data-mobile="true"])[data-background="paper"][data-shell="lattice"] #stage{background:url("./assets/theme-lattice-default.png") center/cover no-repeat;}
+html:not([data-mobile="true"])[data-background="paper"][data-shell="lattice"][data-color-mode="light"] #stage{background:url("./assets/theme-lattice-light.jpg") center/cover no-repeat;}
+html:not([data-mobile="true"])[data-shell="lattice"] .native-set-control{max-width:42%;gap:10px;pointer-events:none;min-height:28px;z-index:2;}
+html:not([data-mobile="true"])[data-shell="lattice"] .native-set-caption{display:block;font:10px/1.25 monospace;letter-spacing:.1em;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+html:not([data-mobile="true"])[data-lyric-stage]:not([data-lyric-stage="regular"]):not([data-lyric-stage="none"]):not([data-lyric-stage=""]) :is(.native-point-field,.native-point-hero,.native-set-control,.liquid-metal-emblem){display:none!important;}

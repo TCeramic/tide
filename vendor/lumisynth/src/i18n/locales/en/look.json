@@ -1,0 +1,96 @@
+{
+  "groups": {
+    "frame": "Frame",
+    "theme": "Theme",
+    "fonts": "Fonts",
+    "background": "Background & post-processing",
+    "motion": "Motion & transitions",
+    "structure": "Automatic sections"
+  },
+  "frame": {
+    "aspect": "Aspect ratio",
+    "seedHint": "The same lyrics and seed always produce the same video.",
+    "reseed": "Try another seed"
+  },
+  "theme": {
+    "dark": "Dark",
+    "light": "Light",
+    "random": "Random colors",
+    "randomHint": "Draw a random palette (dark and light change together; keyword colors and icons stay)",
+    "sourceAi": " (AI generated)",
+    "sourceCustom": " (customized)",
+    "colors": {
+      "backgroundColor": "Background",
+      "primaryColor": "Primary",
+      "accentColor": "Accent",
+      "secondaryColor": "Secondary"
+    },
+    "intensity": "Energy",
+    "calm": "Calm",
+    "normal": "Normal",
+    "chaotic": "Intense",
+    "openEditorHint": "Color picker, suggestions, name and description, keyword colors, lyric icons, AI generation (Ctrl+Shift+H)",
+    "openEditor": "Open theme editor"
+  },
+  "background": {
+    "default": "Default background",
+    "theme": "Theme color {{color}}",
+    "cover": "Cover",
+    "coverBlur": "Cover blur",
+    "coverDim": "Cover dim",
+    "postProcess": "Post-processing"
+  },
+  "postProcess": {
+    "grain": "Grain",
+    "contrast": "Contrast",
+    "rgbShift": "RGB shift",
+    "halftone": "Halftone",
+    "vignette": "Vignette",
+    "lensDistortion": "Lens distortion",
+    "lensDispersion": "Dispersion"
+  },
+  "motion": {
+    "transitions": "Section transitions",
+    "camera": "Camera strength (shared by all packs)",
+    "typography": "Text motion (shared by all packs)"
+  },
+  "packNoSettings": "This style pack has no adjustable settings.",
+  "structure": {
+    "maxLines": "Max lines per section",
+    "maxDuration": "Max seconds per section",
+    "gapMultiplier": "Gap multiplier",
+    "gapMultiplierHint": "How many times the median gap between lines counts as a section boundary.",
+    "recursiveSplit": "Split long sections recursively",
+    "shotParamsHint": "Shot-splitting parameters are in each style pack's group.",
+    "resetAll": "Reset all to defaults"
+  },
+  "fonts": {
+    "families": "Font families",
+    "familiesHint": "Tried in order, ending with the base font above. Type the name of an installed font, or upload a font file.",
+    "moveUp": "Move {{family}} up",
+    "remove": "Remove {{family}}",
+    "add": "Add font family",
+    "addPlaceholder": "Type a font name and press Enter (separate several with commas)",
+    "local": "Choose from installed fonts…",
+    "localSearch": "Search installed fonts",
+    "localSearchPlaceholder_one": "Search {{count}} installed font",
+    "localSearchPlaceholder_other": "Search {{count}} installed fonts",
+    "localClose": "Close installed font list",
+    "base": "Base font",
+    "sans": "Sans",
+    "serif": "Serif",
+    "mono": "Mono",
+    "autoWeight": "Weight follows the style",
+    "weight": "Weight",
+    "weightHint": "If the font lacks this weight, the browser can only synthesize bold or fall back to the nearest weight.",
+    "size": "Size",
+    "lyrics": "Lyrics",
+    "subtitles": "Subtitles (translation / romanization)",
+    "inherit": "Same as lyrics",
+    "uploaded": "Uploaded fonts",
+    "deleteUploaded": "Delete font {{family}}",
+    "added": "Font added: {{family}}",
+    "upload": "Upload font file (ttf / otf / woff2)",
+    "uploadHint": "Uploaded fonts are stored in the project (and packed into .lumi), so they work on any computer."
+  }
+}

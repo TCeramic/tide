@@ -45,6 +45,7 @@ let latestPlayback: PlaybackSnapshot | null = null;
 let hiddenTrackId: string | null = null;
 function showPlayback(snapshot: PlaybackSnapshot): void {
   latestPlayback = snapshot;
+  library.observePlayback(snapshot);
   if (!isRenderingActive()) {
     const track = snapshot.queue[snapshot.index] ?? null;
     if (track?.id !== hiddenTrackId) { hiddenTrackId = track?.id ?? null; lyricsLayer.setTrack(track); }
@@ -140,19 +141,28 @@ let desiredAppearance: Appearance | null = null;
 let sceneLast=0;
 let appearanceGeneration=0, revealFrame=0, revealPreview:HTMLIFrameElement|null=null;
 let stopReveal=()=>{};
-function clearThemeReveal(){cancelAnimationFrame(revealFrame);revealFrame=0;stopReveal();stopReveal=()=>{};revealPreview?.remove();revealPreview=null;delete document.documentElement.dataset.themeTransition;}
+let stopStageMirror=()=>{};
+function clearThemeReveal(){cancelAnimationFrame(revealFrame);revealFrame=0;stopStageMirror();stopStageMirror=()=>{};stopReveal();stopReveal=()=>{};revealPreview?.remove();revealPreview=null;delete document.documentElement.dataset.themeTransition;}
 async function applyAppearance(appearance:Appearance):Promise<void>{
  const prior=desiredAppearance;desiredAppearance=appearance;const generation=++appearanceGeneration;
  const mode=(a:Appearance)=>a.shell==="lattice"?a.latticeMode??"dark":a.lensMode??"light";
  const changed=prior&&(prior.shell!==appearance.shell||mode(prior)!==mode(appearance));
  clearThemeReveal();
  if(!changed||appearance.performance==="smooth"||!appearance.motion||!isRenderingActive()||matchMedia('(prefers-reduced-motion: reduce)').matches){commitAppearance(appearance);nativeShell.ready();return;}
+ const stageFrame = await lyricsLayer.captureStageFrame();
+ if(generation!==appearanceGeneration)return;
  const preview=document.createElement('iframe');preview.className='theme-reveal-frame';preview.title='主题切换';preview.setAttribute('aria-hidden','true');preview.tabIndex=-1;preview.style.maskImage='radial-gradient(circle at 0px 0px, #000 0px, transparent 1px)' ;
  document.querySelectorAll('.module-exit').forEach(el=>el.remove());for(const animation of document.getAnimations()){const target=(animation.effect as KeyframeEffect|null)?.target;if(target instanceof Element&&target.matches('.home-card,.home-grid,.corner-panel,.browse-sheet,.lyrics-block'))animation.cancel();}tagThemeScene();document.documentElement.dataset.themeTransition='true';
  const token=crypto.randomUUID();let timer=0;
  const loaded=new Promise<void>((resolve,reject)=>{const message=(event:MessageEvent)=>{if(event.source===preview.contentWindow&&event.data?.token===token&&event.data.type==='tide:preview-ready'){clearTimeout(timer);resolve();}};window.addEventListener('message',message);stopReveal=()=>{clearTimeout(timer);window.removeEventListener('message',message);reject(new Error('cancelled'));};timer=window.setTimeout(()=>reject(new Error('preview timeout')),3500);});
- preview.onload=()=>preview.contentWindow?.postMessage({type:'tide:preview-init',token,appearance,html:document.body.innerHTML,attributes:Object.fromEntries(Array.from(document.documentElement.attributes).map(a=>[a.name,a.value])),style:document.documentElement.style.cssText,state:nativeShell.visualState(),scene:themeSceneState(),font:document.querySelector("#tide-font-face")?.outerHTML??""},'*');
+ preview.onload=()=>preview.contentWindow?.postMessage({type:'tide:preview-init',token,appearance,html:document.body.innerHTML,attributes:Object.fromEntries(Array.from(document.documentElement.attributes).map(a=>[a.name,a.value])),style:document.documentElement.style.cssText,state:nativeShell.visualState(),scene:themeSceneState(),font:document.querySelector("#tide-font-face")?.outerHTML??"",stageFrame},'*');
  preview.src='./theme-preview.html';revealPreview=preview;document.body.append(preview);
+ const forwardStageFrame=(event:Event)=>{
+  if(preview!==revealPreview)return;
+  try{preview.contentWindow?.dispatchEvent(new CustomEvent('tide:lyric-stage-frame',{detail:(event as CustomEvent).detail}));}catch{/* The initial captured frame remains available until the iframe is ready. */}
+ };
+ window.addEventListener('tide:lyric-stage-frame',forwardStageFrame);
+ stopStageMirror=()=>window.removeEventListener('tide:lyric-stage-frame',forwardStageFrame);
  try{await loaded;}catch{if(generation===appearanceGeneration){clearThemeReveal();commitAppearance(appearance);nativeShell.ready();}return;}
  if(generation!==appearanceGeneration)return;
  const start=performance.now(),duration=appearance.performance==='vivid'?1800:1500;
@@ -184,7 +194,10 @@ applyAppearance({
   fontFamily: "",
 });
 void window.tide.backdropUrl().then((url) => {
-  if (url) document.documentElement.style.setProperty("--tide-image", `url("${url}")`);
+  if (url) {
+    document.documentElement.style.setProperty("--tide-image", `url("${url}")`);
+    window.dispatchEvent(new CustomEvent("tide:backdrop", { detail: { url } }));
+  }
 });
 window.tide.onAppearance(applyAppearance);
 

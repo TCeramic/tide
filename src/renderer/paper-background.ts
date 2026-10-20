@@ -15,13 +15,19 @@ uniform sampler2D u_cover;
 uniform float u_coverAspectRatio;
 uniform sampler2D u_previousCover;
 uniform float u_previousCoverAspectRatio;
-uniform float u_coverFade;`).replace('vec2 uv = v_objectUV;',`vec2 uv = v_objectUV;
+uniform float u_coverFade;
+uniform sampler2D u_environment;
+uniform float u_environmentAspectRatio;
+uniform float u_environmentMix;
+uniform float u_bitStyle;
+uniform float u_lightMode;`).replace('vec2 uv = v_objectUV;',`vec2 uv = v_objectUV;
+  if(u_bitStyle>.5) uv=floor(uv*160.)/160.;
   vec2 tideCenter=uv-vec2(.1,-.08);
   float tideFalloff=exp(-dot(tideCenter,tideCenter)*2.8);
   uv+=u_beat*mix(.055,.008,u_coverMix)*tideFalloff*vec2(sin(uv.y*5.+u_time*.3),cos(uv.x*4.-u_time*.25));
 `).replace('fragColor = vec4(color, opacity);',`
   if (u_coverMix > 0.) {
-    vec2 screenUV=gl_FragCoord.xy/u_resolution;
+    vec2 screenUV=(u_bitStyle>.5?(floor(gl_FragCoord.xy/(4.*u_pixelRatio))+.5)*(4.*u_pixelRatio):gl_FragCoord.xy)/u_resolution;
     screenUV.y=1.-screenUV.y;
     float viewAspect=u_resolution.x/u_resolution.y;
     vec2 coverUV=(screenUV-.5)*vec2(min(1.,viewAspect/u_coverAspectRatio),min(1.,u_coverAspectRatio/viewAspect))+.5;
@@ -29,6 +35,14 @@ uniform float u_coverFade;`).replace('vec2 uv = v_objectUV;',`vec2 uv = v_object
     vec3 art=mix(texture(u_previousCover,oldUV).rgb,texture(u_cover,coverUV).rgb,u_coverFade);
     float tone=dot(art,vec3(.2126,.7152,.0722));
     color=mix(color,art*.35+color*(.32+tone*1.05),u_coverMix);
+  }
+  if(u_environmentMix>0.){
+    vec2 screenUV=(u_bitStyle>.5?(floor(gl_FragCoord.xy/(4.*u_pixelRatio))+.5)*(4.*u_pixelRatio):gl_FragCoord.xy)/u_resolution;screenUV.y=1.-screenUV.y;
+    float aspect=u_resolution.x/u_resolution.y;
+    vec2 envUV=(screenUV-.5)*vec2(min(1.,aspect/u_environmentAspectRatio),min(1.,u_environmentAspectRatio/aspect))+.5;
+    vec3 environment=texture(u_environment,envUV).rgb;
+    if(u_bitStyle>.5){float lum=dot(environment,vec3(.2126,.7152,.0722));environment=mix(environment,mix(vec3(.68,.81,.94),vec3(.035,.16,.3),1.-lum),u_lightMode*.7);}
+    color=mix(color,environment,u_environmentMix);
   }
   float luminance=dot(color,vec3(.2126,.7152,.0722));
   vec2 cell=fract(gl_FragCoord.xy/max(2.,5.*u_pixelRatio))-.5;
@@ -40,7 +54,16 @@ uniform float u_coverFade;`).replace('vec2 uv = v_objectUV;',`vec2 uv = v_object
   float tideDotRadius=mix(.10,.40,clamp(luminance*1.1,0.,1.));
   float dotMask=1.-smoothstep(tideDotRadius-.06,tideDotRadius+.02,length(cell));
   color=mix(color,color*mix(.6,1.22,dotMask),coverage*u_pixels);
-  if(u_coverMix>.5){
+  if(u_bitStyle>.5){
+    vec2 px=floor(gl_FragCoord.xy/max(2.,4.*u_pixelRatio));
+    vec2 low=mod(px,2.),high=mod(floor(px/2.),2.);
+    float threshold=(4.*mod(2.*low.x+3.*low.y,4.)+mod(2.*high.x+3.*high.y,4.)+.5)/16.;
+    float tone=clamp(dot(color,vec3(.2126,.7152,.0722)),0.,1.);
+    float level=floor(tone*5.+threshold)/5.;
+    vec3 shadow=mix(vec3(.055,.022,.01),vec3(.035,.13,.27),u_lightMode);
+    vec3 highlight=mix(vec3(1.,.48,.13),vec3(.80,.91,1.),u_lightMode);
+    color=mix(shadow,highlight,level);
+  }else if(u_coverMix>.5){
     vec2 pixel=floor(gl_FragCoord.xy/max(1.,2.*u_pixelRatio));
     vec2 lo=mod(pixel,2.),hi=mod(floor(pixel/2.),2.);
     float threshold=(4.*mod(2.*lo.x+3.*lo.y,4.)+mod(2.*hi.x+3.*hi.y,4.)+.5)/16.;
@@ -58,12 +81,48 @@ export function mountPaperBackground(root: HTMLElement, invalidate: () => void) 
   let colors = ["#101a27", "#427d92", "#ad91af", "#23394b"];
   const fallback=new Image();fallback.src='./assets/today-tide.png';
   let cover=fallback,previousCover=fallback,coverFade=1,coverStart=0,coverRequest=0,beat=0,bass=0;
-  const isPaper=(value:Appearance|null)=>value?.background==='paper'||value?.background==='pixel-cover';
+  const environments={lens:new Image(),lattice:new Image(),latticeLight:new Image()};
+  environments.lens.src='./assets/theme-lens-default.png';environments.lattice.src='./assets/theme-lattice-default.png';
+  // The lattice backdrop is a night-sky photograph. Light mode uses a paper-toned
+  // derivative (inverted tone curve, same dot structure) so the light theme is actually
+  // light instead of a dark photo under pale cards. Dark mode keeps the original file.
+  environments.latticeLight.src='./assets/theme-lattice-light.jpg';
+  const ready=(image:HTMLImageElement)=>image.complete&&image.naturalWidth>0?image:null;
+  const environment=()=>{const light=current?.shell==='lattice'&&current?.latticeMode==='light';
+    return (light?ready(environments.latticeLight):null)
+      ?? ready(current?.shell==='lattice'?environments.lattice:environments.lens)
+      ?? ready(environments.lattice)
+      ?? fallback;};
+  const isPaper=(value:Appearance|null)=>value?.background==='paper';
+  // Slow palette rotation so the flowing gradient keeps drifting in hue instead of
+  // sitting under a static photo. Two neighbouring palette stops are cross-faded and
+  // the whole set swings through a slow hue arc, otherwise neighbouring stops are too
+  // close in hue for the drift to be visible at all.
+  const rotateHue=(color:number[],degrees:number)=>{const [r,g,b,a=1]=color as [number,number,number,number?];if(!degrees)return [r,g,b,a];
+    const max=Math.max(r,g,b),min=Math.min(r,g,b),l=(max+min)/2,delta=max-min;
+    if(delta<1e-4)return [r,g,b,a];
+    const s=l>.5?delta/(2-max-min):delta/(max+min);
+    let h=max===r?((g-b)/delta+(g<b?6:0)):max===g?((b-r)/delta+2):((r-g)/delta+4);h=(h/6+degrees/360)%1;if(h<0)h+=1;
+    const q=l<.5?l*(1+s):l+s-l*s,p=2*l-q;
+    const channel=(t:number)=>{if(t<0)t+=1;if(t>1)t-=1;return t<1/6?p+(q-p)*6*t:t<.5?q:t<2/3?p+(q-p)*(2/3-t)*6:p;};
+    return [channel(h+1/3),channel(h),channel(h-1/3),a];};
+  const rotatedColors=()=>{const count=displayed.length;if(!count)return displayed;const shift=(shaderTime/7200)%count,index=Math.floor(shift),mix=shift-index;
+    const swing=Math.sin(shaderTime/4000)*52;
+    return displayed.map((_,i)=>{const a=displayed[(i+index)%count]!,b=displayed[(i+index+1)%count]!;return rotateHue(a.map((value,c)=>value+(b[c]!-value)*mix),swing);});};
+  // Palette colours arrive as generated theme ink, which is chosen for text contrast.
+  // Remap them by chroma instead of scaling towards grey, so the flowing gradient keeps
+  // its hue in both modes and the light mode stops looking like a grey wash over the photo.
+  const toneMap=(list:number[][])=>{const light=(current?.shell==='lattice'?current.latticeMode:current?.lensMode)==='light';
+    return list.map(color=>{const [r,g,b,a=1]=color as [number,number,number,number?];const luma=r*.2126+g*.7152+b*.0722;
+      const target=light?luma*.42+.46:luma*.52+.012,chroma=light?1.55:1.2;
+      const clamp=(value:number)=>Math.min(1,Math.max(0,value));
+      return [clamp(target+(r-luma)*chroma),clamp(target+(g-luma)*chroma),clamp(target+(b-luma)*chroma),a];});};
   let displayed: number[][] = colors.map(color=>getShaderColorFromString(color));
   let blend: {from:number[][];to:number[][];start:number;duration:number}|null=null;
   const uniforms = () => ({
-    u_beat:beat,u_pixels:current?.performance==='smooth'?0:.6,u_coverMix:current?.background==='pixel-cover'?1:0,u_cover:cover,u_previousCover:previousCover,u_coverFade:coverFade,
-    u_colors: displayed.map(([r,g,b,a]) => { const light=(current?.shell==="lattice"?current.latticeMode:current?.lensMode)==="light",gain=light?.65:.52,lift=light?.32:.015;return [r*gain+lift,g*gain+lift,b*gain+lift,a]; }), u_colorsCount: displayed.length, u_distortion: 0.72, u_swirl: 0.65, u_grainMixer: 0.03, u_grainOverlay: 0.025,
+    u_environment:environment(),u_environmentMix:current?.background==='paper'?.58:0,u_bitStyle:0,u_lightMode:(current?.shell==='lattice'?current?.latticeMode:current?.lensMode)==='light'?1:0,
+    u_beat:beat,u_pixels:current?.performance==='smooth'?0:.6,u_coverMix:0,u_cover:cover,u_previousCover:previousCover,u_coverFade:coverFade,
+    u_colors: toneMap(rotatedColors()), u_colorsCount: displayed.length, u_distortion: 0.72, u_swirl: 0.65, u_grainMixer: 0.03, u_grainOverlay: 0.025,
     u_fit: 2, u_scale: 1, u_rotation: 0, u_originX: 0.5, u_originY: 0.5, u_offsetX: 0, u_offsetY: 0, u_worldWidth: 0, u_worldHeight: 0,
   });
   const palette = (event: Event) => {
@@ -84,7 +143,7 @@ export function mountPaperBackground(root: HTMLElement, invalidate: () => void) 
     if (dead || !current || !isPaper(current)) return;
     if (!isRenderingActive()) { lastTick = 0; return; }
     if(current.performance!=='smooth'&&current.motion>0&&!matchMedia('(prefers-reduced-motion: reduce)').matches){const audio=sampleAudioReactivity(time);beat+=(audio.beat-beat)*.24;bass+=(audio.bass-bass)*.18;}else beat=bass=0;
-    shaderTime += (lastTick ? Math.min(100, time - lastTick) : 0) * current.motion * (.65+bass*.12)*(current.background==="pixel-cover"?.18:1); lastTick = time;
+    shaderTime += (lastTick ? Math.min(100, time - lastTick) : 0) * current.motion * (.65+bass*.12)*(current.shell==="lattice"?.22:1); lastTick = time;
     const interval=current.performance==="smooth"?1000:current.performance==="vivid"?1000/60:1000/30;
     if (time - lastCopy >= interval || lastCopy === 0) {
       batching=true;
@@ -94,7 +153,8 @@ export function mountPaperBackground(root: HTMLElement, invalidate: () => void) 
         shader?.setUniforms(uniforms());
       }
       if(coverFade<1){coverFade=Math.min(1,(time-coverStart)/900);if(coverFade===1)previousCover=cover;}
-      shader?.setUniforms({u_beat:beat,u_distortion:current.background==="pixel-cover"?.18:.72+beat*.10,u_swirl:current.background==="pixel-cover"?.12:.65+bass*.08,u_coverFade:coverFade});
+      shader?.setUniforms({u_beat:beat,u_distortion:current.shell==="lattice"?.34:.92+beat*.10,u_swirl:current.shell==="lattice"?.28:.80+bass*.08,u_coverFade:coverFade,
+        u_colors:toneMap(rotatedColors())});
       host.dataset.beat=beat.toFixed(3);host.dataset.phase=String(shaderTime);
       shader?.setFrame(shaderTime);batching=false;renderOnce?.(time); invalidate(); lastCopy = time;
     }
@@ -126,15 +186,16 @@ export function mountPaperBackground(root: HTMLElement, invalidate: () => void) 
       }
       if(!active&&shader){shader.dispose();shader=null;renderOnce=null;delete host.dataset.ready;}
       host.dataset.active = String(active);
-      host.style.opacity = active && next.shell === "lattice" ? "0.65" : "0";
+      host.style.opacity = active ? "1" : "0";
       shader?.setSpeed(0);
       shader?.setMaxPixelCount(next.performance === "smooth" ? 500000 : 1000000);
       shader?.setUniforms(uniforms());
       shader?.setFrame(shaderTime);
       wake();
     },
-    destroy() { dead = true;fallback.onload=null;coverRequest++; clearTimeout(copyTimer); cancelAnimationFrame(frame); document.removeEventListener("visibilitychange", wake); window.removeEventListener("tide:palette", palette);window.removeEventListener('tide:artwork',artwork); shader?.dispose(); host.remove(); },
+    destroy() { dead = true;fallback.onload=null;for(const image of Object.values(environments))image.onload=null;coverRequest++; clearTimeout(copyTimer); cancelAnimationFrame(frame); document.removeEventListener("visibilitychange", wake); window.removeEventListener("tide:palette", palette);window.removeEventListener('tide:artwork',artwork); shader?.dispose(); host.remove(); },
   };
   fallback.onload=()=>{if(!dead&&current)api.sync(current);};
+  for(const image of Object.values(environments))image.onload=()=>{if(!dead&&current)api.sync(current);};
   return api;
 }

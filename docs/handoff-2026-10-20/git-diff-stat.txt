@@ -1,0 +1,21 @@
+ package-lock.json                | 133 +++++++++++++++-
+ package.json                     |   4 +
+ scripts/build.mjs                |  43 +++++
+ scripts/test.mjs                 |   4 +
+ src/renderer/index.html          |   3 +
+ src/renderer/layers/home.ts      | 324 +++++++++++++++++++++++++++++---------
+ src/renderer/layers/library.ts   | 329 ++++++++++++++++++++++++++++++++++-----
+ src/renderer/layers/lyrics.ts    | 255 +++++++++++++++++++++++++++++-
+ src/renderer/lens-shell.js       |   6 +-
+ src/renderer/liquid-metal.ts     |  10 +-
+ src/renderer/lucide.d.ts         |   3 +
+ src/renderer/main.ts             |  14 +-
+ src/renderer/native-shell.js     |  55 +++++--
+ src/renderer/paper-background.ts |  42 ++++-
+ src/renderer/theme-preview.html  |   2 +-
+ src/renderer/theme-preview.ts    |  11 +-
+ src/renderer/theme-scene.ts      |  91 ++++++++++-
+ src/renderer/track-row.ts        |  11 +-
+ src/renderer/view.test.ts        |  27 +++-
+ src/renderer/view.ts             |  28 +++-
+ 20 files changed, 1238 insertions(+), 157 deletions(-)

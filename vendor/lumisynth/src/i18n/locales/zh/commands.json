@@ -1,0 +1,120 @@
+{
+  "categories": {
+    "project": "工程",
+    "file": "文件",
+    "song": "歌曲",
+    "script": "剧本",
+    "edit": "编辑",
+    "arrange": "编排",
+    "look": "画面",
+    "view": "视图",
+    "playback": "播放"
+  },
+  "menus": {
+    "file": "文件",
+    "edit": "编辑",
+    "arrange": "编排",
+    "view": "视图",
+    "playback": "播放"
+  },
+  "groups": {
+    "song": "歌曲",
+    "script": "剧本",
+    "project": "工程",
+    "wholeSong": "全曲",
+    "look": "画面",
+    "sideBar": "左侧栏",
+    "editor": "编辑区",
+    "panel": "底部面板",
+    "layout": "布局"
+  },
+  "titles": {
+    "project": {
+      "wizard": "快速制作向导…",
+      "new": "新建空白工程",
+      "open": "打开工程…",
+      "save": "保存到本机",
+      "import": "打开工程文件（.lumi）…",
+      "export": "导出工程文件（.lumi）…"
+    },
+    "export": {
+      "video": "导出视频…"
+    },
+    "input": {
+      "audio": "导入音频…",
+      "lyrics": "导入歌词文件…",
+      "translation": "导入译文文件…",
+      "cover": "导入封面图…"
+    },
+    "script": {
+      "import": "导入剧本或设置（.lumiscript / .json）…",
+      "export": "导出剧本（.lumiscript）…"
+    },
+    "edit": {
+      "undo": "撤销",
+      "redo": "重做",
+      "redoAlt": "重做（Ctrl+Y）"
+    },
+    "arrange": {
+      "reseed": "重新随机编排（换 seed）",
+      "mix": "全曲按段落性质混用风格包",
+      "packUse": "全曲使用{{pack}}",
+      "shotStyle": "选中的镜头：换风格…",
+      "shotTypography": "选中的镜头：换排版…",
+      "shotAccent": "选中的镜头：换点缀…",
+      "paragraphPack": "选中的段落：换风格包…",
+      "paragraphTransition": "选中的段落：换出场转场…"
+    },
+    "selection": {
+      "clear": "取消选择"
+    },
+    "clip": {
+      "delete": "删除选中的素材片段"
+    },
+    "look": {
+      "toggleVariant": "切换深色 / 浅色配色"
+    },
+    "workbench": {
+      "commandPalette": "命令面板（搜索所有命令）…",
+      "commandPaletteF1": "命令面板（F1）",
+      "toggleSideBar": "显示 / 隐藏左侧栏",
+      "togglePanel": "显示 / 隐藏底部面板",
+      "toggleAuxBar": "显示 / 隐藏右侧检查器",
+      "language": "界面语言…"
+    },
+    "view": {
+      "assets": "歌曲：音频、歌词、封面",
+      "look": "画面与编排设置",
+      "assetLibrary": "素材库：图片与视频",
+      "library": "风格库",
+      "ai": "AI 助手",
+      "libraryEditor": "风格库（大图）",
+      "libraryEditorSplit": "风格库与预览并排",
+      "script": "剧本：用文字改编排",
+      "lyrics": "歌词：改字、逐字时间",
+      "themePark": "主题编辑器：配色、关键字、图标",
+      "settings": "设置…",
+      "storyboard": "分镜：直接改分段、性质与风格包",
+      "outline": "大纲：段落与镜头",
+      "agent": "连接 Agent（MCP）",
+      "layoutMobile": "切换到手机布局",
+      "layoutDesktop": "切换到桌面布局",
+      "layoutAuto": "布局跟随设备",
+      "timeline": "时间轴",
+      "problems": "问题",
+      "output": "输出",
+      "previewFullscreen": "预览全屏"
+    },
+    "playback": {
+      "toggle": "播放 / 暂停",
+      "start": "回到开头",
+      "back": "后退 5 秒",
+      "forward": "前进 5 秒",
+      "backFine": "后退 1 帧",
+      "forwardFine": "前进 1 帧",
+      "toggleMute": "预览静音 / 取消静音"
+    }
+  },
+  "saved": "工程已保存到本机",
+  "languagePlaceholder": "选择界面语言"
+}

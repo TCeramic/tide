@@ -29,6 +29,7 @@ export function attachSession(getPort: () => number | null): () => void {
   });
   ipcMain.handle(Ipc.daily, () => loopbackJson(getPort(), "GET", "/recommend/daily"));
   ipcMain.handle(Ipc.radar, () => loopbackJson(getPort(), "GET", "/recommend/radar"));
+  ipcMain.handle(Ipc.recommendPlaylists, () => loopbackJson(getPort(), "GET", "/recommend/playlists?limit=8"));
   ipcMain.handle(Ipc.personalFm, () => loopbackJson(getPort(), "GET", "/personal/fm"));
   ipcMain.handle(Ipc.fmTrash, (_event, id: unknown) => {
     if (typeof id !== "string" || !/^\d{1,20}$/.test(id)) {
@@ -77,6 +78,7 @@ export function attachSession(getPort: () => number | null): () => void {
     ipcMain.removeHandler(Ipc.collectSong);
     ipcMain.removeHandler(Ipc.playlistTracks);
     ipcMain.removeHandler(Ipc.daily);
+  ipcMain.removeHandler(Ipc.recommendPlaylists);
     ipcMain.removeHandler(Ipc.radar);
     ipcMain.removeHandler(Ipc.personalFm);
     ipcMain.removeHandler(Ipc.fmTrash);

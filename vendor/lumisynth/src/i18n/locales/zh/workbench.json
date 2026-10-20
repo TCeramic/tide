@@ -1,0 +1,111 @@
+{
+  "palette": {
+    "commandPlaceholder": "输入命令",
+    "projectPlaceholder": "按名称打开工程；输入 > 查找命令",
+    "empty": "没有匹配项"
+  },
+  "quickPick": {
+    "title": "快速选择",
+    "placeholder": "输入以过滤",
+    "current": "当前"
+  },
+  "layoutToggles": {
+    "sideBar": "主侧栏",
+    "panel": "面板",
+    "auxBar": "辅助栏",
+    "show": "显示{{name}}",
+    "hide": "隐藏{{name}}",
+    "toggle": "切换{{name}}"
+  },
+  "menuBar": {
+    "wizard": "快速制作",
+    "wizardHint": "几步做出一支 PV：放歌曲、挑风格、选配色",
+    "exportVideo": "导出视频"
+  },
+  "activityBar": {
+    "commandPalette": "命令面板"
+  },
+  "panel": {
+    "close": "关闭面板"
+  },
+  "errorBoundary": {
+    "log": "视图「{{name}}」出错：{{message}}",
+    "message": "「{{name}}」出错了：{{message}}"
+  },
+  "dropOverlay": {
+    "title": "松开以导入",
+    "kinds": "音频、歌词、图片 / 视频（进素材库）、字体、.lumi 工程",
+    "hint": "拖到左侧的音频 / 歌词 / 封面卡片上按那一项导入；拖到预览画面上直接放到播放头处"
+  },
+  "breadcrumbs": {
+    "label": "位置",
+    "song": "全曲",
+    "jumpToParagraph": "跳到段落",
+    "shotsOf": "第 {{n}} 段的镜头"
+  },
+  "editor": {
+    "area": "编辑区",
+    "tabs": {
+      "preview": "预览",
+      "library": "风格库",
+      "settings": "设置",
+      "script": "剧本",
+      "lyrics": "歌词",
+      "theme": "主题",
+      "storyboard": "分镜"
+    },
+    "closeTab": "关闭{{title}}",
+    "split": "左右分栏",
+    "splitHint": "左右分栏（左边是预览）"
+  },
+  "settings": {
+    "search": "搜索设置",
+    "searchPlaceholder": "搜索设置（例如：字体、转场、后处理、颗粒）"
+  },
+  "language": {
+    "label": "界面语言"
+  },
+  "output": {
+    "empty": "（空）"
+  },
+  "fullscreen": {
+    "progress": "全屏进度",
+    "exit": "退出全屏",
+    "exitHint": "退出全屏 (F / Esc)"
+  },
+  "status": {
+    "openProject": "打开工程",
+    "analyzing": "分析音频 {{percent}}%",
+    "instrumental": "纯音乐",
+    "mix": "按段落混用",
+    "reseed": "换一个 seed"
+  },
+  "views": {
+    "assets": "歌曲",
+    "outline": "大纲",
+    "look": "画面与编排",
+    "library": "风格库",
+    "assetLibrary": "素材库",
+    "ai": "AI",
+    "agent": "Agent",
+    "timeline": "时间轴",
+    "problems": "问题",
+    "output": "输出",
+    "inspector": "检查器"
+  },
+  "mobile": {
+    "selection": "当前选中",
+    "outline": "全曲大纲",
+    "more": "更多",
+    "importLumi": "导入 .lumi…",
+    "exportLumi": "另存为 .lumi…",
+    "nav": "功能",
+    "export": "导出",
+    "sheets": {
+      "assets": "素材",
+      "shot": "镜头",
+      "look": "外观",
+      "ai": "AI"
+    }
+  }
+}

@@ -1,7 +1,7 @@
 import { isAudioLevel, resolveSongLevel, type AudioLevel } from "../core/audio-level";
 import { hasMusicU, normalizeCookie, type CookieStore } from "./cookie";
 import { markLiked, type CatalogPage, type LyricBundle, type NeteaseClient, type SongMedia } from "./netease";
-import type { ApiFailure, QrCheck, QrTicket, SearchHit, SearchKind, SessionSnapshot, SessionUser } from "../shared/contract";
+import type { ApiFailure, PlaylistSummary, QrCheck, QrTicket, SearchHit, SearchKind, SessionSnapshot, SessionUser } from "../shared/contract";
 
 const QR_MESSAGE: Record<number, string> = {
   800: "二维码已过期，请刷新",
@@ -269,6 +269,15 @@ export class SessionService {
       return await this.withLiked(await this.netease.dailySongs(cookie));
     } catch (error) {
       throw catalogFailure(error, "每日推荐暂时没有拉到");
+    }
+  }
+
+  /** Login optional on purpose: `/personalized` still answers with generic picks. */
+  async recommendedPlaylists(limit = 8): Promise<PlaylistSummary[]> {
+    try {
+      return await this.netease.recommendedPlaylists(this.optionalCookie(), limit);
+    } catch (error) {
+      throw catalogFailure(error, "推荐歌单暂时没有拉到");
     }
   }
 

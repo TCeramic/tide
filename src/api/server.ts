@@ -38,6 +38,7 @@ export function createTideApiServer(options: TideApiOptions = {}): http.Server {
     playlistTracks: (id, cookie, offset) => client().playlistTracks(id, cookie, offset),
     dailySongs: (cookie) => client().dailySongs(cookie),
     radarId: (cookie) => client().radarId(cookie),
+    recommendedPlaylists: (cookie, limit) => client().recommendedPlaylists(cookie, limit),
     similarSongs: (id, cookie) => client().similarSongs(id, cookie),
     searchKind: (keywords, type, cookie, offset) => client().searchKind(keywords, type, cookie, offset),
     artistSongs: (id, cookie) => client().artistSongs(id, cookie),
@@ -296,6 +297,12 @@ async function route(
   if (req.method === "GET" && pathname === "/recommend/daily") {
     const hits = await session.dailySongs();
     writeJson(res, 200, { ok: true, kind: "songs", hits, artists: [], albums: [] });
+    return;
+  }
+  if (req.method === "GET" && pathname === "/recommend/playlists") {
+    const requested = Number(url.searchParams.get("limit") ?? 8);
+    const limit = Number.isSafeInteger(requested) && requested > 0 && requested <= 30 ? requested : 8;
+    writeJson(res, 200, { ok: true, playlists: await session.recommendedPlaylists(limit) });
     return;
   }
   if (req.method === "GET" && pathname === "/recommend/radar") {

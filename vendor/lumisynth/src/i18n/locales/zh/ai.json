@@ -1,0 +1,108 @@
+{
+  "providers": {
+    "gemini": "Google Gemini",
+    "openai": "OpenAI 兼容",
+    "anthropic": "Anthropic Claude"
+  },
+  "copiedLog": "已复制给 agent 的指令：{{instruction}}",
+  "copyFailed": "复制失败：浏览器没有允许写入剪贴板。",
+  "copied": "已复制，粘贴给 agent",
+  "copy": "复制指令",
+  "errorLog": "AI：{{message}}",
+  "bridged": "已连接 agent（MCP）。下面的按钮改为「复制指令」：粘贴给当前连接的模型，它会取到与内置 AI 相同的提示词，生成后直接写回工程（可撤销），不需要 AI 密钥。",
+  "noProvider": "选择 AI 提供方并填写密钥后，下面的功能才可用；也可以在「Agent」面板连上自己的 agent。",
+  "usingProvider": "使用 {{provider}}：请求从这个浏览器直接发出，不经过 lumisynth 的服务器。",
+  "theme": {
+    "title": "主题配色",
+    "hint": "按歌词的情绪生成一套深色 + 浅色主题，替换当前主题（可撤销）。",
+    "done": "AI 主题：{{dark}} / {{light}}",
+    "busy": "生成中…",
+    "run": "生成主题"
+  },
+  "segment": {
+    "title": "分词",
+    "hint": "让 AI 按语义切词（影响字号层级与镜头切块）。每行拼起来必须与原文一致，否则那一行保持自动分词。",
+    "keepManual": "保留手动改过的行",
+    "done": "AI 分词：更新了 {{count}} 行",
+    "busy": "分词中…",
+    "run": "AI 分词"
+  },
+  "direct": {
+    "title": "场景编排",
+    "clear": "清除 AI 编排",
+    "hint": "AI 为每段选风格包、能量、构图族与出场转场。手动设置过的段落与转场不会被覆盖；结果可以在检查器里逐段修改。",
+    "done": "AI 编排：{{count}} 段。{{summary}}",
+    "busy": "编排中…",
+    "run": "AI 编排全曲",
+    "reapply": "重新应用这份编排"
+  },
+  "provider": {
+    "title": "AI 提供方",
+    "testing": "正在测试…",
+    "ok": "{{name}} 连接正常",
+    "none": "不使用 AI",
+    "hints": {
+      "gemini": "在 Google AI Studio 创建密钥。",
+      "openai": "OpenAI、DeepSeek、OpenRouter 或本地的 Ollama / LM Studio。服务必须允许浏览器跨域访问（Ollama 需设置 OLLAMA_ORIGINS）。",
+      "anthropic": "在 Anthropic Console 创建密钥。"
+    },
+    "key": "API 密钥",
+    "keyRemembered": "保存在这个浏览器里，不会进入工程文件。",
+    "keySession": "只在本次会话有效，关掉标签页就会忘记。",
+    "keyOptional": "本地服务可以留空",
+    "baseUrl": "接口地址",
+    "baseUrlOptional": "接口地址（可选）",
+    "model": "模型",
+    "temperature": "温度",
+    "default": "默认",
+    "remember": "在这个浏览器里记住密钥",
+    "test": "测试连接",
+    "forget": "清除所有密钥"
+  },
+  "agent": {
+    "downloadDir": "<下载位置>",
+    "copied": "已复制到剪贴板",
+    "connection": "连接",
+    "status": {
+      "disconnected": "未连接",
+      "connecting": "正在连接…",
+      "connected": "已连接",
+      "error": "连接失败"
+    },
+    "connectedHint": "agent 现在可以读取和修改这个工程。它的每一次修改都会记在下面和「输出」里，可以撤销。",
+    "disconnect": "断开",
+    "port": "端口",
+    "code": "配对码",
+    "codePlaceholder": "6 位，agent 会告诉你",
+    "connect": "连接",
+    "firstTime": "第一次使用",
+    "step1": "下载本地桥 <dl>{{file}}</dl>（需要 Node.js 18 以上，没有其他依赖）。",
+    "step2": "在 agent 里把它添加为 MCP 服务器，例如 Claude Code：",
+    "copyCommand": "复制命令",
+    "step3": "让 agent 调用 <code>lumisynth_connect</code>，它会给出配对码。",
+    "step4": "在上面填写端口与配对码，点「连接」。浏览器可能会询问是否允许访问本机网络。",
+    "afterConnect": "连上之后，「AI」面板的三个按钮（{{buttons}}）会变成「复制指令」：粘贴给 agent，它用和内置 AI 相同的提示词自己生成结果并写回，不需要另配 AI 密钥。",
+    "listSeparator": "、",
+    "skill": "写剧本的 skill",
+    "skillHint": "教 agent 写 LumiScript 剧本（场景编排）与设置：语法参考 + 工作流程。解压到 agent 的 skills 目录（Claude Code：<code>~/.claude/skills/</code>）。没连上这个页面的 agent 也能照着写 .lumiscript 文件，在「剧本」标签页导入。",
+    "download": "下载 {{file}}",
+    "tools": "工具（{{count}}）",
+    "writes": "写",
+    "activity": "最近的操作"
+  },
+  "errors": {
+    "timeout": "{{label}} 请求超时",
+    "unreachable": "连不上 {{label}}（{{host}}）：网络不通、地址有误，或者这个服务不允许浏览器直接访问（跨域）。",
+    "openaiLabel": "OpenAI 兼容接口",
+    "api": "{{label}} 接口出错（{{status}}）",
+    "apiDetail": "{{label}} 接口出错（{{status}}）：{{detail}}",
+    "empty": "模型没有返回内容",
+    "emptyWithReason": "模型没有返回内容（{{reason}}）",
+    "failed": "AI 请求失败",
+    "invalidJson": "模型返回的不是合法的 JSON",
+    "notConfigured": "还没有配置 AI：在「AI」侧栏里选择提供方并填写密钥。",
+    "noParagraphs": "没有可编排的段落",
+    "tooManyParagraphs": "段落太多",
+    "notJson": "模型有回应，但没有按要求返回 JSON"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "labels": {
+    "script": "Script",
+    "settings": "Settings"
+  },
+  "names": {
+    "script": "script",
+    "settings": "settings"
+  },
+  "notApplied_one": "{{label}} not applied: {{count}} error",
+  "notApplied_other": "{{label}} not applied: {{count}} errors",
+  "unchanged": "{{label}}: nothing changed",
+  "unchangedWithHints_one": "{{label}}: nothing changed ({{count}} hint)",
+  "unchangedWithHints_other": "{{label}}: nothing changed ({{count}} hints)",
+  "applied": "{{label}} applied: {{changes}}",
+  "appliedWithHints_one": "{{label}} applied: {{changes}} ({{count}} hint, see Problems)",
+  "appliedWithHints_other": "{{label}} applied: {{changes}} ({{count}} hints, see Problems)",
+  "changeSeparator": "; ",
+  "imported": "Imported {{file}} into {{target}}: review it, then press Ctrl+S or Apply",
+  "applyHint": "Apply the {{name}} (Ctrl+S)",
+  "apply": "Apply",
+  "reloadHint": "Discard changes and load the project's current {{name}}",
+  "reload": "Reload",
+  "dirtyStale": "Edited · {{label}} is out of date",
+  "dirty": "Edited",
+  "includeNative": "Include pack-native data",
+  "importHint": "Import a script (.lumiscript) or settings (.json)",
+  "import": "Import",
+  "copy": "Copy",
+  "copied": "Copied to the clipboard",
+  "download": "Download",
+  "staleWarning": "The project changed elsewhere after this {{name}} was loaded. Applying anyway overwrites those changes with what the {{name}} contains.",
+  "applyAnyway": "Apply anyway"
+}

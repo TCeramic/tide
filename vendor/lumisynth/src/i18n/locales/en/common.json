@@ -1,0 +1,21 @@
+{
+  "paragraphKinds": {
+    "breath": "Breath",
+    "verse": "Verse",
+    "lift": "Lift",
+    "chorus": "Chorus",
+    "break": "Break",
+    "outro": "Outro"
+  },
+  "retry": "Retry",
+  "play": "Play",
+  "pause": "Pause",
+  "auto": "Auto",
+  "autoValue": "Auto ({{value}})",
+  "clearSelection": "Clear selection",
+  "startSeconds": "Start (s)",
+  "endSeconds": "End (s)",
+  "cancel": "Cancel",
+  "close": "Close",
+  "quoted": "“{{text}}”"
+}

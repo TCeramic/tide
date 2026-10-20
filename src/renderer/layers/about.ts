@@ -15,7 +15,7 @@ export function mountAbout(){
   const summary=document.createElement('summary');summary.textContent='更新日志';
   const notes=document.createElement('div');notes.className='release-notes';notes.textContent='检查更新后查看最新版本日志。';history.append(summary,notes);
   const mirror=document.createElement('details');const label=document.createElement('summary');label.textContent='更新下载源';
-  const source=document.createElement('select');source.setAttribute('aria-label','更新下载源');for(const [value,text]of [['auto','自动（加速优先）'],['official','GitHub 官方'],['custom','自定义镜像']]){const option=document.createElement('option');option.value=value!;option.textContent=text!;source.append(option);}
+  const source=document.createElement('select');source.setAttribute('aria-label','更新下载源');for(const [value,text]of [['auto','自动'],['official','GitHub 官方'],['custom','自定义镜像']]){const option=document.createElement('option');option.value=value!;option.textContent=text!;source.append(option);}
   const input=document.createElement('input');input.className='key-input';input.type='url';input.placeholder='留空使用 GitHub';input.setAttribute('aria-label','更新镜像地址');
   const help=document.createElement('p');help.className='library-note';help.textContent='加速使用第三方 GH-Proxy，仅下载公开安装包；失败回退官方源，文件通过 SHA-256 校验。自定义地址支持 {version}、{asset}。';
   const save=document.createElement('button');save.type='button';save.className='text-button';save.textContent='保存下载源';

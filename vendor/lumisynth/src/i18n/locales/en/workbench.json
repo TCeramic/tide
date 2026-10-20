@@ -1,0 +1,111 @@
+{
+  "palette": {
+    "commandPlaceholder": "Type a command",
+    "projectPlaceholder": "Open a project by name; type > for commands",
+    "empty": "No matches"
+  },
+  "quickPick": {
+    "title": "Quick pick",
+    "placeholder": "Type to filter",
+    "current": "current"
+  },
+  "layoutToggles": {
+    "sideBar": "Side Bar",
+    "panel": "Panel",
+    "auxBar": "Inspector",
+    "show": "Show {{name}}",
+    "hide": "Hide {{name}}",
+    "toggle": "Toggle {{name}}"
+  },
+  "menuBar": {
+    "wizard": "Quick Start",
+    "wizardHint": "A lyric video in a few steps: add a song, pick a style, choose colors",
+    "exportVideo": "Export Video"
+  },
+  "activityBar": {
+    "commandPalette": "Command Palette"
+  },
+  "panel": {
+    "close": "Close panel"
+  },
+  "errorBoundary": {
+    "log": "View \"{{name}}\" failed: {{message}}",
+    "message": "\"{{name}}\" ran into an error: {{message}}"
+  },
+  "dropOverlay": {
+    "title": "Drop to import",
+    "kinds": "Audio, lyrics, images / videos (into the media library), fonts, .lumi projects",
+    "hint": "Drop onto the audio / lyrics / cover cards on the left to import as that item; drop onto the preview to place it at the playhead"
+  },
+  "breadcrumbs": {
+    "label": "Location",
+    "song": "Song",
+    "jumpToParagraph": "Jump to section",
+    "shotsOf": "Shots of section {{n}}"
+  },
+  "editor": {
+    "area": "Editor",
+    "tabs": {
+      "preview": "Preview",
+      "library": "Style Library",
+      "settings": "Settings",
+      "script": "Script",
+      "lyrics": "Lyrics",
+      "theme": "Theme",
+      "storyboard": "Storyboard"
+    },
+    "closeTab": "Close {{title}}",
+    "split": "Split editor",
+    "splitHint": "Split editor (preview on the left)"
+  },
+  "settings": {
+    "search": "Search settings",
+    "searchPlaceholder": "Search settings (e.g. font, transition, post-processing, grain)"
+  },
+  "language": {
+    "label": "Display language"
+  },
+  "output": {
+    "empty": "(empty)"
+  },
+  "fullscreen": {
+    "progress": "Fullscreen progress",
+    "exit": "Exit fullscreen",
+    "exitHint": "Exit fullscreen (F / Esc)"
+  },
+  "status": {
+    "openProject": "Open project",
+    "analyzing": "Analyzing audio {{percent}}%",
+    "instrumental": "Instrumental",
+    "mix": "Mixed by section",
+    "reseed": "Try another seed"
+  },
+  "views": {
+    "assets": "Song",
+    "outline": "Outline",
+    "look": "Look & Arrangement",
+    "library": "Style Library",
+    "assetLibrary": "Media Library",
+    "ai": "AI",
+    "agent": "Agent",
+    "timeline": "Timeline",
+    "problems": "Problems",
+    "output": "Output",
+    "inspector": "Inspector"
+  },
+  "mobile": {
+    "selection": "Selection",
+    "outline": "Song outline",
+    "more": "More",
+    "importLumi": "Import .lumi…",
+    "exportLumi": "Save as .lumi…",
+    "nav": "Tools",
+    "export": "Export",
+    "sheets": {
+      "assets": "Song",
+      "shot": "Shots",
+      "look": "Look",
+      "ai": "AI"
+    }
+  }
+}

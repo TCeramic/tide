@@ -1,10 +1,30 @@
 export type ShellView = "home" | "playing";
+export type ShellPage = "home" | "explore" | "library" | "proof" | "footprint" | "search";
 
 type Listener = (view: ShellView) => void;
+type PageListener = (page: ShellPage) => void;
 
 let current: ShellView = "home";
+let page: ShellPage = "home";
 const listeners = new Set<Listener>();
+const pageListeners = new Set<PageListener>();
 let scrollReturn: { element: HTMLElement; top: number; left: number }[] = [];
+
+/** Page navigation is separate from the home/now-playing shell transition. */
+export function setShellPage(next: ShellPage): void {
+  page = next;
+  if (typeof document !== "undefined") document.documentElement.dataset.page = next;
+  for (const listener of pageListeners) listener(next);
+}
+
+export function shellPage(): ShellPage {
+  return page;
+}
+
+export function onShellPage(listener: PageListener): () => void {
+  pageListeners.add(listener);
+  return () => pageListeners.delete(listener);
+}
 
 function publish(next: ShellView): void {
   current = next;
@@ -15,13 +35,14 @@ function publish(next: ShellView): void {
 /** Cold start and the 主页 button. Playback may continue underneath. */
 export function showHome(): void {
   scrollReturn = [];
+  setShellPage("home");
   publish("home");
 }
 
 /** Now Playing, or the user pressed play / opened a track. */
 export function openNowPlaying(): void {
   if (current === "playing") return;
-  if (typeof document !== "undefined") scrollReturn = Array.from(document.querySelectorAll<HTMLElement>(".browse-sheet,.home-grid,.proof-host")).map(element => ({ element, top:element.scrollTop, left:element.scrollLeft }));
+  if (typeof document !== "undefined") scrollReturn = Array.from(document.querySelectorAll<HTMLElement>(".browse-sheet,.home-grid,.proof-host,.search-page,.session-history-list,.desktop-scroll-surface")).map(element => ({ element, top:element.scrollTop, left:element.scrollLeft }));
   publish("playing");
 }
 
@@ -44,4 +65,7 @@ export function onShellView(listener: Listener): () => void {
   };
 }
 
-if (typeof document !== "undefined") document.documentElement.dataset.view = "home";
+if (typeof document !== "undefined") {
+  document.documentElement.dataset.view = "home";
+  document.documentElement.dataset.page = "home";
+}

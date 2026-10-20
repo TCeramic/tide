@@ -1,0 +1,95 @@
+{
+  "groups": {
+    "frame": "画面",
+    "theme": "主题",
+    "fonts": "字体",
+    "background": "背景与后处理",
+    "motion": "运动与转场",
+    "structure": "自动分段参数"
+  },
+  "frame": {
+    "aspect": "画幅",
+    "seedHint": "同样的歌词与 seed 总是编出同样的 PV。",
+    "reseed": "换一个 seed"
+  },
+  "theme": {
+    "dark": "深色",
+    "light": "浅色",
+    "random": "随机配色",
+    "randomHint": "随机抽一组配色（深色、浅色一起换；关键字颜色与图标保留）",
+    "sourceAi": "（AI 生成）",
+    "sourceCustom": "（已自定义）",
+    "colors": {
+      "backgroundColor": "背景",
+      "primaryColor": "主色",
+      "accentColor": "强调",
+      "secondaryColor": "次要"
+    },
+    "intensity": "动感",
+    "calm": "平静",
+    "normal": "普通",
+    "chaotic": "激烈",
+    "openEditorHint": "取色器、推荐色、名字与描述、关键字颜色、歌词图标、AI 生成（Ctrl+Shift+H）",
+    "openEditor": "打开主题编辑器"
+  },
+  "background": {
+    "default": "默认背景",
+    "theme": "主题色 {{color}}",
+    "cover": "封面",
+    "coverBlur": "封面模糊",
+    "coverDim": "封面压暗",
+    "postProcess": "后处理"
+  },
+  "postProcess": {
+    "grain": "颗粒",
+    "contrast": "对比",
+    "rgbShift": "RGB 错位",
+    "halftone": "网点",
+    "vignette": "暗角",
+    "lensDistortion": "镜头畸变",
+    "lensDispersion": "色散"
+  },
+  "motion": {
+    "transitions": "段落转场",
+    "camera": "镜头强度（各包共用倍率）",
+    "typography": "文字运动（各包共用倍率）"
+  },
+  "packNoSettings": "这个风格包没有可调的设置。",
+  "structure": {
+    "maxLines": "段落最多行数",
+    "maxDuration": "段落最长秒数",
+    "gapMultiplier": "分段空隙倍数",
+    "gapMultiplierHint": "相邻行空隙中位数的多少倍算作段落边界。",
+    "recursiveSplit": "超长段落递归切分",
+    "shotParamsHint": "切镜头的参数在各风格包的分组里。",
+    "resetAll": "全部恢复默认"
+  },
+  "fonts": {
+    "families": "字体族",
+    "familiesHint": "按顺序回退，最后是上面选的基础字体。写系统里已安装的字体名，或上传字体文件。",
+    "moveUp": "上移 {{family}}",
+    "remove": "移除 {{family}}",
+    "add": "添加字体族",
+    "addPlaceholder": "输入字体名，回车添加（可用逗号分隔多个）",
+    "local": "从本机字体选择…",
+    "localSearch": "搜索本机字体",
+    "localSearchPlaceholder": "搜索 {{count}} 个本机字体",
+    "localClose": "关闭本机字体列表",
+    "base": "基础字体",
+    "sans": "黑体",
+    "serif": "宋体",
+    "mono": "等宽",
+    "autoWeight": "字重按风格自动",
+    "weight": "字重",
+    "weightHint": "字体本身没有这个字重时，浏览器只能合成粗体或退回最近的字重。",
+    "size": "字号",
+    "lyrics": "歌词",
+    "subtitles": "字幕（译文 / 罗马音）",
+    "inherit": "沿用歌词字体",
+    "uploaded": "上传的字体",
+    "deleteUploaded": "删除字体 {{family}}",
+    "added": "已添加字体：{{family}}",
+    "upload": "上传字体文件（ttf / otf / woff2）",
+    "uploadHint": "上传的字体会存进工程（也会打包进 .lumi），换一台电脑打开也能用。"
+  }
+}

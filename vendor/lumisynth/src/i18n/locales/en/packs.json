@@ -1,0 +1,22 @@
+{
+  "sonnet": {
+    "label": "Sonnet",
+    "shortLabel": "Sonnet",
+    "description": "Kinetic typography: large, layered type, a camera that tracks the focus word by word, hairline guides and MG graphics, with quick blur / glitch cuts between shots. Refined and narrative; suits verses, breaths and outros."
+  },
+  "tempera": {
+    "label": "Tempera",
+    "shortLabel": "Tempera",
+    "description": "Screentone MG: bold geometric compositions — large color blocks, cut-outs, monoliths, letterboxes — with text that inverts against whatever lies beneath, and shots handing off in one direction like a single long take. High impact; suits choruses, lifts and instrumental breaks."
+  },
+  "lumiere": {
+    "label": "Lumiere",
+    "shortLabel": "Lumiere",
+    "description": "Light and optics: volumetric beams, haze and drifting dust in the dark, stars lighting up and optical line art. Lyrics look engraved by light, crossing horizontally and vertically, flying along curves and slowly breaking apart. Ethereal and lyrical; suits the build-up before a chorus, slow songs and long instrumentals."
+  },
+  "hanabi": {
+    "label": "Hanabi",
+    "shortLabel": "Hanabi",
+    "description": "Japanese lyric-video style: each line pops in character by character on saturated color blocks, firework-like MG pieces bloom, sparkle and drift along the text, and between shots the whole frame keeps rising with the fireworks. Bright, lively and festive; suits choruses, high-energy sections and summer-festival songs."
+  }
+}

@@ -21,6 +21,9 @@ import { mountPaperBackground } from "./paper-background.ts";
 export function createNativeSearch() {
   const control = createComponent("search", { label:"搜索", placeholder:"搜索音乐、歌手或专辑" });
   control.element.classList.add("native-search-control");
+  // The lattice cursor halo traces the focused control outline; around a wide pill it
+  // reads as two stray arcs beside the search field, so opt this control out.
+  control.element.dataset.noHalo = "";
   return { ...control, input:control.element.querySelector("input") };
 }
 
@@ -123,36 +126,91 @@ export function mountNativeShell(root) {
   popupLayer.className = "native-popup-layer";
   document.body.append(popupLayer);
   for (const popup of root.querySelectorAll(".corner-panel")) popupLayer.append(popup);
+  for (const selector of [".peek-queue", ".peek-login", ".peek-settings"]) {
+    const peek = root.querySelector(selector);
+    if (peek) popupLayer.append(peek);
+  }
   const metal=mountLiquidMetal(root);
   const paper = mountPaperBackground(root, () => {
-    if (["paper","pixel-cover"].includes(appearance?.background)) {glass?.invalidateScene();dockGlass?.invalidateScene();}
+    if (appearance?.background === "paper") {glass?.invalidateScene();dockGlass?.invalidateScene();}
   });
   let dockGlass=null;const dockRoot=root.querySelector('.dock-shell'),dockPortals=document.createElement('div');
-  const syncDock=()=>{const visible=appearance?.shell==='lattice'&&document.documentElement.dataset.dockVisible==='true'&&isRenderingActive();
-    if(visible&&dockRoot){dockGlass ||= mountLensShell(dockRoot,dockPortals,paintDockBackground);dockGlass.sync({...appearance,lensMode:appearance.latticeMode});}
-    else{dockGlass?.destroy();dockGlass=null;}
+  // The lyric stage paints a full-bleed canvas above the page-level Lens glass, so the dock
+  // must carry its own Lens material while a stage is running instead of a CSS blur.
+  // 舞台画面每帧都在变，折射它的透镜素材也得跟着重采；舞台不在时这个循环自动停。
+  let dockStageFrame=0,dockStageLast=0;
+  const dockStageTick=now=>{
+    dockStageFrame=0;
+    if(!dockGlass||!hasLyricStage()||!isRenderingActive())return;
+    if(now-dockStageLast>=50){dockStageLast=now;dockGlass.invalidateScene();}
+    dockStageFrame=requestAnimationFrame(dockStageTick);
   };
-  const dockWatch=new MutationObserver(syncDock);dockWatch.observe(document.documentElement,{attributes:true,attributeFilter:['data-dock-visible','data-render-active']});
+  const syncDock=()=>{
+    const rendering=isRenderingActive();
+    const latticeDock=appearance?.shell==='lattice'&&document.documentElement.dataset.dockVisible==='true';
+    const stageDock=appearance?.shell==='lens'&&hasLyricStage();
+    const visible=rendering&&Boolean(dockRoot)&&(latticeDock||stageDock);
+    if(visible){dockGlass ||= mountLensShell(dockRoot,dockPortals,paintDockBackground);dockGlass.sync({...appearance,lensMode:appearance.shell==='lens'?appearance.lensMode:appearance.latticeMode});}
+    else{dockGlass?.destroy();dockGlass=null;}
+    const refractStage=Boolean(dockGlass)&&hasLyricStage();
+    if(refractStage&&!dockStageFrame){dockStageLast=0;dockStageFrame=requestAnimationFrame(dockStageTick);}
+    else if(!refractStage&&dockStageFrame){cancelAnimationFrame(dockStageFrame);dockStageFrame=0;}
+  };
+  const dockWatch=new MutationObserver(syncDock);dockWatch.observe(document.documentElement,{attributes:true,attributeFilter:['data-dock-visible','data-render-active','data-lyric-stage']});
   function stopLens() { glass?.destroy(); glass = null; }
   function startLens() {
     glass ||= mountLensShell(document.body, popupLayer, paintPlayerBackground);
   }
   let image = null, imageUrl = "";
+  const loadBackdropImage = (url) => {
+    if (!url) return;
+    if (url === imageUrl && image?.complete) { glass?.invalidateScene(); return; }
+    imageUrl = url; const next = new Image();
+    next.onload = () => { image = next; glass?.invalidateScene(); dockGlass?.invalidateScene(); points?.invalidate?.(); };
+    next.onerror = () => { image = null; };
+    next.src = url;
+  };
+  // 选好本地图片后不等 appearance 变化也要重新取图重画（重复选择同一张也能生效）。
+  window.addEventListener("tide:backdrop", (event) => {
+    const url = event instanceof CustomEvent && typeof event.detail?.url === "string" ? event.detail.url : "";
+    if (url) document.documentElement.style.setProperty("--tide-image", `url("${url}")`);
+    image = null; imageUrl = "";
+    loadBackdropImage(url || document.documentElement.style.getPropertyValue("--tide-image").match(/^url\(["']?(.*?)["']?\)$/)?.[1] || "");
+  });
   function paintPlayerBackground(ctx, info) {
-    if (["paper","pixel-cover"].includes(appearance.background) && paper.canvas?.width) {
+    if (appearance.background === "paper" && paper.canvas?.width) {
       ctx.drawImage(paper.canvas, 0, 0, info.width, info.height);
     } else if (appearance.background === "image" && image?.complete && image.naturalWidth > 0) {
       const scale = Math.max(info.width / image.naturalWidth, info.height / image.naturalHeight);
       const w = image.naturalWidth * scale, h = image.naturalHeight * scale;
       ctx.drawImage(image, (info.width - w) / 2, (info.height - h) / 2, w, h);
-    } else if (appearance.background === "cover") {
-      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--cover-tint").trim() || "#193f64";
+    } else if (appearance.background === "solid") {
+      // 纯色背景：明亮模式铺白、深色模式铺黑，随主题明暗切换。
+      const mode = appearance.shell === "lattice" ? appearance.latticeMode : appearance.lensMode;
+      ctx.fillStyle = mode === "dark" ? "#05070b" : "#f4f6f9";
       ctx.fillRect(0, 0, info.width, info.height);
     } else paintLensBackground(ctx, info);
   }
   function paintDockBackground(ctx,info){
-    if(['paper','pixel-cover'].includes(appearance.background)&&paper.canvas?.width){const box=dockRoot.getBoundingClientRect(),host=root.getBoundingClientRect(),sx=paper.canvas.width/host.width,sy=paper.canvas.height/host.height;ctx.drawImage(paper.canvas,(box.left-host.left)*sx,(box.top-host.top)*sy,box.width*sx,box.height*sy,0,0,info.width,info.height);}
+    if(appearance.background === "paper"&&paper.canvas?.width){const box=dockRoot.getBoundingClientRect(),host=root.getBoundingClientRect(),sx=paper.canvas.width/host.width,sy=paper.canvas.height/host.height;ctx.drawImage(paper.canvas,(box.left-host.left)*sx,(box.top-host.top)*sy,box.width*sx,box.height*sy,0,0,info.width,info.height);}
     else paintPlayerBackground(ctx,info);
+    paintStageIntoDock(ctx,info);
+  }
+  // 舞台是一张盖住整窗的画布，位于页面级透镜之上；dock 自己的透镜要折射的是舞台本身，
+  // 所以把舞台画布在 dock 所在矩形里的那一块取出来，作为这层透镜的光学素材。
+  function paintStageIntoDock(ctx,info){
+    // 只在舞台真的在渲染时采样：常规页面里残留的舞台画布会把 dock 画成一块死白。
+    if(!dockRoot||!hasLyricStage()) return;
+    const canvas=document.querySelector(".tide-lyric-stage-canvas");
+    if(!(canvas instanceof HTMLCanvasElement)||!canvas.width||!canvas.height) return;
+    const box=dockRoot.getBoundingClientRect(),rect=canvas.getBoundingClientRect();
+    if(rect.width<1||rect.height<1) return;
+    const sx=(box.left-rect.left)*(canvas.width/rect.width);
+    const sy=(box.top-rect.top)*(canvas.height/rect.height);
+    const sw=box.width*(canvas.width/rect.width);
+    const sh=box.height*(canvas.height/rect.height);
+    if(sw<1||sh<1) return;
+    try{ctx.drawImage(canvas,sx,sy,sw,sh,0,0,info.width,info.height);}catch{}
   }
   function sync(next) {
     if (destroyed) return;
@@ -164,11 +222,7 @@ export function mountNativeShell(root) {
     popupLayer.hidden = !next.chromeVisible;
     const cssImage = document.documentElement.style.getPropertyValue("--tide-image");
     const url = cssImage.match(/^url\(["']?(.*?)["']?\)$/)?.[1] || "";
-    if (url && url !== imageUrl) {
-      imageUrl = url; image = new Image();
-      image.onload = () => glass?.invalidateScene();
-      image.src = url;
-    }
+    loadBackdropImage(url);
     delete root.dataset.nativeFallback;
     if (next.shell === "lens") {
       cursor?.destroy?.(); cursor = null;
@@ -187,9 +241,12 @@ export function mountNativeShell(root) {
         }
       }
       points?.sync(next);
-      points?.setActive(true);
+      points?.setActive(!hasLyricStage());
     }
   }
+  const hasLyricStage=()=>Boolean(document.documentElement.dataset.lyricStage && document.documentElement.dataset.lyricStage!=="regular" && document.documentElement.dataset.lyricStage!=="none");
+  const stageWatch=new MutationObserver(()=>{points?.setActive(!hasLyricStage());syncDock();});
+  stageWatch.observe(document.documentElement,{attributes:true,attributeFilter:["data-lyric-stage"]});
   // Use the actual upstream point slider for the existing volume/seek inputs.
   const enhancedRanges = new Set(), progressViews=[];
   function enhanceRanges() {
@@ -212,7 +269,7 @@ export function mountNativeShell(root) {
     if(records.some(r=>[...r.addedNodes].some(n=>n instanceof Element && (n.matches('.transport,input[type="range"]')||n.querySelector('.transport,input[type="range"]')))))enhanceRanges();
   });
   rangeObserver.observe(root,{childList:true,subtree:true});enhanceRanges();
-  return { sync, visualState:()=>({phase:paper.getPhase(),paper:paper.state(),points:points?.state()}),restoreVisualState:async state=>{if(state){await paper.restore(state.paper);paper.setPhase(state.phase);points?.restore(state.points);}}, ready:()=>{glass?.ready();}, destroy() { destroyed = true; cursor?.destroy?.(); document.removeEventListener("visibilitychange", clockActivity); cancelAnimationFrame(latticeClock._raf); cancelAnimationFrame(widgetFrame); clearTimeout(widgetTimer); stopLens(); points?.destroy();dockWatch.disconnect();dockGlass?.destroy();dockGlass=null; paper.destroy();metal.destroy(); for(const view of progressViews)view.destroy();rangeObserver.disconnect(); popupLayer.remove(); } };
+  return { sync, visualState:()=>({phase:paper.getPhase(),paper:paper.state(),points:points?.state()}),restoreVisualState:async state=>{if(state){await paper.restore(state.paper);paper.setPhase(state.phase);points?.restore(state.points);}}, ready:()=>{glass?.ready();}, destroy() { destroyed = true; stageWatch.disconnect(); cursor?.destroy?.(); document.removeEventListener("visibilitychange", clockActivity); cancelAnimationFrame(latticeClock._raf); cancelAnimationFrame(widgetFrame); clearTimeout(widgetTimer); stopLens(); points?.destroy();dockWatch.disconnect();dockGlass?.destroy();dockGlass=null; paper.destroy();metal.destroy(); for(const view of progressViews)view.destroy();rangeObserver.disconnect(); popupLayer.remove(); } };
 }
 
 // Embed the original Field and set generators into a desktop viewport. This host supplies
@@ -227,8 +284,10 @@ function mountPointField(root, tier = "balanced") {
   let currentAppearance=null,targetInk=null,targetHot=null;
   const contrastWorld=()=>{if(!currentAppearance)return;const light=currentAppearance.latticeMode==="light",base=light?WORLDS.paper:WORLDS.night;let mean=[.5,.5,.5],accent='#66baff';try{const colors=JSON.parse(document.documentElement.style.getPropertyValue('--generated-colors'));if(colors?.[0])mean=colors[0].slice(1).match(/../g).map(v=>parseInt(v,16)/255);accent=document.documentElement.style.getPropertyValue('--cover-tint').trim()||accent;}catch{}
     const bg=mean.map(v=>v*(light?.65:.52)+(light?.32:.015)),linear=bg.map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4),lum=linear[0]*.2126+linear[1]*.7152+linear[2]*.0722;
-    const pale=(1.05/(lum+.05))>((lum+.05)/.065),ink=document.documentElement.dataset.customColors==='true'?getComputedStyle(document.documentElement).getPropertyValue('--custom-points').trim():(pale?'#eef6ff':'#152c42');const rgb=accent.slice(1).match(/../g)?.map(v=>parseInt(v,16)/255)??[.4,.7,1],hot='#'+rgb.map(v=>Math.round((pale?v*.25+.75:v*.45)*255).toString(16).padStart(2,'0')).join('');
-    const oldInk=field.du.uInk.value.clone(),oldHot=field.du.uHot.value.clone();field.setWorld({...base,ink,hot,dotGain:Math.max(1.1,base.dotGain)});targetInk=new THREE.Color(ink);targetHot=new THREE.Color(hot);field.du.uInk.value.copy(oldInk);field.du.uHot.value.copy(oldHot);canvas.dataset.pointInk=ink;
+    // Light mode now renders on an ivory backdrop derivative, so keep the vendor paper world
+    // ink/hot (graphite ink + ultramarine accent) instead of deriving them from the artwork tint.
+    const ink=document.documentElement.dataset.customColors==='true'?getComputedStyle(document.documentElement).getPropertyValue('--custom-points').trim():(light?base.ink:'#eef6ff');const rgb=accent.slice(1).match(/../g)?.map(v=>parseInt(v,16)/255)??[.4,.7,1],hot=light?base.hot:'#'+rgb.map(v=>Math.round(v*.45*255).toString(16).padStart(2,'0')).join('');
+    const oldInk=field.du.uInk.value.clone(),oldHot=field.du.uHot.value.clone();field.setWorld({...base,ink,hot,dotGain:light?1.75:Math.max(1.1,base.dotGain)});targetInk=new THREE.Color(ink);targetHot=new THREE.Color(hot);field.du.uInk.value.copy(oldInk);field.du.uHot.value.copy(oldHot);if(paused){field.du.uInk.value.copy(targetInk);field.du.uHot.value.copy(targetHot);}canvas.dataset.pointInk=ink;
   };
   const targetFps = tier === "vivid" ? 120 : tier === "smooth" ? 20 : 30;
   const abort = new AbortController();
@@ -262,8 +321,7 @@ function mountPointField(root, tier = "balanced") {
   badge.className = "native-set-control";
   const counter = document.createElement("span"); counter.textContent = "01";
   const caption = document.createElement("span"); caption.className = "native-set-caption";
-  const next = document.createElement("button"); next.type = "button"; next.className = "lx-btn lx-btn--ghost"; next.textContent = "下一点集";
-  badge.append(counter, caption, next); root.append(badge);
+  badge.append(counter, caption); root.append(badge);
   const number = mountDotText(counter, { pitch: 3 });
   window.addEventListener("tide:palette",()=>{contrastWorld();wake();},{signal});
   // A reserved, empty layout slot for the actual upstream GPU word. Business
@@ -272,16 +330,49 @@ function mountPointField(root, tier = "balanced") {
   hero.className = "native-point-hero";
   hero.setAttribute("role", "img"); hero.setAttribute("aria-label", "TIDE 点阵展示区");
   root.append(hero);
-  const alignHero=()=>{if(document.documentElement.dataset.mobile==="true"){const playing=document.documentElement.dataset.view==="playing",slot=document.querySelector(playing?".mobile-emblem-slot":".brand-space"),box=slot?.getBoundingClientRect(),origin=root.getBoundingClientRect();if(box&&box.width>0){const width=Math.min(playing?148:300,box.width),height=Math.min(playing?42:92,box.height);hero.style.width=width+"px";hero.style.height=height+"px";hero.style.left=(box.left-origin.left+(box.width-width)/2)+"px";hero.style.top=(box.top-origin.top+(box.height-height)/2)+"px";}return;}const cover=document.querySelector(document.documentElement.dataset.view==="playing"?".lyrics-cover":".home-cover"),box=cover?.getBoundingClientRect();if(box&&box.width>0){const width=Math.min(360,Math.max(240,box.width)),origin=root.getBoundingClientRect();hero.style.width=width+"px";hero.style.left=(box.left-origin.left+(box.width-width)/2)+"px";if(document.documentElement.dataset.view==="playing"){const h=Math.min(96,Math.max(40,box.top-52));hero.style.height=h+"px";hero.style.top=Math.max(36,Math.min(140,box.top-h-12))+"px";}else{const grid=document.querySelector(".home-grid")?.getBoundingClientRect();hero.style.height="96px";hero.style.top=Math.max(108,(grid?.top??240)-112)+"px";}}};
+  const clipWordmark=()=>{
+    if(document.documentElement.dataset.mobile==="true")return;
+    const playing=document.documentElement.dataset.view==="playing", grid=document.querySelector(".home-grid"), host=root.getBoundingClientRect(), rect=grid?.getBoundingClientRect();
+    const mask=(!playing&&setIndex===0&&rect)?`inset(${Math.max(0,rect.top-host.top)}px ${Math.max(0,host.right-rect.right)}px ${Math.max(0,host.bottom-rect.bottom)}px ${Math.max(0,rect.left-host.left)}px)`:"none";
+    canvas.style.clipPath=mask;
+    const head=document.querySelector(".home-page-heading")?.getBoundingClientRect();
+    if(!playing&&rect&&head){badge.style.top=(Math.max(rect.top,head.top)+Math.max(0,(head.height-28)/2)-host.top)+"px";badge.style.right=(host.right-rect.right+8)+"px";badge.style.clipPath=head.bottom<=rect.top?"inset(100%)":"none";}
+  };
+  const alignHero=()=>{
+    clipWordmark();
+    const playing=document.documentElement.dataset.view==="playing";
+    if(document.documentElement.dataset.mobile==="true"){
+      const slot=document.querySelector(playing?".mobile-emblem-slot":".brand-space"),box=slot?.getBoundingClientRect(),origin=root.getBoundingClientRect();
+      if(box&&box.width>0){const width=Math.min(playing?148:300,box.width),height=Math.min(playing?42:92,box.height);hero.style.width=width+"px";hero.style.height=height+"px";hero.style.left=(box.left-origin.left+(box.width-width)/2)+"px";hero.style.top=(box.top-origin.top+(box.height-height)/2)+"px";}
+      return;
+    }
+    const slot=document.querySelector(playing?".lyrics-cover":".home-wordmark")??document.querySelector(".home-cover"),box=slot?.getBoundingClientRect();
+    if(box&&box.width>0){
+      const width=playing?Math.min(360,Math.max(240,box.width)):Math.min(460,box.width),origin=root.getBoundingClientRect();
+      hero.style.width=width+"px";hero.style.left=(box.left-origin.left+(box.width-width)/2)+"px";
+      if(playing){const h=Math.min(96,Math.max(40,box.top-52));hero.style.height=h+"px";hero.style.top=Math.max(36,Math.min(140,box.top-h-12))+"px";}
+      else{const height=Math.max(40,box.height);hero.style.height=height+"px";hero.style.top=(box.top-origin.top+(box.height-height)/2)+"px";}
+    }
+  };
   let layoutFrame=0;
   const layoutChange=new MutationObserver(()=>{cancelAnimationFrame(layoutFrame);layoutFrame=requestAnimationFrame(()=>{layoutFrame=0;if(dead)return;alignHero();if(setIndex===0)showSet(0);});});layoutChange.observe(document.documentElement,{attributes:true,attributeFilter:["data-view","data-player-view"]});
-  const coverResize=new ResizeObserver(()=>{if(dead)return;alignHero();if(setIndex===0)showSet(0);});for(const el of document.querySelectorAll('.lyrics-cover,.home-cover'))coverResize.observe(el);
+  const homeGrid=document.querySelector(".home-grid");
+  homeGrid?.addEventListener("scroll",()=>{cancelAnimationFrame(layoutFrame);layoutFrame=requestAnimationFrame(()=>{layoutFrame=0;if(dead)return;alignHero();if(setIndex===0)showSet(0);});},{signal,passive:true});
+  const coverResize=new ResizeObserver(()=>{if(dead)return;alignHero();if(setIndex===0)showSet(0);});for(const el of document.querySelectorAll('.lyrics-cover,.home-cover,.home-wordmark'))coverResize.observe(el);
   const formations = [
-    { caption: "POINT SETS", build: lattice => {
-      alignHero();const map = sets.matrixText("TIDE", 1);
+    { caption: "TIDE", build: lattice => {
+      // A doubled matrix gives the 5x7 dot font two cells per stroke, so the mark
+      // can fill the masthead slot without the strokes breaking into loose dots.
+      alignHero();const map = sets.matrixText("TIDE", 2);
       const data = lattice.lit([{ map, col: 0, row: 0 }], { lift: 0, swarm: 0.24 });
       const box = hero.getBoundingClientRect(), host = root.getBoundingClientRect();
-      const pitch = Math.min(12, (box.width - 24) / map.w, (box.height - 24) / map.h);
+      // The wordmark should read as a masthead, so the dot pitch fills almost
+      // the whole reserved slot (6px breathing room) instead of the old 24px
+      // inset, which shrank the mark to roughly half its slot.
+      // 9px keeps the glyph solid (wider pitch pulls the dots apart and the
+      // letters read as hollow outlines); the slot is sized to that width so the
+      // mark no longer floats in a half-empty 460px box.
+      const pitch = Math.min(9, (box.width - 6) / map.w, (box.height - 6) / map.h);
       const left = box.left - host.left + (box.width - (map.w - 1) * pitch) / 2;
       const top = box.top - host.top + (box.height - (map.h - 1) * pitch) / 2;
       const frustum = stage.frustumAt(field.distance);
@@ -311,7 +402,7 @@ function mountPointField(root, tier = "balanced") {
     setIndex = (index + formations.length) % formations.length;
     const set = formations[setIndex];
     field.keep(set.build, set.options); caption.textContent = set.caption;canvas.dataset.pointSet=String(setIndex);canvas.dataset.pointSetCount=String(formations.length);nextFormationAt=time+22;
-    number.set(String(setIndex + 1).padStart(2, "0"));
+    number.set(String(setIndex + 1).padStart(2, "0")); clipWordmark();
     if (paused) snapStill();
     wake();
   }
@@ -344,24 +435,24 @@ function mountPointField(root, tier = "balanced") {
     camera.updateMatrixWorld(); raycaster.setFromCamera(pointer.ndc, camera);
     stage.ray.o.copy(raycaster.ray.origin); stage.ray.d.copy(raycaster.ray.direction);
   }
+  const isControlTarget=target=>target instanceof Element&&Boolean(target.closest("button,input,select,textarea,a,label,summary,.home-card,.home-section,.home-recent-play,.home-playlist-item,.library-tabs,.session-history-list,.corner-panel,.browse-sheet,.proof-host"));
   const move = event => {
     if (pointer.down) interactionUntil = performance.now() + 500;
     pointer.x = event.clientX; pointer.y = event.clientY;
     pointer.ndc.set(pointer.x / stage.w * 2 - 1, -(pointer.y / stage.h) * 2 + 1);
-    pointer.inside = !event.target.closest("button,input,select,textarea,a,label,summary,.home-card,.corner-panel,.browse-sheet,.proof-host");
+    pointer.inside = !isControlTarget(event.target);
     if (pointer.down) pointer.moved += Math.abs(event.movementX || 0) + Math.abs(event.movementY || 0);
     // Ray and GPU interaction are coalesced once per rendered frame.
     wake();
   };
   root.addEventListener("pointermove", move, { signal, passive: true });
   root.addEventListener("pointerdown", event => {
-    if (event.target.closest("button,input,select,textarea,a,label,summary,.home-card,.corner-panel,.browse-sheet,.proof-host")) return;
+    if (isControlTarget(event.target)) return;
     move(event); pointer.down = true; pointer.moved = 0; field.onPointerDown(stage); wake();
   }, { signal });
   window.addEventListener("pointerup", () => { pointer.down = false; field.onPointerUp(stage); wake(); }, { signal });
   window.addEventListener("pointercancel", () => { pointer.down = false; field.onPointerUp(stage); }, { signal });
   root.addEventListener("pointerleave", () => { pointer.inside = false; }, { signal });
-  next.addEventListener("click", () => showSet(setIndex + 1), { signal });
   field.addEventListener("release", event => { if (event.detail.melted) showSet(setIndex + 1); }, { signal });
   function loop(now) {
     frame = 0;
@@ -410,7 +501,7 @@ function mountPointField(root, tier = "balanced") {
       stage.dpr = appearance.performance === "vivid" ? Math.min(2, devicePixelRatio || 1) : appearance.performance === "smooth" ? 1 : Math.min(1.5, devicePixelRatio || 1);
       const world = appearance.latticeMode === "light" ? WORLDS.paper : WORLDS.night;
       contrastWorld();
-      scene.background = appearance.shell === "lens" || ["paper","pixel-cover"].includes(appearance.background) ? null : new THREE.Color(world.bg);
+      scene.background = null;
       canvas.style.opacity = String(appearance.stageLevel * (appearance.shell === "lens" ? 0.3 : 1));
       resize(); wake();
     },

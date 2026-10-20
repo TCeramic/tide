@@ -67,6 +67,9 @@ function fakeNetease(): NeteaseClient & { checks: number; expired: boolean } {
     async radarId() {
       return "42";
     },
+    async recommendedPlaylists() {
+      return [{ id: "7", name: "夜航推荐", trackCount: 12 }];
+    },
     async similarSongs() {
       return [{ id: "20", title: "相似", artist: "潮汐", durationMs: 1000, playable: true }];
     },

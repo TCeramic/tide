@@ -1,0 +1,47 @@
+{
+  "lyricReasons": {
+    "line-missing": "对应的行已不存在",
+    "text-changed": "歌词文件里这一行的原文变了（换过歌词文件）",
+    "invalid-segmentation": "分词拼起来与原文不符"
+  },
+  "opReasons": {
+    "anchor-missing": "锚定的 shot 或段落已不存在（歌词、分段或 seed 变了）",
+    "style-unknown": "风格不存在",
+    "transition-unknown": "转场不存在",
+    "pack-mismatch": "风格属于另一个包，而该段没有开按 shot 混用",
+    "component-unknown": "这个镜头所属的风格包没有这个组件或选项（可能换过包或风格）"
+  },
+  "shotStyle": "第 {{n}} 行的 shot 风格锁定（{{style}}）已失效",
+  "shotComponent": "第 {{n}} 行镜头的组件设置（{{slot}} = {{value}}）已失效",
+  "transition": "第 {{n}} 行起的段落转场设置已失效",
+  "direction": "第 {{n}} 行起的段落编排设置已失效",
+  "directionDetail": "该行已不存在、文本已变，或不再是段首",
+  "kind": "第 {{n}} 行起的段落性质设置已失效",
+  "split": "第 {{n}} 行的手动分段已失效",
+  "merge": "第 {{n}} 行的手动合并已失效",
+  "structureReasons": {
+    "lineMissing": "该行已不存在或文本已变",
+    "firstLine": "第一行本来就是段首",
+    "notStart": "这一行已经不是段首"
+  },
+  "clip": "素材片段「{{name}}」没有显示",
+  "clipAssetMissing": "素材库里已经没有这个素材",
+  "clipAnchorMissing": "它挂载的歌词行 / 段落 / 镜头已不存在（可以改为绝对时间）",
+  "background": "一个背景片段没有显示",
+  "backgroundAssetMissing": "素材库里已经没有它用的图片或视频",
+  "backgroundAnchorMissing": "它跟随的段落已不存在（可以改为全曲或绝对时间）",
+  "scriptDiagnostic": "剧本第 {{line}} 行 {{code}}：{{message}}",
+  "settingsDiagnostic": "设置第 {{line}} 行 {{code}}：{{message}}",
+  "notApplied": "没有应用",
+  "hint": "提示",
+  "detailSeparator": "；",
+  "ignore": "忽略",
+  "lyricEdit": "第 {{n}} 行的歌词修改已失效",
+  "segmentation": "第 {{n}} 行的手动分词已失效",
+  "segmentationStale": "改字之后分词拼不回新文字（现在先用自动分词）",
+  "useAutoSegmentation": "恢复自动分词",
+  "autoRepair": "自动修复",
+  "editManually": "手动修改",
+  "none": "没有问题。",
+  "remove": "删除这条修改"
+}
