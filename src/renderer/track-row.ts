@@ -18,11 +18,13 @@ export function fillTrackList(
   note: (message: string, warn: boolean) => void,
   source?: PlaylistCursor,
   onRemove?: (id:string)=>void,
+  // 只有搜索结果传 true：单曲按「最近播放」的方式插到当前曲目后面再播，不顶掉正在听的歌单。
+  // 今日潮汐、每日推荐、本地音乐等列表仍然整列替换播放队列。
+  insertOnly = false,
 ): void {
   list.replaceChildren();
-  // 搜索结果没有歌单来源：单曲按「最近播放」的方式插到当前曲目后面再播，避免把正在听的歌单顶掉。
   const playOne = (index: number, hit: SearchHit) => {
-    if (source) void window.tide.playHits([...hits], index, source);
+    if (source || !insertOnly) void window.tide.playHits([...hits], index, source);
     else void playRecentTrack(window.tide, hit);
   };
   const start = document.createElement("li");

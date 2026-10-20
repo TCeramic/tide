@@ -838,9 +838,11 @@ export function mountLibrary(root: HTMLElement): {
 
   let shownHits: SearchHit[] = [];
   let shownSource: SearchResult["source"];
-  const renderHits = (rows: SearchHit[], source?: SearchResult["source"]) => {
-    shownHits = rows; shownSource = source;
-    fillTrackList(hits, rows, playlists, showSearchNote, source,currentTideId?async songId=>{const id=currentTideId!;const result=await window.tide.removeTidePlaylistSong(id,songId);if(!result.ok){showSearchNote(result.message,true);return;}await refreshTideLists();showTidePlaylist(id);}:undefined);
+  // 只有搜索结果按「插到当前曲目后面」播放，其余列表（今日潮汐、每日推荐、本地音乐……）仍然整列替换队列。
+  let shownInsertOnly = false;
+  const renderHits = (rows: SearchHit[], source?: SearchResult["source"], insertOnly = false) => {
+    shownHits = rows; shownSource = source; shownInsertOnly = insertOnly;
+    fillTrackList(hits, rows, playlists, showSearchNote, source,currentTideId?async songId=>{const id=currentTideId!;const result=await window.tide.removeTidePlaylistSong(id,songId);if(!result.ok){showSearchNote(result.message,true);return;}await refreshTideLists();showTidePlaylist(id);}:undefined,insertOnly);
   };
 
   const showCatalog = (rows: SearchHit[], label: string, cover?:string) => {
@@ -1222,7 +1224,7 @@ export function mountLibrary(root: HTMLElement): {
     searchTitle.textContent=`“${state.keywords}”的搜索结果`;
     if(rows.kind==="artists")renderNamed(rows.artists,"没有找到歌手",row=>void showDetail(row.name,()=>window.tide.artistSongs(row.id),row.cover));
     else if(rows.kind==="albums")renderNamed(rows.albums.map(row=>({...row,name:`${row.name} · ${row.artist}`})),"没有找到专辑",row=>void showDetail(row.name,()=>window.tide.albumTracks(row.id),row.cover));
-    else {renderHits(rows.hits);showSearchNote(rows.hits.length?"":"没有找到歌曲",false);}
+    else {renderHits(rows.hits, undefined, true);showSearchNote(rows.hits.length?"":"没有找到歌曲",false);}
     const count=rows.kind==="artists"?rows.artists.length:rows.kind==="albums"?rows.albums.length:rows.hits.length;
     searchMore.hidden=!state.more;searchMore.disabled=state.busy;searchMore.textContent=state.busy?"正在加载…":state.error?"重试加载更多":"加载更多";
     searchEnd.textContent=state.error||`${count} 条已加载${!state.more&&count?" · 已显示全部可用结果":""}`;
@@ -1267,7 +1269,7 @@ export function mountLibrary(root: HTMLElement): {
   };
 
   const stopLiked = onLiked(() => {
-    if(!searchPage.hidden&&searchSession){paintSearch();}else if(!sheet.hidden&&sheet.dataset.section!=="playlists")fillTrackList(hits, shownHits, playlists, showSearchNote, shownSource);
+    if(!searchPage.hidden&&searchSession){paintSearch();}else if(!sheet.hidden&&sheet.dataset.section!=="playlists")fillTrackList(hits, shownHits, playlists, showSearchNote, shownSource, undefined, shownInsertOnly);
     queueSignature = "";
     if (lastQueue) renderQueue(lastQueue);
   });
