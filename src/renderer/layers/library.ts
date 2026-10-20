@@ -660,12 +660,20 @@ export function mountLibrary(root: HTMLElement): {
     });
   };
 
+  // 网易云 `/personalized` 一天只给一批固定推荐，重复请求拿到的是同一组，
+  // 所以一次取满一池（24 张）本地存着，「换一批」在池子里翻页，翻到底再重新拉（跨天会换新）。
+  const RECOMMEND_PAGE = 8;
+  const RECOMMEND_POOL = 24;
   let recommendedPlaylists: PlaylistSummary[] | null = null;
+  let recommendedOffset = 0;
   let recommendedPending = false;
   /** 网易云推荐歌单 sits under the 我的歌单 list, behind a rule. */
   const renderRecommendedLists = () => {
     for (const node of Array.from(list.querySelectorAll('[data-recommended]'))) node.remove();
-    if (!recommendedPlaylists || recommendedPlaylists.length === 0) return;
+    const pool = recommendedPlaylists;
+    if (!pool || pool.length === 0) return;
+    const offset = recommendedOffset % pool.length;
+    const visible = pool.slice(offset, offset + RECOMMEND_PAGE);
     const separator = document.createElement("li");
     separator.className = "playlist-separator";
     separator.dataset.recommended = "true";
@@ -673,19 +681,27 @@ export function mountLibrary(root: HTMLElement): {
     const label = document.createElement("span");
     label.className = "playlist-separator-label";
     label.textContent = "更多推荐";
-    // 换一批：重新拉 /personalized，让推荐歌单本身也能刷新。
-    const swap = button("换一批");
-    swap.className = "playlist-separator-action";
-    swap.title = "刷新推荐歌单";
-    swap.addEventListener("click", async () => {
-      swap.disabled = true;
-      recommendedPlaylists = null;
-      const ok = await loadRecommendedLists(true);
-      if (!ok && swap.isConnected) swap.disabled = false;
-    });
-    separator.append(label, swap);
+    if (pool.length > RECOMMEND_PAGE) {
+      const swap = button("换一批");
+      swap.className = "playlist-separator-action";
+      swap.title = "在推荐歌单里换一组（同一批推荐内轮换）";
+      swap.addEventListener("click", () => {
+        swap.disabled = true;
+        const next = offset + RECOMMEND_PAGE;
+        if (next >= pool.length) {
+          // 翻到池子末尾：回到开头，同时重新拉一次池子，跨天时能换上新的推荐。
+          recommendedOffset = 0;
+          renderRecommendedLists();
+          void loadRecommendedLists(true);
+        } else {
+          recommendedOffset = next;
+          renderRecommendedLists();
+        }
+      });
+      separator.append(label, swap);
+    } else separator.append(label);
     list.append(separator);
-    for (const playlist of recommendedPlaylists) {
+    for (const playlist of visible) {
       const item = document.createElement("li");
       item.dataset.recommended = "true";
       const row = document.createElement("button");
@@ -710,10 +726,11 @@ export function mountLibrary(root: HTMLElement): {
     if (recommendedPending || !apiReady) return Promise.resolve(false);
     if (!force && recommendedPlaylists) return Promise.resolve(true);
     recommendedPending = true;
-    return window.tide.recommendPlaylists().then((result) => {
+    return window.tide.recommendPlaylists(RECOMMEND_POOL).then((result) => {
       recommendedPending = false;
       if (disposed || !result.ok) return false;
       recommendedPlaylists = result.playlists;
+      if (force) recommendedOffset = 0;
       renderRecommendedLists();
       return true;
     }).catch(() => { recommendedPending = false; return false; });

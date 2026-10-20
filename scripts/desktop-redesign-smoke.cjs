@@ -92,11 +92,13 @@ function makeFixtureData(port) {
       tideToday: async () => ({ ok: true, hits, message: null }),
       dailyRecommend: async () => ({ ok: true, kind: 'songs', hits }),
       // `/personalized` shape: enough rows to exercise the separator + cards under 我的歌单.
-      recommendPlaylists: async () => ({ ok: true, playlists: [
-        { id: '940001', name: '深夜情绪收容所', trackCount: 32, cover: fixtureCover },
-        { id: '940002', name: '通勤路上的浪潮', trackCount: 48, cover: fixtureCover },
-        { id: '940003', name: '凌晨三点的证明树', trackCount: 25, cover: fixtureCover },
-      ] }),
+      // 12 张 = 一页半，用来验证「换一批」在池子里轮换时页面不会重复或清空。
+      recommendPlaylists: async () => ({ ok: true, playlists: Array.from({ length: 12 }, (_, index) => ({
+        id: `94${String(index + 1).padStart(4, '0')}`,
+        name: ['深夜情绪收容所', '通勤路上的浪潮', '凌晨三点的证明树', '雨天窗边的钢琴', '旧磁带与回声', '海边的低音提琴'][index % 6] + (index >= 6 ? ' II' : ''),
+        trackCount: 20 + index * 3,
+        cover: fixtureCover,
+      })) }),
       radar: async () => ({ ok: true, kind: 'songs', hits }), personalFm: async () => ({ ok: true, kind: 'songs', hits }),
       playlistTracks: async () => ({ ok: true, kind: 'songs', hits, source: { playlistId: 'cloud-favorites', offset: 0 }, nextOffset: 0, hasMore: false }),
       localTracks: async () => localRows, addLocalTracks: async () => localRows,
@@ -248,10 +250,10 @@ function makeFixtureData(port) {
     await page.waitForFunction(() => document.querySelector('.tide-nav-toggle')?.getAttribute('aria-expanded') === 'false');
 
     await page.locator('.peek-queue').hover();
-    await page.locator('.corner-queue').waitFor({ state: 'visible' });
     await page.waitForFunction(() => !document.querySelector('.queue-col')?.hidden);
+    assert.equal(await page.locator('.corner-queue').isVisible(), false, 'queue icon stays hidden while the hover panel opens');
     await take('queue');
-    await page.locator('.corner-queue').click();
+    await page.mouse.move(450, 620);
     await page.waitForFunction(() => document.querySelector('.queue-col')?.hidden);
     await page.mouse.move(450, 620);
     await page.locator('.peek-settings').hover({ position: { x: 50, y: 80 } });

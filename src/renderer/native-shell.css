@@ -415,6 +415,12 @@ html[data-shell="lattice"] #app .proof-node {background:var(--panel);border-radi
 .peek-queue {top:32px!important;height:calc(55vh - 32px)!important;width:76px;bottom:auto;}
 .peek-queue .corner-queue {top:calc(50vh - 56px);left:16px;bottom:auto;}
 .native-popup-layer .queue-col {top:50%!important;bottom:auto!important;left:76px;transform:translateY(-50%);max-height:72vh;}
+/* 队列只在鼠标移到左侧感应区时自动展开；图标本身常隐，避免面板弹出时多出一个按钮。 */
+html:not([data-mobile="true"]) .peek-queue .corner-queue,
+html:not([data-mobile="true"]) .peek-queue .corner-queue[data-open="true"],
+html:not([data-mobile="true"]) .peek-queue .corner-queue:focus-visible {
+  opacity: 0 !important; visibility: hidden !important; pointer-events: none !important;
+}
 .queue-panel>h2 {font-size:17px;font-weight:600;margin:0 0 16px;display:flex;gap:8px;align-items:center;}
 .settings-panel>h2 {font-size:19px;font-weight:600;margin:0 0 18px;display:flex;gap:8px;align-items:center;}
 .corner-btn {border-radius:50%!important;}

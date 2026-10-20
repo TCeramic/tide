@@ -438,7 +438,7 @@ export interface TideBridge {
   dailyRecommend(): Promise<SearchResult | ApiFailure>;
   radar(): Promise<SearchResult | ApiFailure>;
   /** `/personalized` — recommended playlists for the playlist page; login optional. */
-  recommendPlaylists(): Promise<ApiFailure | { ok: true; playlists: PlaylistSummary[] }>;
+  recommendPlaylists(limit?: number): Promise<ApiFailure | { ok: true; playlists: PlaylistSummary[] }>;
   tideToday(refresh?: boolean): Promise<TideToday | ApiFailure>;
   playHits(hits: SearchHit[], index: number, source?: PlaylistCursor): Promise<PlaybackSnapshot>;
   onMedia(listener: (cue: MediaCue) => void): () => void;

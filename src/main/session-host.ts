@@ -29,7 +29,11 @@ export function attachSession(getPort: () => number | null): () => void {
   });
   ipcMain.handle(Ipc.daily, () => loopbackJson(getPort(), "GET", "/recommend/daily"));
   ipcMain.handle(Ipc.radar, () => loopbackJson(getPort(), "GET", "/recommend/radar"));
-  ipcMain.handle(Ipc.recommendPlaylists, () => loopbackJson(getPort(), "GET", "/recommend/playlists?limit=8"));
+  ipcMain.handle(Ipc.recommendPlaylists, (_event, limit: unknown) => {
+    // 推荐歌单按池子取（渲染层一次存 24 张再翻页），服务端上限也是 30。
+    const count = typeof limit === "number" && Number.isSafeInteger(limit) && limit > 0 && limit <= 30 ? limit : 8;
+    return loopbackJson(getPort(), "GET", `/recommend/playlists?limit=${count}`);
+  });
   ipcMain.handle(Ipc.personalFm, () => loopbackJson(getPort(), "GET", "/personal/fm"));
   ipcMain.handle(Ipc.fmTrash, (_event, id: unknown) => {
     if (typeof id !== "string" || !/^\d{1,20}$/.test(id)) {
