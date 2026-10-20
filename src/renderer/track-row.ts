@@ -3,6 +3,7 @@ import type { PlaylistCursor, PlaylistSummary, SearchHit } from "../shared/contr
 import { paintCover } from "./cover";
 import { ICON_SIZE, iconButton, setIcon } from "./icons";
 import { applyLike, isLiked } from "./liked";
+import { playRecentTrack } from "./play-recent";
 import { openTrackMenu } from "./track-menu";
 
 export function songPageUrl(id: string): string {
@@ -19,6 +20,11 @@ export function fillTrackList(
   onRemove?: (id:string)=>void,
 ): void {
   list.replaceChildren();
+  // 搜索结果没有歌单来源：单曲按「最近播放」的方式插到当前曲目后面再播，避免把正在听的歌单顶掉。
+  const playOne = (index: number, hit: SearchHit) => {
+    if (source) void window.tide.playHits([...hits], index, source);
+    else void playRecentTrack(window.tide, hit);
+  };
   const start = document.createElement("li");
   start.className = "hit-start";
   const startButton = document.createElement("button");
@@ -32,7 +38,7 @@ export function fillTrackList(
       note("没有可播放的地址", true);
       return;
     }
-    void window.tide.playHits([...hits], index, source);
+    playOne(index, hits[index]!);
   });
   start.append(startButton);
   list.append(start);
@@ -44,7 +50,7 @@ export function fillTrackList(
     play.disabled = !hit.playable;
     play.addEventListener("click", () => {
       if (!hit.playable) return;
-      void window.tide.playHits([...hits], index, source);
+      playOne(index, hit);
     });
 
     const art = document.createElement("span");
@@ -68,7 +74,7 @@ export function fillTrackList(
         main.classList.add("is-selected");
       });
       main.addEventListener("dblclick", () => {
-        void window.tide.playHits([...hits], index, source);
+        playOne(index, hit);
       });
     }
 
@@ -103,7 +109,7 @@ export function fillTrackList(
         note("没有可播放的地址", true);
         return;
       }
-      void window.tide.playHits([...hits], index, source);
+      playOne(index, hit);
     });
     playItem.disabled = !hit.playable;
     const nextItem = menuButton("下一首播放", () => {
