@@ -33,13 +33,47 @@ export function attachUpdates(win:BrowserWindow):void {
     let entries:string[]=[];try{entries=fs.readdirSync(dir);}catch{return '';}
     return entries.some(name=>/^uninstall.*\.exe$/i.test(name))?dir:'';
   };
-  const launchInstaller=(installer:string,target:string)=>{
-    const quote=(value:string)=>"'"+value.replaceAll("'","''")+"'";
-    // 先等 Tide 退出（否则安装器覆盖不了正在运行的文件），再打开带向导的安装程序。
-    // NSIS 的 /D= 必须是最后一个参数、不能带引号；它只设置默认目录，安装向导里仍可改。
-    const script=`$p=${process.pid};$n=0;while((Get-Process -Id $p -ErrorAction SilentlyContinue) -and $n -lt 480){Start-Sleep -Milliseconds 250;$n++};Start-Process -FilePath ${quote(installer)} -ArgumentList ${quote('/D='+target)}`;
-    const child=spawn('powershell.exe',['-NoProfile','-NonInteractive','-Command',script],{detached:true,stdio:'ignore',windowsHide:true});
+  const launchInstaller=async(installer:string,target:string)=>{
+    // 必须等 Tide 退出后再启动安装向导，否则安装器覆盖不了正在运行的文件。
+    // 但 Electron 在 Windows 上会把子进程放进带 KILL_ON_JOB_CLOSE 的 Job：直接
+    // spawn 的等待脚本会随主进程退出一起被杀，用户看到的就是「软件关了，安装器没出来」。
+    // 因此这里写一个 VBS 等待脚本，再用 WMI 的 Win32_Process.Create 启动它——WMI
+    // 创建的进程挂在 WmiPrvSE 下，不属于 Tide 的 Job，主进程退出后仍能拉起安装程序。
+    // NSIS 的 /D= 必须是最后一个参数、不能带引号；它只设置默认目录，向导里仍可改。
+    const dir=path.join(app.getPath('temp'),'tide-update-'+process.pid);
+    fs.mkdirSync(dir,{recursive:true});
+    const file=path.join(dir,'install.vbs');
+    const literal=(value:string)=>"'"+value.replaceAll("'","''")+"'";
+    const vbsText=(value:string)=>'"'+value.replaceAll('"','""')+'"';
+    const command='"'+installer+'" /D='+target;
+    fs.writeFileSync(file,'\ufeff'+[
+      'Set svc = GetObject("winmgmts:\\\\.\\root\\cimv2")',
+      'Do',
+      `  Set procs = svc.ExecQuery("SELECT ProcessId FROM Win32_Process WHERE ProcessId = ${process.pid}")`,
+      '  If procs.Count = 0 Then Exit Do',
+      '  WScript.Sleep 250',
+      'Loop',
+      'WScript.Sleep 400',
+      'Set sh = CreateObject("WScript.Shell")',
+      `sh.Run ${vbsText(command)}, 1, False`,
+      'On Error Resume Next',
+      'CreateObject("Scripting.FileSystemObject").DeleteFile WScript.ScriptFullName',
+    ].join('\r\n'),'utf16le');
+    // cscript 按 ANSI 解析 .vbs，路径里有中文会被读成乱码，所以带 BOM 存成 UTF-16LE。
+    // 用 -EncodedCommand 传 PowerShell，避免路径里的空格/引号在命令行里被拆开。
+    // ReturnValue 非 0 说明 WMI 拒绝创建进程（被策略拦住等），用非 0 退出码把失败带回上面。
+    const ps=`$created=Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = ${literal('wscript.exe //B "'+file+'"')} }; if($created.ReturnValue -ne 0){exit 3}`;
+    const encoded=Buffer.from(ps,'utf16le').toString('base64');
+    const child=spawn('powershell.exe',['-NoProfile','-NonInteractive','-WindowStyle','Hidden','-EncodedCommand',encoded],{detached:true,stdio:'ignore',windowsHide:true});
+    // 必须等 WMI 调用返回再退出，否则 PowerShell 会随主进程一起被 Job 杀掉，什么都不剩。
+    const code=await new Promise<number>(resolve=>{
+      child.once('exit',value=>resolve(value??-1));
+      child.once('error',()=>resolve(-1));
+      setTimeout(()=>resolve(-1),4000);
+    });
     child.unref();
+    // 起不来就别静默退出——把错误交回设置页，Tide 保持打开，用户还能手动装。
+    if(code!==0)throw new Error('无法启动安装程序，请手动运行下载好的安装包');
   };
   const download=async()=>{
     if(downloading)return {ok:false,message:'正在下载更新'};
@@ -68,7 +102,7 @@ export function attachUpdates(win:BrowserWindow):void {
       const installed=target.kind==='setup'?installDirectory():'';
       if(installed){
         const answer=await dialog.showMessageBox(win,{type:'info',title:'Tide '+target.version+' 已准备好',message:'更新包已通过校验，接下来打开安装向导',detail:'安装向导会显示并允许选择安装位置，默认是当前的 '+installed+' 文件夹。开始安装前 Tide 会先退出，账号、设置与下载内容都会保留。',buttons:['打开安装向导','稍后安装'],defaultId:0,cancelId:1});
-        if(answer.response===0){launchInstaller(saved,installed);app.quit();return {ok:true,message:'正在打开安装向导'};}
+        if(answer.response===0){await launchInstaller(saved,installed);app.quit();return {ok:true,message:'正在打开安装向导'};}
         return {ok:true,message:'更新包已保存到 '+saved};
       }
       const answer=await dialog.showMessageBox(win,{type:'info',title:'更新包已准备好',message:'Tide '+target.version+' 已下载并通过校验',detail:'当前副本不在安装目录里，将解压并启动新版。旧版文件会保留，账号和设置继续沿用。',buttons:['解压并启动新版','稍后安装'],defaultId:0,cancelId:1});
