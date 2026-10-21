@@ -403,20 +403,43 @@ public class Cloud {
   public ArrayList<Song> album(String id) throws Exception {JSONObject r=weapi("/api/v1/album/"+id,new JSONObject());JSONArray a=r.optJSONArray("songs");if(a==null)throw new IOException("专辑暂不可用");return songs(a);}
   public ArrayList<Song> artist(String id) throws Exception {JSONObject r=weapi("/api/v1/artist/"+id,new JSONObject());JSONArray a=r.optJSONArray("hotSongs");if(a==null)throw new IOException("歌手歌曲暂不可用");return songs(a);}
 
+  private static final java.util.List<String> STREAM_LEVELS =
+      java.util.Arrays.asList("standard", "exhigh", "lossless", "hires");
+
   public String stream(Song s) throws Exception {
+    return stream(s, "standard");
+  }
+
+  /** Requests the preferred level first, then every lower step, ending at standard. */
+  public String stream(Song s, String level) throws Exception {
     if (!s.uri.isEmpty()) return s.uri;
+    int start = STREAM_LEVELS.indexOf(level);
+    if (start < 0) start = 0;
+    String lastError = "此歌曲暂无可播放音源，可能需要登录或版权权限";
+    for (int i = start; i >= 0; i--) {
+      try {
+        String url = requestStream(s, STREAM_LEVELS.get(i));
+        if (!url.isEmpty()) return url;
+      } catch (IOException e) {
+        lastError = e.getMessage();
+      }
+    }
+    throw new IOException(lastError);
+  }
+
+  private String requestStream(Song s, String level) throws Exception {
     JSONObject r =
         call(
             "/api/song/enhance/player/url/v1",
             new JSONObject()
                 .put("ids", "[" + s.id + "]")
-                .put("level", "standard")
+                .put("level", level)
                 .put("encodeType", "aac"));
     JSONArray a = r.optJSONArray("data");
     String url = a != null && a.length() > 0 ? a.getJSONObject(0).optString("url", "") : "";
-    if (url.equals("null") || url.isEmpty()) throw new IOException("此歌曲暂无可播放音源，可能需要登录或版权权限");
+    if (url.equals("null") || url.isEmpty()) return "";
     if (url.startsWith("http://")) url = "https://" + url.substring(7);
-    if (!url.startsWith("https://")) throw new IOException("不支持的音频地址");
+    if (!url.startsWith("https://")) return "";
     return url;
   }
 

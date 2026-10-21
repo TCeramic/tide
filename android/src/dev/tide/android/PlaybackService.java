@@ -228,7 +228,9 @@ public class PlaybackService extends Service {
     worker.execute(
         () -> {
           try {
-            String uri = new Cloud(this).stream(song);
+            String uri =
+                new Cloud(this)
+                    .stream(song, getSharedPreferences("tide", 0).getString("quality", "standard"));
             handler.post(
                 () -> {
                   if (token != generation) return;

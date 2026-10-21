@@ -917,6 +917,20 @@ public class MainActivity extends Activity {
     web.loadUrl("https://music.163.com/#/login");
   }
 
+  private String backdropUrl() {
+    String name = prefs.getString("backdropName", "");
+    return name.isEmpty() ? "" : "https://tide.local/art/" + name;
+  }
+
+  private void pickBackdrop() {
+    Intent i =
+        new Intent(Intent.ACTION_OPEN_DOCUMENT)
+            .setType("image/*")
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+    startActivityForResult(i, 74);
+  }
+
   private void importMusic() {
     Intent i =
         new Intent(Intent.ACTION_OPEN_DOCUMENT)
@@ -966,6 +980,59 @@ public class MainActivity extends Activity {
               ui.post(
                   () -> {
                     if (alive) toast("歌词导入失败");
+                  });
+            }
+          });
+      return;
+    }
+    if (req == 74 && data.getData() != null) {
+      Uri uri = data.getData();
+      jobs.execute(
+          () -> {
+            try {
+              BitmapFactory.Options probe = new BitmapFactory.Options();
+              probe.inJustDecodeBounds = true;
+              try (InputStream in = getContentResolver().openInputStream(uri)) {
+                BitmapFactory.decodeStream(in, null, probe);
+              }
+              int scale = 1, longest = Math.max(probe.outWidth, probe.outHeight);
+              while (longest / scale > 2560) scale *= 2;
+              BitmapFactory.Options opts = new BitmapFactory.Options();
+              opts.inSampleSize = scale;
+              Bitmap bitmap;
+              try (InputStream in = getContentResolver().openInputStream(uri)) {
+                bitmap = BitmapFactory.decodeStream(in, null, opts);
+              }
+              if (bitmap == null) throw new IOException("无法读取图片");
+              File dir = getFilesDir();
+              File[] old = dir.listFiles();
+              if (old != null)
+                for (File f : old) if (f.getName().startsWith("backdrop-")) f.delete();
+              File out = new File(dir, "backdrop-" + System.currentTimeMillis() + ".jpg");
+              try (FileOutputStream f = new FileOutputStream(out)) {
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 86, f);
+              }
+              bitmap.recycle();
+              prefs.edit().putString("backdropName", out.getName()).putString("background", "image").apply();
+              String url = "https://tide.local/art/" + out.getName();
+              ui.post(
+                  () -> {
+                    if (!alive) return;
+                    pushMobileState();
+                    try {
+                      mobileMessage("result", new JSONObject().put("type", "backdrop").put("url", url).toString());
+                    } catch (Exception ignored) {
+                    }
+                  });
+            } catch (Exception e) {
+              ui.post(
+                  () -> {
+                    if (!alive) return;
+                    toast("图片导入失败");
+                    try {
+                      mobileMessage("result", new JSONObject().put("type", "backdrop").toString());
+                    } catch (Exception ignored) {
+                    }
                   });
             }
           });
@@ -1226,6 +1293,7 @@ public class MainActivity extends Activity {
             .put("latticeMode", prefs.getBoolean("light", false) ? "light" : "dark")
             .put("theme", "tide")
             .put("background", background)
+            .put("backdropUrl", backdropUrl())
             .put("performance", prefs.getString("performance", "balanced"))
             .put("chromeVisible", true)
             .put("stageLevel", 1)
@@ -1301,7 +1369,8 @@ public class MainActivity extends Activity {
               .put("accountId", prefs.getString("userId", ""))
               .put("nickname", prefs.getString("nickname", ""))
               .put("avatar",prefs.getString("avatar",""))
-              .put("repeat",prefs.getString("repeat","list"));
+              .put("repeat",prefs.getString("repeat","list"))
+              .put("quality",prefs.getString("quality","standard"));
       mobileMessage("setState", j.toString());
     } catch (Exception e) {
       toast("界面同步失败");
@@ -1367,13 +1436,45 @@ public class MainActivity extends Activity {
         break;
       case "play":
         {
-          List<Song> songs = sourceRows(data.optString("source"));
           String id = data.optString("id");
+          JSONArray tracks = data.optJSONArray("tracks");
+          if (tracks != null) {
+            // Footprint / history rows can be outside every loaded list, so the WebView sends
+            // the exact queue it wants instead of a source name.
+            ArrayList<Song> explicit = new ArrayList<>();
+            for (int i = 0; i < tracks.length(); i++) {
+              Song song = Song.from(tracks.getJSONObject(i));
+              if (!song.id.isEmpty()) explicit.add(song);
+            }
+            if (!explicit.isEmpty()) {
+              int at = 0;
+              for (int i = 0; i < explicit.size(); i++)
+                if (explicit.get(i).id.equals(id)) {
+                  at = i;
+                  break;
+                }
+              PlaybackService.start(this, explicit, at);
+              break;
+            }
+          }
+          List<Song> songs = sourceRows(data.optString("source"));
           for (int i = 0; i < songs.size(); i++)
             if (songs.get(i).id.equals(id)) {
               PlaybackService.start(this, songs, i);
               break;
             }
+          break;
+        }
+      case "pick-backdrop":
+        pickBackdrop();
+        break;
+      case "quality":
+        {
+          String level = data.optString("level", "standard");
+          if (Arrays.asList("standard", "exhigh", "lossless", "hires").contains(level)) {
+            prefs.edit().putString("quality", level).apply();
+            pushMobileState();
+          }
           break;
         }
       case "toggle":
@@ -1424,6 +1525,7 @@ public class MainActivity extends Activity {
                       "vivid",
                       "solid",
                       "paper",
+                      "image",
                       "pixel-cover",
                       "auto",
                       "liquid-metal")
