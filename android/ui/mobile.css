@@ -328,6 +328,7 @@ html[data-mobile=true][data-color-mode=light] #proof-page .proof-search::placeho
 /* 2026-10 歌词页重做：对齐桌面的层级（当前行大字 / 其余小字 / 上下渐隐 / 点按与拖动直接跳转） */
 html[data-mobile=true]{--lyric-anchor:42%}
 html[data-mobile=true] #app #lyric-view{display:flex;flex-direction:column;gap:8px;flex:1;height:auto;min-height:0;max-height:none;overflow:visible;margin-top:6px}
+html[data-mobile=true] #app #lyric-view[hidden]{display:none!important}
 .lyric-viewport{position:relative;flex:1;min-height:0}
 html[data-mobile=true] #app .lyric-viewport .all-lyrics{position:absolute;inset:0;flex:none;min-height:0;padding:30dvh 0 38dvh;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;touch-action:none;-webkit-mask-image:linear-gradient(to bottom,transparent,#000 14%,#000 82%,transparent);mask-image:linear-gradient(to bottom,transparent,#000 14%,#000 82%,transparent)}
 html[data-mobile=true] #app .lyric-entry{display:block;width:100%;height:auto;min-height:0;border:0;border-radius:0;background:none;text-align:left;padding:10px 2px;color:var(--text);opacity:.42;transition:opacity .26s ease,padding .2s ease}
@@ -420,3 +421,119 @@ html[data-mobile=true] #app #lyric-guide[hidden]{display:none}
 html[data-mobile=true][data-color-mode=light] #app .home-card{background:rgba(255,255,255,.66);border-color:rgba(18,48,66,.16);box-shadow:0 10px 28px rgba(12,38,54,.10)}
 html[data-mobile=true][data-color-mode=light] #app .home-index{color:#1f3b4d;opacity:1}
 html[data-mobile=true][data-color-mode=light] #app .home-tagline{color:#233c4c}
+
+/* 歌词舞台 */
+#stage-view{position:fixed;inset:0;z-index:90;background:#05070b;overflow:hidden}
+#stage-host{position:absolute;inset:0}
+#stage-host canvas{display:block;width:100%;height:100%}
+.stage-top{position:absolute;top:calc(10px + var(--safe-top,0px));left:calc(12px + var(--safe-left,0px));right:calc(12px + var(--safe-right,0px));display:flex;align-items:center;gap:12px;z-index:3;pointer-events:none}
+.stage-top button{pointer-events:auto;height:38px;min-width:38px;padding:0 14px;border-radius:19px;border:1px solid rgba(255,255,255,.18);background:rgba(8,16,24,.56);color:#eff7ff;backdrop-filter:blur(16px) saturate(1.1);box-shadow:0 6px 20px rgba(0,0,0,.28)}
+#stage-exit{font-size:22px;line-height:1;padding:0}
+.stage-name{flex:1;font-size:12.5px;letter-spacing:.08em;color:rgba(240,248,255,.76);text-shadow:0 1px 14px rgba(0,0,0,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#stage-pack-toggle{font-size:12px}
+.stage-packs{position:absolute;right:calc(12px + var(--safe-right,0px));top:calc(56px + var(--safe-top,0px));display:flex;flex-direction:column;gap:6px;padding:8px;border-radius:16px;border:1px solid rgba(255,255,255,.16);background:rgba(8,16,24,.82);backdrop-filter:blur(20px);z-index:4;min-width:112px}
+.stage-packs button{border:0;background:none;color:#eaf4ff;font-size:13px;text-align:left;padding:9px 12px;border-radius:10px}
+.stage-packs button[aria-pressed=true]{background:rgba(137,216,236,.18);color:#9fe6f7}
+
+/* 2026-10 mobile lyric stage: the host is injected at runtime, so it needs the
+   same fill rule the desktop shell uses; without it the pixel canvas stays at
+   its low-resolution intrinsic size in the top-left corner. */
+html[data-mobile=true] .tide-lyric-stage-host{position:absolute;inset:0;overflow:hidden;z-index:0}
+html[data-mobile=true] .tide-lyric-stage-canvas{display:block;width:100%;height:100%;pointer-events:none}
+html[data-mobile=true] .tide-bit-stage-canvas{image-rendering:pixelated}
+
+/* 2026-10 landscape pass: one authoritative block (earlier passes above had six
+   competing landscape rules). Wide screens get two columns and denser rows so
+   nothing hides behind the dock. */
+@media (orientation:landscape) and (max-height:620px){
+  html[data-mobile=true] #app .topbar{top:8px;left:10px;right:10px;min-height:46px;padding:4px}
+  html[data-mobile=true] #app .topbar input{height:34px;font-size:13px}
+  html[data-mobile=true] #app .mobile-scroll{inset:60px 0 72px;padding:0 14px 10px}
+  html[data-mobile=true] #app>.transport{left:10px;right:10px;bottom:6px;min-height:52px}
+
+  html[data-mobile=true] #app .home-page-heading{padding:0 2px 6px}
+  html[data-mobile=true] #app .home-page-heading .brand-space{width:124px;height:38px}
+  #app .home-tagline{font-size:10px}
+  #app .home-index{display:none}
+  #app .home-grid{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:8px;max-width:none}
+  #app .feature-card{grid-column:1;grid-row:1;display:grid;grid-template-columns:minmax(0,1fr) auto;padding:9px 11px;min-height:0;gap:9px}
+  #app .feature-copy{gap:3px}
+  #app .feature-copy strong{font-size:17px;line-height:1.2;-webkit-line-clamp:1}
+  #app .feature-copy #daily-subtitle{font-size:11px}
+  #app .card-label{font-size:9px}
+  #app .card-meta{font-size:9px;line-height:1.3}
+  #app .feature-cover{width:58px;height:58px;border-radius:10px}
+  #app .continue-card{grid-column:2;grid-row:1;grid-template-columns:34px minmax(0,1fr) 28px;padding:8px 10px;gap:8px;min-height:0}
+  #app .continue-copy strong{font-size:12.5px}
+  #app #home-subtitle{font-size:10px;margin-top:2px}
+  #app .continue-action{width:28px;height:28px}
+  #app .home-section{grid-column:1;grid-row:2;padding:8px 10px 9px;overflow:hidden}
+  #app .home-section .section-head{margin-bottom:4px}
+  #app .section-head h2{font-size:12px}
+  #app .section-link{font-size:10px;padding:3px 8px}
+  #app .recent-strip{grid-auto-columns:60px;gap:7px}
+  #app .recent-strip .recent-item img{width:60px;height:60px;border-radius:10px}
+  #app .recent-strip .recent-item strong{font-size:10px}
+  #app .recent-strip .recent-item small{font-size:9px}
+  #app .home-duo{grid-column:2;grid-row:2;gap:8px}
+  #app .home-duo .home-card{min-height:0;padding:8px 10px}
+  #app .home-duo .library-card strong,#app .home-duo .proof-card strong{font-size:13px}
+  #app .proof-card .proof-sketch{height:52px}
+  #app .library-stack{width:22px;height:22px}
+
+  html[data-mobile=true] #app .browse-sheet{max-width:none;margin:4px 0 0;padding:10px 14px;border-radius:20px}
+  html[data-mobile=true] #app .browse-sheet .page-header{margin-bottom:6px}
+  html[data-mobile=true] #app .browse-sheet .page-header h1{font-size:18px}
+  html[data-mobile=true] #app .browse-sheet .page-header p{margin-top:3px;font-size:10px}
+  html[data-mobile=true] #app .track-row{padding:6px 0;gap:9px}
+  html[data-mobile=true] #app .track-row img{width:34px;height:34px;border-radius:8px}
+  html[data-mobile=true] #app .track-name strong{font-size:13px;line-height:1.25}
+  html[data-mobile=true] #app .track-name small{font-size:10px;margin-top:1px}
+  html[data-mobile=true] #app .track-row .more{padding:6px}
+  html[data-mobile=true] #app .footprint-row{padding:5px 0}
+  html[data-mobile=true] #app .footprint-row img{width:34px;height:34px;border-radius:8px}
+  html[data-mobile=true] #app .footprint-day{margin:8px 0 0}
+  html[data-mobile=true] #app .list-section-title{font-size:12px;margin:10px 0 4px}
+
+  html[data-mobile=true] #app .settings-sheet{display:grid;grid-template-columns:1fr 1fr;column-gap:22px;align-items:start;padding:12px 18px 6px;margin:0;max-width:none}
+  html[data-mobile=true] #app .settings-sheet .page-header{grid-column:1/-1;margin-bottom:2px}
+  html[data-mobile=true] #app .settings-sheet .page-header h1{font-size:19px}
+  html[data-mobile=true] #app .settings-sheet .mobile-setting-group{margin:0;padding:0 0 6px;border-bottom:1px solid var(--border)}
+  html[data-mobile=true] #app .settings-sheet .mobile-setting-group h2{font-size:13px;margin:4px 0 6px}
+  html[data-mobile=true] #app .settings-sheet .mobile-setting-group .native-choice-row{margin:6px 0}
+  html[data-mobile=true] #app .settings-sheet .palette-preview{height:34px;margin:6px 0;padding:8px;font-size:14px}
+  html[data-mobile=true] #app .settings-sheet details{grid-column:1/-1}
+  html[data-mobile=true] #app .settings-sheet details summary{padding:8px 0}
+  html[data-mobile=true] #app .settings-sheet .settings-actions{margin:8px 0}
+
+  html[data-mobile=true] #app #player-page{grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);grid-template-rows:44px auto auto auto;column-gap:24px;max-width:900px;align-content:center}
+  html[data-mobile=true] #app #player-cover{width:min(40vw,240px);margin:auto}
+  html[data-mobile=true] #app .player-heading h1{font-size:20px}
+  html[data-mobile=true] #app .mobile-lyrics{min-height:96px;margin:4px 0}
+  html[data-mobile=true] #app .player-controls{margin:6px 0}
+  html[data-mobile=true] #app .player-controls .primary-play{width:52px;height:52px}
+
+  html[data-mobile=true] #queue-sheet{max-width:620px;max-height:calc(100dvh - 16px);bottom:8px;border-radius:22px}
+  html[data-mobile=true] #app #queue-items{max-height:66dvh}
+  html[data-mobile=true] #app .bottom-sheet{padding:12px 18px calc(12px + var(--safe-bottom,0px))}
+}
+
+/* 2026-10 landscape home: let the grid grow and scroll instead of squeezing rows */
+@media (orientation:landscape) and (max-height:620px){
+ html[data-mobile=true] #app .home-grid{grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);grid-template-rows:none;grid-auto-rows:min-content;align-content:start;gap:10px;max-width:none}
+ html[data-mobile=true] #app #daily-card{grid-column:1;grid-row:1}
+ html[data-mobile=true] #app #continue-card{grid-column:2;grid-row:1}
+ html[data-mobile=true] #app .home-grid>.home-section{grid-column:1/-1;grid-row:2;overflow:hidden}
+ html[data-mobile=true] #app .home-grid>.home-duo{grid-column:1/-1;grid-row:3;grid-template-columns:1fr 1fr}
+ html[data-mobile=true] #app #recent-strip{grid-auto-columns:78px}
+ html[data-mobile=true] #app .home-duo .home-card{min-height:104px}
+}
+
+/* landscape compact recent */
+@media (orientation:landscape) and (max-height:620px){
+ html[data-mobile=true] #app .home-section .section-head{margin-bottom:4px}
+ html[data-mobile=true] #app #recent-strip{grid-auto-columns:56px;gap:6px}
+ html[data-mobile=true] #app #recent-strip .recent-item img{width:56px;height:56px;border-radius:9px}
+ html[data-mobile=true] #app #recent-strip .recent-item small{display:none}
+ html[data-mobile=true] #app #recent-strip .recent-item strong{font-size:9.5px;line-height:1.2}
+}

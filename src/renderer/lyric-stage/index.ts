@@ -36,6 +36,8 @@ export interface LyricStageState {
   coverBlob: Blob | null;
   coverColors: string[];
   performance: PerformanceTier;
+  /** Optional multiplier for the pack's base lyric size (phones use < 1 in portrait). */
+  lyricsScale?: number;
 }
 
 export interface LyricStageHandle {
@@ -496,7 +498,7 @@ class LyricStageView implements LyricStageHandle {
           lines: lyrics.lines,
           audio: null,
           theme: look.theme,
-          lyricsFontScale: this.fontScaleFor(lyrics),
+          lyricsFontScale: this.fontScaleFor(lyrics) * (state.lyricsScale ?? 1),
           tunings: this.tuningsFor(engine),
           metadata: look.metadata,
           coverColors: look.coverColors,
@@ -555,7 +557,7 @@ class LyricStageView implements LyricStageHandle {
       const epoch = ++this.lookEpoch;
       this.lookPending = true;
       try {
-        await kernel.setLook({ ...look, lyricsFontScale: state.pack === "sonnet" ? 1.65 : state.pack === "tempera" ? 1.5 : 1, tunings: this.tuningsFor(engine) });
+        await kernel.setLook({ ...look, lyricsFontScale: (state.pack === "sonnet" ? 1.65 : state.pack === "tempera" ? 1.5 : 1) * (state.lyricsScale ?? 1), tunings: this.tuningsFor(engine) });
         if (this.destroyed || this.kernel !== kernel || epoch !== this.lookEpoch) return;
         this.lookPending = false;
         if (this.lookFor(this.state).signature !== look.signature) {

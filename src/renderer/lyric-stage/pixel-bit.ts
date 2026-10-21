@@ -104,18 +104,20 @@ export function mountBitStage(parent: HTMLElement, initial: LyricStageState, onE
     context.textAlign = "left";
     context.font = `700 ${Math.max(8, Math.round(width / 90))}px ui-monospace, 'Cascadia Mono', monospace`;
     context.fillStyle = paint(accent, .82, "#7fe1ff");
-    context.fillText("TIDE // BIT-SIGNAL", 16, 22);
+    // Phones overlay their own stage controls on the same strip.
+    const headerTop = document.documentElement.dataset.mobile === "true" ? 58 : 22;
+    context.fillText("TIDE // BIT-SIGNAL", 16, headerTop);
     context.fillStyle = paint(ink, .42, "#ffffff");
-    context.fillText(state.playing ? "PLAY >>>" : "PAUSE ||", 16, 36);
+    context.fillText(state.playing ? "PLAY >>>" : "PAUSE ||", 16, headerTop + 14);
     context.textAlign = "right";
     context.fillStyle = paint(accent, .78, "#7fe1ff");
-    context.fillText(`${Math.floor(time / 60).toString().padStart(2, "0")}:${Math.floor(time % 60).toString().padStart(2, "0")}`, width - 16, 22);
+    context.fillText(`${Math.floor(time / 60).toString().padStart(2, "0")}:${Math.floor(time % 60).toString().padStart(2, "0")}`, width - 16, headerTop);
 
     // Corner brackets frame the composition the way a CRT overlay would.
     const bracket = Math.max(10, Math.round(width / 60));
     context.strokeStyle = paint(accent, .5, "#7fe1ff");
     context.lineWidth = 1;
-    for (const [x, y, dx, dy] of [[12, 46, 1, 1], [width - 12, 46, -1, 1], [12, height - 16, 1, -1], [width - 12, height - 16, -1, -1]] as const) {
+    for (const [x, y, dx, dy] of [[12, headerTop + 24, 1, 1], [width - 12, headerTop + 24, -1, 1], [12, height - 16, 1, -1], [width - 12, height - 16, -1, -1]] as const) {
       context.beginPath();
       context.moveTo(x + dx * bracket, y);
       context.lineTo(x, y);
