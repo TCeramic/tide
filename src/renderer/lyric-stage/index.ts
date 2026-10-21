@@ -295,7 +295,7 @@ class LyricStageView implements LyricStageHandle {
     return {
       width: Math.max(1, Math.round(rect.width || window.innerWidth)),
       height: Math.max(1, Math.round(rect.height || window.innerHeight)),
-      resolution: Math.max(0.5, Math.min(window.devicePixelRatio || 1, 1.5) * QUALITY[this.state.performance]),
+      resolution: Math.max(0.5, Math.min(window.devicePixelRatio || 1, document.documentElement.dataset.mobile === "true" ? 1 : 1.5) * QUALITY[this.state.performance]),
     };
   }
 
@@ -506,7 +506,7 @@ class LyricStageView implements LyricStageHandle {
           layerImages: look.layerImages,
           // 舞台画布要被 dock 的透镜按帧采样（drawImage 读取 WebGL 缓冲），
           // 默认的 preserveDrawingBuffer:false 会读到空帧。
-          preserveDrawingBuffer: true,
+          preserveDrawingBuffer: document.documentElement.dataset.mobile !== "true",
           manualRender: true,
           omitBackground: true,
           transparent: true,
