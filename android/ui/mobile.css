@@ -235,8 +235,9 @@ html[data-mobile=true] #app .home-page-heading .brand-space{
 /* 2026-10 light-mode legibility: the glass topbar stays pale in light mode,
    so the placeholder and masthead meta need ink instead of the dark-theme grey. */
 html[data-color-mode=light] #search-input::placeholder{color:rgba(21,23,27,.66);}
-html[data-color-mode=light] #app .home-tagline{color:#3d5364;}
-html[data-color-mode=light] #app .home-index{color:#3d5364;}
+html[data-color-mode=light] #app .home-tagline{color:#2f4453;text-shadow:0 1px 2px rgba(255,255,255,.7);}
+html[data-color-mode=light] #app .home-index{color:#35505f;opacity:1;text-shadow:0 1px 2px rgba(255,255,255,.6);}
+html[data-color-mode=light] #app .section-link{color:#2f4453;border-color:rgba(20,60,85,.3);background:rgba(255,255,255,.52);}
 
 /* 2026-10 mobile home pass 2: narrow phones + landscape density */
 @media(max-width:360px){
