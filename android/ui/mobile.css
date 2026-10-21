@@ -273,10 +273,10 @@ html[data-color-mode=light] #app .home-index{color:#3d5364;}
 /* 2026-10 mobile parity: 字体预设 / 歌词字号与偏移 / 本地图片背景 */
 html{--lyric-font-size:23px;--tide-font:"Atkinson Hyperlegible Next","Noto Sans SC",sans-serif}
 body,#app{font-family:var(--tide-font)}
-body.lg-stage button.lyric-entry,#all-lyrics .lyric-entry{font-size:var(--lyric-font-size)}
+html[data-mobile=true] #all-lyrics .lyric-entry,html[data-mobile=true] #app button.lyric-entry{font-size:var(--lyric-font-size)}
 #current-line{font-size:var(--lyric-font-size)}
 html[data-player-view=lyrics] #current-line{font-size:calc(var(--lyric-font-size) + 6px)}
-body.lg-stage{font-family:var(--tide-font)}
+html[data-mobile=true] body,html[data-mobile=true] #app{font-family:var(--tide-font)}
 .lyric-tuning{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 6px 2px;border-top:1px solid var(--border);margin-top:6px}
 .lyric-tuning span{font-size:11px;color:var(--muted);letter-spacing:.08em}
 .lyric-tuning button{width:28px;min-width:28px;height:28px;border-radius:9px;font-size:14px;line-height:1;padding:0;display:grid;place-items:center}
@@ -289,8 +289,8 @@ html[data-backdrop=image] .native-paper-source,html[data-backdrop=image] body>.l
 .footprint-day-head{display:flex;align-items:baseline;gap:8px;padding:0 4px 6px}
 .footprint-day-head h2{margin:0;font-size:13px;font-weight:600;letter-spacing:.12em;color:var(--muted)}
 .footprint-day-head small{font-size:11px;color:var(--muted)}
-body.lg-stage button.footprint-row{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:10px;align-items:center;width:100%;padding:8px 6px;border:0;border-radius:14px;background:none;color:var(--text);font-size:14px;text-align:left}
-body.lg-stage button.footprint-row:hover,body.lg-stage button.footprint-row:focus-visible{background:var(--surface)}
+html[data-mobile=true] #app .footprint-row{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:10px;align-items:center;width:100%;padding:8px 6px;border:0;border-radius:14px;background:none;color:var(--text);font-size:14px;text-align:left}
+html[data-mobile=true] #app .footprint-row:hover,html[data-mobile=true] #app .footprint-row:focus-visible{background:var(--surface)}
 .footprint-row img{width:44px;height:44px;border-radius:11px;object-fit:cover}
 .footprint-row span{display:flex;flex-direction:column;gap:2px;min-width:0}
 .footprint-row strong{font-size:14px;font-weight:600;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -316,3 +316,14 @@ html[data-mobile=true] #proof-page .proof-node small{font-size:10px;letter-spaci
 html[data-mobile=true] #proof-page .proof-node strong{font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 html[data-mobile=true] #proof-page .proof-node span{font-size:11px;color:var(--muted);white-space:nowrap}
 html[data-mobile=true] #proof-page .proof-pager{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:12px;font-size:11px;color:var(--muted)}
+
+/* 亮色底上的次级文字提高对比 */
+html[data-mobile=true][data-color-mode=light] #proof-page .proof-status,
+html[data-mobile=true][data-color-mode=light] #proof-page .proof-breadcrumbs button,
+html[data-mobile=true][data-color-mode=light] #proof-page .proof-node small,
+html[data-mobile=true][data-color-mode=light] #proof-page .proof-node span,
+html[data-mobile=true][data-color-mode=light] #app .footprint-row time,
+html[data-mobile=true][data-color-mode=light] #app .footprint-day-head h2,
+html[data-mobile=true][data-color-mode=light] #app .footprint-day-head small,
+html[data-mobile=true][data-color-mode=light] #proof-page .text-button{color:rgba(21,23,27,.66)}
+html[data-mobile=true][data-color-mode=light] #proof-page .proof-search::placeholder{color:rgba(21,23,27,.6)}
