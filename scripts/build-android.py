@@ -4,6 +4,7 @@ No Gradle download is required. Private signing material stays in artifacts/.
 """
 from pathlib import Path
 import hashlib
+import re
 import os
 import secrets
 import shutil
@@ -16,7 +17,8 @@ SDK = Path(os.environ.get("ANDROID_SDK_ROOT", ROOT / "artifacts/android-sdk"))
 JAVA = Path(os.environ.get("JAVA_HOME", Path(shutil.which("javac") or "javac").resolve().parent.parent))
 TOOLS = SDK / "build-tools/35.0.0"
 PLATFORM = SDK / "platforms/android-35/android.jar"
-VERSION = "0.4.1"
+MANIFEST = ROOT / "android/AndroidManifest.xml"
+VERSION = re.search(r'android:versionName="([^"]+)"', MANIFEST.read_text(encoding="utf-8")).group(1)
 WINDOWS = os.name == "nt"
 EXE = ".exe" if WINDOWS else ""
 ENV = {**os.environ, "JAVA_HOME": str(JAVA), "PATH": str(JAVA / "bin") + os.pathsep + os.environ["PATH"]}

@@ -11,6 +11,7 @@ await cp(path.join(root,'src/renderer/native-fonts.css'),path.join(out,'native-f
 await cp(path.join(root,'src/renderer/vendor/fonts'),path.join(out,'fonts'),{recursive:true});
 await mkdir(path.join(out,'assets'),{recursive:true});
 await cp(path.join(root,'src/renderer/assets/today-tide.png'),path.join(out,'assets/today-tide.png'));
+for(const art of ['theme-lens-default.png','theme-lattice-default.png','theme-lattice-light.jpg'])await cp(path.join(root,'src/renderer/assets',art),path.join(out,'assets',art));
 const systems=path.join(root,'src/renderer/vendor/design-systems');
 const styles=[];
 for(const [name,files]of Object.entries({lens:['lens/lab/design-system/tokens.css','lens/lab/design-system/components.css'],lattice:['lattice/src/tokens.css','lattice/src/components.css']})){
