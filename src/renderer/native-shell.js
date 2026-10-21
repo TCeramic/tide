@@ -215,7 +215,10 @@ export function mountNativeShell(root) {
   function sync(next) {
     if (destroyed) return;
     appearance = next;
-    applyWorldCss(next.shell === "lattice" && next.latticeMode === "light" ? "paper" : "night");
+    const light = next.shell === "lattice" ? next.latticeMode === "light" : next.lensMode === "light";
+    // 亮色判定必须跟随当前 shell 的明暗档：手机切 lens 亮色只改 lensMode，
+    // 旧写法只看 latticeMode 会继续套 night 世界的奶油色字，浅底上几乎不可读。
+    applyWorldCss(light ? "paper" : "night");
     if (next.shell === "lens") document.documentElement.style.colorScheme = document.documentElement.dataset.colorMode;
     clockActivity();
     paper.sync(next);metal.sync(next);syncDock();
@@ -282,7 +285,7 @@ function mountPointField(root, tier = "balanced") {
   let renderer, field, frame = 0, paused = false, active = true, dead = false, last = 0, time = 0, setIndex = -1;
   let renderTimer = 0, lastPaint = 0, interactionUntil = 0, nextFormationAt=22;
   let currentAppearance=null,targetInk=null,targetHot=null;
-  const contrastWorld=()=>{if(!currentAppearance)return;const light=currentAppearance.latticeMode==="light",base=light?WORLDS.paper:WORLDS.night;let mean=[.5,.5,.5],accent='#66baff';try{const colors=JSON.parse(document.documentElement.style.getPropertyValue('--generated-colors'));if(colors?.[0])mean=colors[0].slice(1).match(/../g).map(v=>parseInt(v,16)/255);accent=document.documentElement.style.getPropertyValue('--cover-tint').trim()||accent;}catch{}
+  const contrastWorld=()=>{if(!currentAppearance)return;const light=(currentAppearance.shell==="lattice"?currentAppearance.latticeMode:currentAppearance.lensMode)==="light",base=light?WORLDS.paper:WORLDS.night;let mean=[.5,.5,.5],accent='#66baff';try{const colors=JSON.parse(document.documentElement.style.getPropertyValue('--generated-colors'));if(colors?.[0])mean=colors[0].slice(1).match(/../g).map(v=>parseInt(v,16)/255);accent=document.documentElement.style.getPropertyValue('--cover-tint').trim()||accent;}catch{}
     const bg=mean.map(v=>v*(light?.65:.52)+(light?.32:.015)),linear=bg.map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4),lum=linear[0]*.2126+linear[1]*.7152+linear[2]*.0722;
     // Light mode now renders on an ivory backdrop derivative, so keep the vendor paper world
     // ink/hot (graphite ink + ultramarine accent) instead of deriving them from the artwork tint.
@@ -499,7 +502,7 @@ function mountPointField(root, tier = "balanced") {
       currentAppearance=appearance;
       paused = appearance.performance === "smooth" || appearance.motion === 0 || matchMedia("(prefers-reduced-motion: reduce)").matches;
       stage.dpr = appearance.performance === "vivid" ? Math.min(2, devicePixelRatio || 1) : appearance.performance === "smooth" ? 1 : Math.min(1.5, devicePixelRatio || 1);
-      const world = appearance.latticeMode === "light" ? WORLDS.paper : WORLDS.night;
+      const world = (appearance.shell === "lattice" ? appearance.latticeMode : appearance.lensMode) === "light" ? WORLDS.paper : WORLDS.night;
       contrastWorld();
       scene.background = null;
       canvas.style.opacity = String(appearance.stageLevel * (appearance.shell === "lens" ? 0.3 : 1));
