@@ -395,6 +395,17 @@ public class Cloud {
     JSONArray rows=response.optJSONArray("songs");if(rows==null)throw new IOException(response.optString("message","暂无相似歌曲"));return songs(rows);
   }
   public JSONArray recommendedPlaylists() throws Exception {JSONObject r=weapi("/api/v1/discovery/recommend/resource",new JSONObject());if(r.optInt("code")!=200)throw new IOException(r.optString("message","推荐歌单暂不可用"));return r.optJSONArray("recommend");}
+  /** Desktop-compatible pool: /personalized/playlist answers with or without a login. */
+  public JSONArray personalizedPlaylists(int limit) throws Exception {
+    try {
+      JSONObject r = weapi("/api/personalized/playlist", new JSONObject().put("limit", Math.max(1, Math.min(50, limit))));
+      JSONArray rows = r.optJSONArray("result");
+      if (rows != null && rows.length() > 0) return rows;
+    } catch (Exception ignored) {
+      // Fall through to the generic recommendation feed.
+    }
+    return recommendedPlaylists();
+  }
   public void createPlaylist(String name,boolean privacy) throws Exception {
     if(name.trim().isEmpty()||name.length()>40)throw new IOException("请输入 1–40 字的歌单名");
     JSONObject r=weapi("/api/playlist/create",new JSONObject().put("name",name.trim()).put("privacy",privacy?"10":"0").put("type","NORMAL"));

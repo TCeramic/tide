@@ -328,11 +328,6 @@ html[data-mobile=true][data-color-mode=light] #proof-page .proof-search::placeho
 /* 2026-10 歌词页重做：对齐桌面的层级（当前行大字 / 其余小字 / 上下渐隐 / 点按与拖动直接跳转） */
 html[data-mobile=true]{--lyric-anchor:42%}
 html[data-mobile=true] #app #lyric-view{display:flex;flex-direction:column;gap:8px;flex:1;height:auto;min-height:0;max-height:none;overflow:visible;margin-top:6px}
-.lyric-bar{display:flex;align-items:center;flex:0 0 auto}
-.lyric-languages{display:flex;gap:6px;width:100%;overflow-x:auto;padding:2px 0;scrollbar-width:none}
-.lyric-languages::-webkit-scrollbar{display:none}
-html[data-mobile=true] #app .lyric-languages button{flex:0 0 auto;width:auto;min-width:0;height:30px;border-radius:999px;padding:0 13px;font:500 12.5px/1 var(--tide-font);letter-spacing:.01em;color:var(--muted);background:transparent;border:1px solid transparent}
-html[data-mobile=true] #app .lyric-languages button[aria-pressed=true]{color:var(--text);background:var(--surface);border-color:var(--border)}
 .lyric-viewport{position:relative;flex:1;min-height:0}
 html[data-mobile=true] #app .lyric-viewport .all-lyrics{position:absolute;inset:0;flex:none;min-height:0;padding:30dvh 0 38dvh;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;touch-action:none;-webkit-mask-image:linear-gradient(to bottom,transparent,#000 14%,#000 82%,transparent);mask-image:linear-gradient(to bottom,transparent,#000 14%,#000 82%,transparent)}
 html[data-mobile=true] #app .lyric-entry{display:block;width:100%;height:auto;min-height:0;border:0;border-radius:0;background:none;text-align:left;padding:10px 2px;color:var(--text);opacity:.42;transition:opacity .26s ease,padding .2s ease}
@@ -359,3 +354,69 @@ html[data-color-mode=light]{--text:#0f2433;--muted:#3c5566;--border:#1b47614d}
 html[data-color-mode=light] #app .lyric-entry{color:var(--text)}
 html[data-mobile=true] #app .lyric-entry:focus{outline:none}
 html[data-mobile=true] #app .lyric-entry:focus-visible{outline:1px solid color-mix(in srgb,var(--accent) 70%,transparent);outline-offset:-3px;border-radius:10px}
+
+
+/* 2026-10-21 mobile pass: home library merge, menu tuning, seek affordances, queue cards,
+   settings sheet and a brighter lattice-dark backdrop. */
+#app .home-duo .library-card{justify-content:flex-start}
+#app .library-stack{display:flex;margin-top:auto;padding-top:14px}
+#app .library-stack img{width:30px;height:30px;border-radius:9px;object-fit:cover;margin-left:-9px;border:1px solid color-mix(in srgb,var(--text) 22%,transparent);box-shadow:0 4px 12px rgba(0,0,0,.28);background:#132433}
+#app .library-stack img:first-child{margin-left:0}
+
+#app .dropdown-menu{width:190px;padding:8px;border-radius:18px}
+#app .dropdown-menu #language-options{display:flex;flex-direction:column;gap:2px;padding-bottom:6px;margin-bottom:6px;border-bottom:1px solid var(--border)}
+#app .lyric-tuning{display:flex;flex-direction:column;gap:4px;padding:2px 2px 6px}
+#app .lyric-tuning .tuning-row{display:grid;grid-template-columns:26px 30px minmax(0,1fr) 30px;align-items:center;gap:8px}
+#app .lyric-tuning .tuning-row>span{font-size:11px;color:var(--muted);letter-spacing:.04em}
+#app .dropdown-menu .lyric-tuning .tuning-row button{display:grid;place-items:center;width:30px;height:30px;padding:0;border-radius:10px;border:1px solid var(--border);background:color-mix(in srgb,var(--surface) 78%,transparent);font-size:15px;line-height:1;text-align:center;color:var(--text)}
+#app .lyric-tuning output{font-size:12px;text-align:center;color:var(--text);font-variant-numeric:tabular-nums}
+
+#lyric-guide{position:absolute;top:var(--lyric-anchor,42%);left:0;right:0;display:flex;align-items:center;justify-content:flex-end;gap:10px;border:0;pointer-events:none;z-index:3;transform:translateY(-50%)}
+#lyric-guide::before{content:"";position:absolute;left:0;right:0;top:50%;border-top:1px dashed color-mix(in srgb,var(--accent) 62%,transparent)}
+#lyric-guide .guide-time{position:relative;padding:3px 9px;border-radius:999px;border:1px solid var(--border);background:color-mix(in srgb,var(--surface) 85%,transparent);backdrop-filter:blur(12px);font-size:11px;letter-spacing:.03em;color:var(--text);font-variant-numeric:tabular-nums}
+#lyric-guide .guide-jump{position:relative;pointer-events:auto;display:grid;place-items:center;width:38px;height:38px;padding:0;border-radius:50%;border:1px solid color-mix(in srgb,var(--accent) 62%,transparent);background:color-mix(in srgb,var(--accent) 88%,#08131d);color:#06131c;box-shadow:0 8px 20px color-mix(in srgb,var(--accent) 34%,transparent)}
+#lyric-guide .guide-jump svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+#lyric-guide[hidden]{display:none}
+#app .lyric-entry.pending .lyric-line{color:var(--accent);opacity:1}
+
+#app #queue-items{display:flex;flex-direction:column;gap:6px;max-height:58dvh;overflow:auto;padding:4px 0 6px}
+#app .queue-entry{display:grid;grid-template-columns:46px minmax(0,1fr) auto;gap:12px;align-items:center;width:100%;text-align:left;border:1px solid transparent;border-radius:16px;padding:8px;background:color-mix(in srgb,var(--surface) 55%,transparent)}
+#app .queue-entry img{width:46px;height:46px;border-radius:12px;object-fit:cover;display:block}
+#app .queue-copy{display:flex;flex-direction:column;gap:3px;min-width:0}
+#app .queue-copy strong,#app .queue-copy small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#app .queue-copy strong{font-size:14px;font-weight:600}
+#app .queue-copy small{font-size:11.5px;color:var(--muted)}
+#app .queue-time{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;padding-right:4px}
+#app .queue-entry[aria-current=true]{border-color:color-mix(in srgb,var(--accent) 55%,transparent);background:color-mix(in srgb,var(--accent) 15%,transparent)}
+#app .queue-entry[aria-current=true] .queue-copy strong{color:var(--accent)}
+
+#app .mobile-progress{margin-top:14px}
+#app #song-progress{appearance:none;-webkit-appearance:none;width:100%;height:26px;background:transparent;--seek-progress:0%}
+#app #song-progress::-webkit-slider-runnable-track{height:6px;border-radius:999px;background:linear-gradient(90deg,var(--accent) 0 var(--seek-progress),color-mix(in srgb,var(--text) 20%,transparent) var(--seek-progress) 100%)}
+#app #song-progress::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;margin-top:-5px;border-radius:50%;background:#fff;border:2px solid var(--accent);box-shadow:0 2px 10px rgba(0,0,0,.35);transition:transform .15s ease}
+#app #song-progress:active::-webkit-slider-thumb{transform:scale(1.14)}
+#app .mobile-progress>div{margin-top:8px;font-size:11px;letter-spacing:.02em}
+#app .seek-preview{padding:3px 8px;border-radius:999px;border:1px solid var(--border);background:color-mix(in srgb,var(--surface) 88%,transparent);backdrop-filter:blur(12px);color:var(--text);font-size:11px;font-variant-numeric:tabular-nums;transform:translateX(-50%)}
+
+#app .settings-sheet{position:relative;margin:10px 2px 20px;padding:20px 18px 10px;border-radius:26px;border:1px solid var(--border);background:color-mix(in srgb,var(--surface) 86%,transparent);backdrop-filter:blur(26px) saturate(1.16);box-shadow:0 24px 60px rgba(3,12,20,.28)}
+#app .settings-sheet .page-header{margin-bottom:6px}
+#app .settings-sheet .mobile-setting-group:last-of-type{border-bottom:0}
+html[data-color-mode=light] #app .settings-sheet{background:rgba(255,255,255,.8);border-color:rgba(18,48,66,.16);box-shadow:0 24px 60px rgba(18,48,66,.16)}
+html[data-color-mode=light] #app .settings-sheet :is(h1,h2,summary,.setting-link,strong){color:#0d2233}
+html[data-color-mode=light] #app .settings-sheet .muted{color:#405967}
+html[data-color-mode=light] #app .settings-sheet .mobile-setting-group{border-color:rgba(18,48,66,.14)}
+
+#app .playlist-separator{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:22px 0 10px;padding-top:14px;border-top:1px dashed color-mix(in srgb,var(--text) 22%,transparent)}
+#app .playlist-separator span{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+#app .playlist-separator-action{padding:6px 12px;border-radius:999px;border:1px solid var(--border);background:color-mix(in srgb,var(--surface) 70%,transparent);font-size:11.5px;color:var(--text)}
+#app .playlist-daily{margin:2px 0}
+
+html[data-mobile=true][data-shell=lattice][data-color-mode=dark] .native-paper-source{filter:brightness(1.55) saturate(1.28)}
+
+html[data-mobile=true] #app #lyric-guide{border:0;display:flex;align-items:center;justify-content:flex-end;gap:10px;transform:translateY(-50%)}
+html[data-mobile=true] #app #lyric-guide[hidden]{display:none}
+
+/* 0.4.3 polish：徽标限制在槽内，亮色卡片提对比 */
+html[data-mobile=true][data-color-mode=light] #app .home-card{background:rgba(255,255,255,.66);border-color:rgba(18,48,66,.16);box-shadow:0 10px 28px rgba(12,38,54,.10)}
+html[data-mobile=true][data-color-mode=light] #app .home-index{color:#1f3b4d;opacity:1}
+html[data-mobile=true][data-color-mode=light] #app .home-tagline{color:#233c4c}

@@ -8,9 +8,16 @@ export function attachAudioReactivity(element:HTMLAudioElement):()=>void {
   element.addEventListener('play',start);
   return ()=>{element.removeEventListener('play',start);source?.disconnect();analyser?.disconnect();void context?.close();analyser=null;audio=null;bins=null;pulse=previous=sampled=0;};
 }
+export type ReactivitySample={bass:number;beat:number};
+let virtual: (()=>ReactivitySample)|null=null;
+/** Mobile plays through Android's MediaPlayer, so there is no audio element to analyse.
+ *  A transport-driven envelope stands in for the FFT and keeps the background breathing. */
+export function attachVirtualReactivity(source:()=>ReactivitySample):()=>void{virtual=source;return ()=>{if(virtual===source)virtual=null;};}
 export function sampleAudioReactivity(now:number):{bass:number;beat:number}{
   const dt=sampled?Math.min(.15,(now-sampled)/1000):1/30;sampled=now;
-  if(!analyser||!bins||!audio||audio.paused){pulse*=Math.exp(-dt*9);return {bass:0,beat:pulse};}
+  if(!analyser||!bins||!audio||audio.paused){
+    if(virtual){const sample=virtual();const bass=Math.max(0,Math.min(1,sample.bass));pulse=Math.max(pulse*Math.exp(-dt*9),Math.max(0,Math.min(1,sample.beat)));return {bass,beat:pulse};}
+    pulse*=Math.exp(-dt*9);return {bass:0,beat:pulse};}
   analyser.getByteFrequencyData(bins);
   const count=Math.max(2,Math.ceil(220/(analyser.context.sampleRate/analyser.fftSize)));
   let energy=0;for(let i=1;i<=count;i++)energy+=(bins[i]??0)/255;energy/=count;

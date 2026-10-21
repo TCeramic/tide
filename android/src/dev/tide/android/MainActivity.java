@@ -1696,14 +1696,25 @@ public class MainActivity extends Activity {
                 if (result.optJSONObject("profile") != null) saveAccountProfile(result.getJSONObject("profile"));
                 break;
               case "playlists":
-                result = cloud.account();
-                JSONObject profile = result.optJSONObject("profile");
-                if (profile == null) throw new IOException("请先扫码或验证码登录网易云");
-                saveAccountProfile(profile);
-                response.put(
-                    "playlists",
-                    webPlaylists(cloud.playlists(profile.optLong("userId")).optJSONArray("playlist")));
-                try{response.put("recommended",webPlaylists(cloud.recommendedPlaylists()));}catch(Exception ignored){response.put("message","推荐歌单暂不可用，请稍后重试");}
+                {
+                  JSONArray mine = new JSONArray();
+                  try {
+                    result = cloud.account();
+                    JSONObject profile = result.optJSONObject("profile");
+                    if (profile != null) {
+                      saveAccountProfile(profile);
+                      mine = webPlaylists(cloud.playlists(profile.optLong("userId")).optJSONArray("playlist"));
+                    }
+                  } catch (Exception ignored) {
+                    // Logged out or offline: the personal feed below still works.
+                  }
+                  response.put("playlists", mine);
+                  try {
+                    response.put("recommended", webPlaylists(cloud.personalizedPlaylists(24)));
+                  } catch (Exception ignored) {
+                    response.put("message", "推荐歌单暂不可用，请稍后重试");
+                  }
+                }
                 break;
               case "collection":
                 songs = cloud.collection(data.optString("id"));
