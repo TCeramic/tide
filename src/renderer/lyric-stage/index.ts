@@ -53,7 +53,10 @@ export type LyricStageErrorHandler = (error: unknown) => void;
 const PACK_IDS = ["sonnet", "tempera", "lumiere", "hanabi"] as const;
 const isLumiPack = (pack: LyricStagePack): pack is typeof PACK_IDS[number] => (PACK_IDS as readonly string[]).includes(pack);
 const FRAME_INTERVAL_MS: Record<PerformanceTier, number> = { smooth: 1000 / 30, balanced: 1000 / 45, vivid: 1000 / 60 };
-const QUALITY: Record<PerformanceTier, number> = { smooth: 0.72, balanced: 0.86, vivid: 1 };
+const QUALITY: Record<PerformanceTier, number> = { smooth: 0.72, balanced: 0.9, vivid: 1 };
+// Phones report 2.5-3.5 DPR; capping at 2 keeps text crisp on a 1080p panel without
+// paying for a 3x backing store. Desktop keeps the original 1.5 cap.
+const MOBILE_DPR_CAP: Record<PerformanceTier, number> = { smooth: 1, balanced: 1.5, vivid: 2 };
 
 const fallbackTheme: LyricStageTheme = {
   name: "Tide",
@@ -292,10 +295,12 @@ class LyricStageView implements LyricStageHandle {
 
   private dimensions() {
     const rect = this.parent.getBoundingClientRect();
+    const mobile = document.documentElement.dataset.mobile === "true";
+    const cap = mobile ? MOBILE_DPR_CAP[this.state.performance] : 1.5;
     return {
       width: Math.max(1, Math.round(rect.width || window.innerWidth)),
       height: Math.max(1, Math.round(rect.height || window.innerHeight)),
-      resolution: Math.max(0.5, Math.min(window.devicePixelRatio || 1, document.documentElement.dataset.mobile === "true" ? 1 : 1.5) * QUALITY[this.state.performance]),
+      resolution: Math.max(0.5, Math.min(window.devicePixelRatio || 1, cap) * QUALITY[this.state.performance]),
     };
   }
 

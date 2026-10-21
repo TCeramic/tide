@@ -1397,6 +1397,15 @@ public class MainActivity extends Activity {
         return collectionRows;
       case "queue":
         return service() == null ? Song.read(this, "queue") : service().queue;
+      case "daily":
+        {
+          // The daily page may reuse the WebView's cached list without asking Java to
+          // reload it, so collectionRows can still hold another playlist (or be empty).
+          // Union it with today's persisted list so the tapped id is always found.
+          ArrayList<Song> daily = new ArrayList<>(collectionRows);
+          daily.addAll(Song.read(this, "daily-tide"));
+          return daily;
+        }
       default:
         return library;
     }
@@ -1458,11 +1467,14 @@ public class MainActivity extends Activity {
             }
           }
           List<Song> songs = sourceRows(data.optString("source"));
+          boolean started = false;
           for (int i = 0; i < songs.size(); i++)
             if (songs.get(i).id.equals(id)) {
               PlaybackService.start(this, songs, i);
+              started = true;
               break;
             }
+          if (!started) toast("没有找到这首歌，列表可能已刷新，请重新打开歌单");
           break;
         }
       case "pick-backdrop":

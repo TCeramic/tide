@@ -537,3 +537,16 @@ html[data-mobile=true] .tide-bit-stage-canvas{image-rendering:pixelated}
  html[data-mobile=true] #app #recent-strip .recent-item small{display:none}
  html[data-mobile=true] #app #recent-strip .recent-item strong{font-size:9.5px;line-height:1.2}
 }
+
+/* 2026-10 landscape fixes: keep song title on the lyric page, keep the player menu inside the viewport */
+@media (orientation:landscape) and (max-height:620px){
+ html[data-player-view=lyrics] #app #player-page{grid-template-rows:48px auto minmax(0,1fr) 62px}
+ html[data-player-view=lyrics] #app #lyric-view{grid-row:2/5}
+ html[data-player-view=lyrics] #app .player-heading{display:flex;grid-column:2;grid-row:2;align-self:start;margin:0;padding-top:4px}
+ html[data-player-view=lyrics] #app .player-heading h1{font-size:20px}
+ html[data-player-view=lyrics] #app .player-heading p{font-size:11px;margin:4px 0}
+ html[data-player-view=lyrics] #app .mobile-progress{grid-row:3;align-self:center;padding:0}
+ html[data-player-view=lyrics] #app .player-controls{grid-row:4;align-self:end}
+ #app #player-menu{position:fixed;top:56px;right:12px;width:min(280px,46vw);max-height:calc(100dvh - 68px);overflow-y:auto;overscroll-behavior:contain;z-index:40}
+}
+.dropdown-menu{max-height:calc(100dvh - 80px);overflow-y:auto;overscroll-behavior:contain}
